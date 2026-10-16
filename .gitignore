@@ -43,3 +43,8 @@ pnpm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# SQLite 日志与辅助文件
+*.db-*
+*.sqlite-*
+*.sqlite3-*
