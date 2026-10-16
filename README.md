@@ -6,7 +6,7 @@
 
 - 仓库：https://github.com/GuiYe314/team-toolbox（私有）
 - 文档基线日期：2026-10-16
-- 当前状态：仅文档基线，产品代码与测试尚未开始。**进度唯一来源：[docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)**（本文件不复制进度）
+- 当前状态：**进度唯一来源：[docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)**（本文件不复制进度；阶段一脚手架 TASK-001 已完成，待 Codex 验收，详情见状态文档）
 
 ## 文档导航
 

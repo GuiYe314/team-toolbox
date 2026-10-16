@@ -1,24 +1,24 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
-- 更新日期：2026-10-16
+- 更新日期：2026-10-16（TASK-001 完成，待 Codex 复核）
 - 本文件是项目进度的**唯一来源**；README 等文档只链接引用、不复制进度。更新规则见 [AGENTS](../AGENTS.md)。
 - 仓库：https://github.com/GuiYe314/team-toolbox（私有）
 
 ## 1. 当前基线
 
-**文档基线**：8 份 Markdown 文档与 .gitignore 已编写完成（内容见本仓库）。**当前没有产品代码、没有测试、没有已运行或已部署的实例。**下表“完成”仅指对应交付物已编写并通过对应验证；不存在任何已执行的构建、测试或部署。
+**文档基线 + 阶段一脚手架**：阶段一 TASK-001 已完成全部交付物（技术栈决策、脚手架、env.example、实际启动验证），**待 Codex 验收**。后端 `npm start` 与前端 `npm run dev` 在本机（Windows + Node.js v22.22.2）实际验证可启动并联调通过。**未实现任何业务功能**——文档 CRUD、分类、标签、搜索、最近更新均未开始。
 
 ## 2. 任务状态
 
-当前开发阶段：阶段一（项目基础），尚未开始。功能阶段定义见 [开发计划](DEVELOPMENT_PLAN.md) 第 1 节；阶段一至六为第一版，阶段七、八为后续规划。
+当前开发阶段：阶段一（项目基础），**TASK-001 已完成，等待 Codex 验收**；未进入阶段二。功能阶段定义见 [开发计划](DEVELOPMENT_PLAN.md) 第 1 节；阶段一至六为第一版，阶段七、八为后续规划。
 
 | 任务 | 状态 | 说明 |
 |---|---|---|
 | 文档基线（本批 9 个文件） | 完成 | 编写完成，自检见第 4 节 |
-| TASK-001 技术栈决策与脚手架 | 未开始 | **下一任务** |
-| TASK-002 服务端基础与持久化层 | 未开始 | 依赖 TASK-001 |
+| TASK-001 技术栈决策与脚手架 | **完成（待 Codex 验收）** | 决策已写入 [ARCHITECTURE](ARCHITECTURE.md) 第 9 节；后端/前端骨架已实装；env.example 已提供；启动命令已验证；不进入阶段二直至验收通过。 |
+| TASK-002 服务端基础与持久化层 | 未开始 | 依赖 TASK-001 验收通过 |
 | TASK-003 文档 CRUD API | 未开始 | 依赖 TASK-002 |
-| TASK-004 前端框架与导航布局 | 未开始 | 依赖 TASK-001 |
+| TASK-004 前端框架与导航布局 | 未开始 | 依赖 TASK-001 验收通过 |
 | TASK-005 Markdown 编辑与文档页面 | 未开始 | 依赖 TASK-003、TASK-004 |
 | TASK-006 分类与标签 | 未开始 | 依赖 TASK-005 |
 | TASK-007 搜索 | 未开始 | 依赖 TASK-005 |
@@ -28,32 +28,47 @@
 | TASK-D01 实时共同编辑（延期） | 未开始 | 阶段八，依赖 TASK-D02 与协同方案确认 |
 | TASK-D02 账号与权限（延期） | 未开始 | 阶段七，依赖 TASK-010 与账号方案确认 |
 
-数据库方案已确定为 SQLite（2026-10-16，用户指定），数据库初始化、迁移与业务读写尚未实现；TASK-001 仍未开始，不因完成一项选型而标记任务完成。
+数据库方案已确定为 SQLite（2026-10-16，用户指定）；驱动 = better-sqlite3；迁移 = 手写 NNN_xxx.sql + `schema_migrations` 表；建表初版（001_init.sql）已实装，**业务读写层尚未实现**（TASK-002）。
 
 ## 3. 下一任务
 
-**TASK-001（技术栈决策与项目脚手架）**：按 [DEVELOPMENT_PLAN](DEVELOPMENT_PLAN.md) 执行——产出技术栈决策记录（更新 [ARCHITECTURE](ARCHITECTURE.md) 第 9 节待决策清单）、项目脚手架、env.example；验证启动命令并记录输出摘要，随后更新本文件与 CHANGELOG。
+**TASK-001 验收前的纪律**：在 Codex 复核通过前不要自行启动 TASK-002~TASK-010。
+
+**TASK-001 通过验收后的下一任务**：TASK-002（服务端基础与持久化层）与 TASK-004（前端框架与导航布局）并行（TASK-001 是它们的唯一前置）。本文件将在 Codex 验收后更新。
 
 ## 4. 验证证据（截至 2026-10-16）
 
-均为**文档层面的编写时自检**；Codex 已独立复核：9 个文件存在，32 个本地文档链接有效，14 个特性及 12 个任务定义唯一，全部特性有任务覆盖，12 个任务的依赖无环；已人工审阅全部文档。未执行任何构建/测试/部署（尚无代码）：
+**文档基线自检（沿用 2026-10-16 基线）**：9 个文件存在，链接有效，编号唯一，依赖无环，双向覆盖一致；详见 [CHANGELOG.md](../CHANGELOG.md) 的 2026-10-16 条目。
 
-- 编号唯一性：F-xx-xxx 共 14 个（12 项 MVP + 2 项延期），TASK-xxx 共 12 个（10 项 + 2 项延期），无重复、无复用。
-- 依赖无环：DEVELOPMENT_PLAN 第 3 节依赖关系人工核对为有向无环。
-- 双向覆盖：FUNCTIONAL_SPEC 第 5 节矩阵与 DEVELOPMENT_PLAN 各任务“覆盖特性”字段互查一致，无孤立特性、无孤立任务。
-- 链接自检：各文档相互引用的相对路径与本文本集内的文件名一致（README 引用的 docs/*.md 均在本批文件中）。
-- .gitignore 核对：排除依赖、构建产物、密钥、.env 系列、本地数据（data/、*.db、backups/）与日志，且通过例外规则保留 env.example。
+**TASK-001 实际验证摘要**：
 
-- 阶段规划更新：细化为六个第一版阶段与两个后续阶段；保留原任务编号；实时协同在账号权限之后执行。本次未调用 WorkBuddy，未开始产品编码。
+- 仓库目录新增 `backend/`、`frontend/`、`data/`（数据库文件；被 `.gitignore` 排除）；修改 `docs/ARCHITECTURE.md`、`docs/USER_GUIDE.md`、本文件、`CHANGELOG.md`；其他文档与 `.gitignore` 未改。
+- `backend/`：`backend/package.json`、`backend/src/index.js`、`backend/src/db.js`、`backend/src/migrate.js`、`backend/src/markdown.js`、`backend/src/migrations/001_init.sql`、`backend/.env.example`、`backend/.gitignore`。
+- `frontend/`：`frontend/package.json`、`frontend/vite.config.js`、`frontend/index.html`、`frontend/src/main.js`、`frontend/src/App.vue`、`frontend/.env.example`、`frontend/.gitignore`。
+- **依赖安装**：`npm install`（后端）输出 `added 117 packages in 26s`；`npm install`（前端）输出 `added 36 packages in 1m`。
+- **迁移**：`npm run migrate` 首次输出 `[migrate] applied 001_init.sql`（生成 `data/team-toolbox.sqlite3`，约 53248 字节）；二次输出 `applied_in_this_run=0`，幂等通过。
+- **后端启动**：`HOST=127.0.0.1 PORT=3000 npm start` 控制台输出 `[server] listening on http://127.0.0.1:3000` 与 `[server] node: v22.22.2`；`curl -sS http://127.0.0.1:3000/api/health` 返回 200 + `{"status":"ok",...,"db":{"ok":true,"size_bytes":53248}}`。
+- **Markdown 渲染冒烟**：`POST /api/_dev/render-markdown` 输入含 `<script>alert(1)</script>` 与 `javascript:` 协议外链，输出 `<h2>`/`<p>`/`<ul>`/`<pre>`/`<code>`，`<script>` 被剥离、`javascript:` href 被剥离、外链 `<a>` 自动加 `rel="noopener noreferrer"`，安全渲染通过。
+- **前端启动**：`npm run dev` 输出 `VITE v6.4.4 ready in 1631 ms`；`curl http://127.0.0.1:5173/` 返回 200，HTML 含 `<div id="app">`；`/src/main.js`、`/src/App.vue` 模块返回 200。
+- **前后端代理联通**：`curl http://127.0.0.1:5173/api/health` 通过 Vite proxy 命中后端，返回与 3000 直接访问一致的响应。
+- **`npm run build`（前端）**：输出 `dist/index.html`、`dist/assets/index-*.css`、`dist/assets/index-*.js`，未报错。
+
+未验证（明确范围之外）：
+- 未执行任何单元/端到端测试（无测试代码，TASK-002 起引入）。
+- 未做内网/远端部署验证（受控内网部署属于阶段六 TASK-010）。
+- 未启用公网绑定（按 ARCHITECTURE 第 7 节边界禁止）。
+- 备份与恢复尚未实现（TASK-009）。
+- 自动备份、协同、账号权限、Markdown 编辑器、SQLite FTS5 待对应任务决策/实现。
 
 ## 5. 风险
 
 | 风险 | 影响 | 缓解 |
 |---|---|---|
-| 其余技术栈与 SQLite 驱动未定 | 项目脚手架与数据库接入尚未落实 | TASK-001 完成剩余决策并记录理由 |
-| 无认证部署于内网 | 误暴露公网导致数据公开可写 | F-OPS-001 边界声明；默认绑定内网地址；文档禁令 |
+| 其余技术栈与 SQLite 驱动未定 | 项目脚手架与数据库接入尚未落实 | TASK-001 完成剩余决策并记录理由（**已缓解**：决策已写入 ARCHITECTURE 第 9 节并实测通过） |
+| 无认证部署于内网 | 误暴露公网导致数据公开可写 | F-OPS-001 边界声明；默认绑定 127.0.0.1；文档禁令；env.example 显式提醒 |
 | 保存冲突体验差 | 并发编辑时误覆盖他人修改 | 乐观版本 + 409 + 人工两选项；实时协同已列延期规划 |
 | 备份依赖手动 | 数据丢失风险 | TASK-009 恢复演练；自动化列入待决策 |
+| Vue SFC 解析器限制 | `<script>` 块中含字面量 `</script>` 会让构建失败 | 已在脚手架文档与代码风格上规避；本任务已实测不含该字面量的完整构建 |
 | 单人推进 | 知识与进度集中 | 决策与状态全部文档化，CHANGELOG 追加留痕 |
 
 ## 6. 更新纪律

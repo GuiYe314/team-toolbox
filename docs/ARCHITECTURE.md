@@ -59,17 +59,33 @@
 
 ## 9. 待决策清单（TASK-001 的输入与输出）
 
-| 决策项 | 候选方向 | 状态 |
-|---|---|---|
-| 服务端语言/框架 | 任一团队熟悉的成熟栈 | 待定 |
-| 持久化引擎 | SQLite | 已决策：用户于 2026-10-16 指定；驱动、迁移工具待选 |
-| 前端框架 | 任一主流方案 | 待定 |
-| Markdown 编辑器形态 | 分屏预览 / 所见即所得 | 待定 |
-| Markdown 安全渲染方案 | 方向已定（默认转义 + 白名单），具体库待选 | 待定 |
-| 搜索实现 | SQL LIKE / 轻量倒排索引 | 待定 |
-| 备份自动化 | 手动 / 定时任务 | 待定（MVP 默认手动） |
+> 决策日期：2026-10-16。MVP 阶段一已就以下选项做出决策。下一任务（TASK-002 起）将依据本表落地。
 
-选型约束：不绑定“最新版本”事实，取决策日可用的稳定版本；优先团队熟悉度与部署简单性。决策后在本表记录结论、理由与日期。
+| 决策项 | 候选方向 | 状态 | 决策与理由 |
+|---|---|---|---|
+| 服务端语言/运行时 | Node.js / Python / Go / Java | 已决策：Node.js | 单一技术栈减少部署组件；社区成熟；与前端工具链共用。绑定 LTS 行：v22.x（Active LTS，代号 Jod）。本机验证版本：v22.22.2（npm 10.9.7）。 |
+| 服务端框架 | Express / Fastify / Koa / NestJS | 已决策：Express 5 | 学习曲线平缓，团队接手成本低；Express 5 已发布稳定版（5.3.0，2026 年仍在维护），需 Node ≥ 18，本项目用 v22 满足。 |
+| 持久化引擎 | SQLite | 已决策：用户于 2026-10-16 指定 | 见本文件第 10 节。 |
+| SQLite 驱动 | better-sqlite3 / node:sqlite（内置）/ sqlite3 / Prisma | 已决策：better-sqlite3 | 同步 API 配合 Express 路由简洁高效；官方维护 prebuilt 二进制，部署免编译；事务支持完整。 |
+| 迁移工具 | 手写迁移脚本 / umzug / Drizzle Kit / dbmate | 已决策：手写迁移脚本（不引入额外依赖） | 扫描 `migrations/NNN_xxx.sql` 文件，配合 `schema_migrations` 表记录版本；事务包裹保证原子性。理由：MVP 仅 1 套 schema，手写更可读、可排错；后续复杂可再迁移至 umzug/Drizzle。 |
+| 前端框架 | Vue / React / Svelte / 纯原生 | 已决策：Vue 3（Options API + `<script>` 普通写法） | 上手快、运行时小、与 Vite 模板默认集成；不引入 TypeScript 以保持构建链最小。 |
+| 前端构建工具 | Vite / webpack / Parcel | 已决策：Vite 6 | Vite v6.4.4 当前稳定；Node 要求 v20.19+ / v22.12+，本项目 v22.22.2 满足。 |
+| 路由 | Vue Router / 自写 hash 路由 | 已决策：Vue Router 4 | MVP 阶段依赖相对薄；保留 path-based 路由便于受控内网访问。 |
+| Markdown 编辑器形态 | 分屏预览 / 所见即所得 / 纯 textarea | 已决策：分屏预览（textarea + 渲染结果并列） | 风险低，所见即所得对未知输入可能丢失或破坏源码；textarea 更接近"原文存储"原则。实现置于阶段三 TASK-005。 |
+| Markdown 解析 | marked / markdown-it / remark | 已决策：marked | 速度快、API 简洁；v14 同步 API 默认禁用内联 HTML，配合 sanitize-html 走白名单净化。 |
+| Markdown 安全渲染方案 | marked + sanitize-html / marked + DOMPurify+jsdom / xss | 已决策：marked + sanitize-html | sanitize-html 基于 htmlparser2，无 DOM 依赖；服务端无需引入 jsdom（避免 DOMPurify README 提示的 happy-dom/jsdom 历史 CVE 风险）；白名单 + 强制 `rel="noopener noreferrer"`。 |
+| 搜索实现 | SQL LIKE / SQLite FTS5 / 外部索引 | 已决策：MVP 用 SQL LIKE，参数化查询；标题/正文均按 `LOWER(...) LIKE LOWER(?)`；FTS5 待 TASK-007 评估 | 阶段一/TASK-007 前不引入 FTS 复杂度；MVP 数据量小，参数化 LIKE 足够。FTS5 在中文分词上需额外决策，记入待决策。 |
+| 备份自动化 | 手动 / 定时任务 | 待决策：MVP 默认手动触发（TASK-009 实现）；自动化列入后续 | 详见 [DEVELOPMENT_PLAN](DEVELOPMENT_PLAN.md) 阶段五。 |
+| HTTP 绑定地址 | 127.0.0.1 / 0.0.0.0 / 内网 IP | 已决策：默认 127.0.0.1，可由 `HOST` 环境变量改为内网 IP | 与本文件第 7 节"内部访问边界"一致；默认值拒绝公网。 |
+
+补充说明：
+
+- 选型严格按"决策日可用的稳定版本"选取，不绑定"最新版本"事实；版本号在实施时通过 `npm view` 复核。
+- 上述决策不构成对未来协同（F-COL-001）/账号权限（F-SEC-001）阶段栈的承诺；届时重审。
+- 脚手架目录约定：
+  - `backend/` —— Node.js 后端（Express 5 + better-sqlite3 + marked + sanitize-html）。
+  - `frontend/` —— Vue 3 + Vite 前端；`VITE_API_BASE` 默认 `/api`，Vite dev server 代理到后端 `http://127.0.0.1:3000`。
+  - `data/team-toolbox.sqlite3` —— 数据库文件，默认相对仓库根；`backups/` —— 备份输出目录；均被 `.gitignore` 排除。
 
 ## 10. SQLite 数据库实施约定
 

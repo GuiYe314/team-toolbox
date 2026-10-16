@@ -1,6 +1,8 @@
 # 用户指南（USER_GUIDE）
 
-> **重要：本文描述的是规划中的操作流程。截至 2026-10-16，team-toolbox 仅完成文档基线，未实现任何功能，不存在可运行的页面。** 所有“操作步骤”均为目标行为说明，供开发对照与未来使用参考。当前**没有任何可执行的启动、部署或使用命令**——启动方式将在 TASK-001 完成并验证后补充到本文，在此之前本文不会出现命令。实现进度见 [PROJECT_STATUS](PROJECT_STATUS.md)。
+> **范围说明**：截至 2026-10-16，team-toolbox 已完成文档基线与阶段一（TASK-001）脚手架：**可以本机启动后端 HTTP 服务与前端 Vite 开发服务器，但未实现任何业务功能**。所有"操作步骤"中属于业务的部分仍为目标行为说明；已实际验证过的内容是本节"3. 本机启动（已验证）"与"4. 当前限制"。
+>
+> 当前**没有任何业务数据读写接口**（文档 CRUD、分类、标签、搜索由后续 TASK-002/003/005/006/007 落地）；后端仅 `/api/health` 与临时冒烟接口 `POST /api/_dev/render-markdown`。
 
 ## 1. 预期使用场景
 
@@ -37,7 +39,79 @@
 - **数据在服务端**：所有团队文档保存在服务器上，任何成员在任何设备/浏览器访问同一地址看到的是同一份数据；浏览器本地不保存团队数据。
 - **重要变更后建议备份**：由管理员手动触发导出（MVP 为手动备份）。
 
-## 4. 当前限制（截至文档基线）
+## 4. 本机启动（已验证）
+
+> 以下命令在 **2026-10-16 Windows + Node.js v22.22.2（npm 10.9.7）** 上实际执行并通过验证。生产部署不在本阶段范围。
+
+### 4.1 前置
+
+- 已安装 Node.js ≥ 20.19（推荐 v22 LTS，本项目已用 v22.22.2 验证）。
+- 已克隆仓库到本机。
+- 不需要任何外部数据库或服务。
+
+### 4.2 准备配置（每个子项目一次）
+
+```
+# backend/.env（参考 backend/.env.example，**真实 .env 不入库**）
+HOST=127.0.0.1
+PORT=3000
+DB_PATH=data/team-toolbox.sqlite3
+
+# frontend/.env（参考 frontend/.env.example）
+VITE_DEV_HOST=127.0.0.1
+VITE_DEV_PORT=5173
+VITE_API_BASE=/api
+```
+
+### 4.3 安装依赖
+
+```
+cd backend
+npm install
+
+cd ../frontend
+npm install
+```
+
+实际验证摘要：后端安装 117 个包（耗时约 26s，含 better-sqlite3 prebuilt 二进制）；前端安装 36 个包（耗时约 1m，含 Vite 6 与 Vue 3）。
+
+### 4.4 初始化数据库（首次或升级迁移时）
+
+```
+cd backend
+npm run migrate
+```
+
+实际验证摘要：首次运行输出 `[migrate] applied 001_init.sql`，数据库 `data/team-toolbox.sqlite3` 创建；二次运行 `applied_in_this_run=0`，证明迁移幂等。
+
+### 4.5 启动后端
+
+```
+cd backend
+npm start          # 或 npm run dev（Node --watch 自动重启）
+```
+
+实际验证摘要：控制台输出 `[server] listening on http://127.0.0.1:3000` 与 `node: v22.22.2`。`GET /api/health` 返回 200：
+
+```json
+{"status":"ok","service":"team-toolbox-backend","version":"0.1.0","db":{"path":"...team-toolbox.sqlite3","ok":true,"size_bytes":53248}}
+```
+
+### 4.6 启动前端（开发模式）
+
+```
+cd frontend
+npm run dev        # 或 npm run build 后 npm run preview
+```
+
+实际验证摘要：Vite 启动后输出 `VITE v6.4.4 ready in 1631 ms`，HTTP `http://127.0.0.1:5173/` 返回 200；`/src/main.js`、`/src/App.vue` 模块均 200；`/api/*` 由 Vite proxy 转发到后端 `http://127.0.0.1:3000`，已通过 `GET /api/health` 与 `POST /api/_dev/render-markdown` 验证联通。
+
+### 4.7 关闭
+
+- 后端：`Ctrl+C`（已实现 SIGINT/SIGTERM 优雅关闭）。
+- 前端：`Ctrl+C`。
+
+## 5. 当前限制（截至阶段一 TASK-001 完成）
 - 无账号与权限区分：能访问内网页面的人即可读写全部文档。
 - 无实时协同：多人同时编辑同一文档会触发保存冲突，需人工处理，不会自动合并。
 - 无回收站：删除操作需谨慎。

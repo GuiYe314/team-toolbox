@@ -1,0 +1,14 @@
+# 前端依赖与构建产物
+node_modules/
+dist/
+
+# 本地环境（保留 .env.example）
+.env
+.env.*
+!.env.example
+
+# 编辑器与系统
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

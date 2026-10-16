@@ -1,0 +1,22 @@
+# 后端依赖与本地状态
+node_modules/
+
+# 本地环境（保留 .env.example）
+.env
+.env.*
+!.env.example
+
+# SQLite 与辅助文件
+data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+
+# 备份（应位于项目根或部署目录的备份目录，被 .gitignore 排除）
+backups/
+
+# 日志
+logs/
+*.log
+npm-debug.log*
