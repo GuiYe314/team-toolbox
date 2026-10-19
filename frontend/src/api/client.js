@@ -71,6 +71,27 @@ export const api = {
     // ── 备份导入 / 导出 ──
     // exportBackup 返回 { res, body }，body 即快照 JSON（调用方负责转 Blob 下载）
     exportBackup: () => request('GET', '/backup/export'),
+    // exportBackupGzip 直接返回原始 gzip 字节（Content-Type: application/gzip，
+    // 不设 Content-Encoding，故不会被自动解压），调用方自行打包成 .gz 文件。
+    exportBackupGzip: () => fetch(BASE + '/backup/export?format=gz').then((res) => res.arrayBuffer()),
     // importBackup 传解析后的快照对象；合并模式，不删除既有数据
-    importBackup: (snapshot) => request('POST', '/backup/import', snapshot)
+    importBackup: (snapshot) => request('POST', '/backup/import', snapshot),
+
+    // ── 图片上传（TASK-012）──
+    // 走 multipart/form-data，字段名固定为 image；不使用 request() 以免被 JSON 序列化
+    uploadImage: (file) => {
+        const form = new FormData();
+        form.append('image', file, file.name || 'image.png');
+        return fetch(BASE + '/uploads', { method: 'POST', body: form })
+            .then(async (res) => {
+                let body = null;
+                try { body = await res.json(); } catch { /* 非 JSON 响应 */ }
+                return { res, body };
+            })
+            .catch((networkErr) => {
+                const err = new Error('网络请求失败，请确认后端服务已启动且网络连通');
+                err.network = true;
+                throw err;
+            });
+    }
 };

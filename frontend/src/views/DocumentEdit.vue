@@ -66,9 +66,30 @@
                 <button class="mode-btn" :class="{ active: viewMode === 'write' }" @click="viewMode = 'write'">编写</button>
                 <button class="mode-btn" :class="{ active: viewMode === 'split' }" @click="viewMode = 'split'">分屏</button>
                 <button class="mode-btn" :class="{ active: viewMode === 'preview' }" @click="viewMode = 'preview'">预览</button>
+                <!-- 图片工具：选文件上传，或直接 Ctrl+V 粘贴剪贴板截图 -->
+                <button
+                    class="mode-btn mode-btn-tool"
+                    type="button"
+                    :disabled="uploading"
+                    :title="uploading ? '正在上传图片…' : '插入图片（也可直接粘贴截图或拖入图片）'"
+                    @click="pickImage"
+                >{{ uploading ? '上传中…' : '🖼 插入图片' }}</button>
+                <input
+                    ref="imageInput"
+                    class="image-input-hidden"
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/avif"
+                    @change="onImageSelected"
+                />
             </div>
+            <p v-if="imageError" class="nt-state nt-state-error image-tip">{{ imageError }}</p>
 
-            <div class="edit-body" :class="'mode-' + viewMode">
+            <div
+                class="edit-body"
+                :class="'mode-' + viewMode"
+                @dragover.prevent="onDragOver"
+                @drop.prevent="onDrop"
+            >
                 <p v-if="loadError" class="nt-state nt-state-error">{{ loadError }}</p>
 
                 <template v-else>
@@ -78,7 +99,9 @@
                             class="md-input"
                             spellcheck="false"
                             placeholder="输入 Markdown 正文…"
+                            ref="mdInput"
                             @input="onInput"
+                            @paste="onPaste"
                         ></textarea>
                     </div>
                     <div v-show="viewMode !== 'write'" class="pane pane-preview">
@@ -126,6 +149,8 @@ export default {
             previewHtml: '',
             draftRestored: false,
             viewMode: 'split',
+            uploading: false,
+            imageError: '',
             _previewTimer: null,
             _draftTimer: null
         };
@@ -244,6 +269,77 @@ export default {
         },
         onInput() {
             this.scheduleDraft();
+        },
+        // ── 图片插入（TASK-012）──
+        // 三种入口：工具栏按钮选文件、Ctrl+V 粘贴剪贴板截图、直接拖拽到编辑区。
+        // 统一走 uploadImage → 在光标处插入 Markdown 图片语法。
+        pickImage() {
+            if (this.uploading) return;
+            if (this.$refs.imageInput) this.$refs.imageInput.click();
+        },
+        onImageSelected(e) {
+            const file = e.target && e.target.files && e.target.files[0];
+            if (e.target) e.target.value = '';   // 允许重复选择同一文件
+            if (file) this.uploadImage(file);
+        },
+        onPaste(e) {
+            // 剪贴板里的图片（截图）优先于纯文本
+            const items = e.clipboardData && e.clipboardData.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.type && item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    if (file) {
+                        e.preventDefault();
+                        this.uploadImage(file);
+                    }
+                    return;
+                }
+            }
+        },
+        onDragOver() {
+            // 视觉反馈由 .edit-body.dragging 处理，这里仅阻止默认行为
+        },
+        onDrop(e) {
+            const files = e.dataTransfer && e.dataTransfer.files;
+            if (!files || !files.length) return;
+            const image = Array.from(files).find((f) => f.type.startsWith('image/'));
+            if (image) this.uploadImage(image);
+            else this.imageError = '拖入的文件不是图片，已忽略。';
+        },
+        async uploadImage(file) {
+            if (this.uploading) return;
+            this.uploading = true;
+            this.imageError = '';
+            try {
+                const { res, body } = await api.uploadImage(file);
+                if (!res.ok) throw new Error((body && body.message) || '图片上传失败');
+                // 无文件名时用 alt 空文本；文件名去掉扩展名作为 alt 更有助于无障碍与SEO
+                const alt = (file.name || '').replace(/\.[^.]+$/, '');
+                this.insertAtCursor(`\n![${alt}](${body.url})\n`);
+                this.scheduleDraft();
+            } catch (err) {
+                this.imageError = err.network ? err.message : (err.message || '图片上传失败，请稍后重试');
+            } finally {
+                this.uploading = false;
+            }
+        },
+        /** 在 textarea 光标处插入文本；若拿不到选区则追加到末尾。 */
+        insertAtCursor(text) {
+            const el = this.$refs.mdInput;
+            const current = this.form.content_md || '';
+            if (!el) {
+                this.form.content_md = current + text;
+                return;
+            }
+            const start = el.selectionStart != null ? el.selectionStart : current.length;
+            const end = el.selectionEnd != null ? el.selectionEnd : current.length;
+            this.form.content_md = current.slice(0, start) + text + current.slice(end);
+            this.$nextTick(() => {
+                const pos = start + text.length;
+                el.focus();
+                el.setSelectionRange(pos, pos);
+            });
         },
         scheduleDraft() {
             clearTimeout(this._draftTimer);
@@ -501,6 +597,28 @@ export default {
     background: var(--color-surface);
     color: var(--color-text);
     box-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+}
+
+/* 图片插入工具按钮：与模式切换视觉区分，避免误以为也是模式切换 */
+.mode-btn-tool {
+    margin-left: auto;
+    color: var(--color-text-muted, #787774);
+    border: 1px dashed var(--color-border-strong, #d4d3cf);
+}
+.mode-btn-tool:hover:not(:disabled) {
+    color: #2383e2;
+    border-color: #2383e2;
+    border-style: solid;
+}
+.mode-btn-tool:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+.image-input-hidden {
+    display: none;
+}
+.image-tip {
+    margin: 6px 0 0;
 }
 
 /* 编辑区 */

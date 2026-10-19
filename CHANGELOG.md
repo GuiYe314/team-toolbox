@@ -4,6 +4,36 @@
 
 ## 2026-10-19
 
+### TASK-012 Markdown 图片附件 + 备份导出可选 gzip（实现 + 浏览器验证，待 Codex 验收）
+
+### Added
+- `backend/src/uploads.js`（新模块）：图片落盘到 `<项目根>/data/uploads/`。**文件名完全由服务端生成**（`时间戳-16位十六进制.扩展名`），绝不采用用户提供的文件名，从根上杜绝路径穿越。`resolveUploadPath()` 用正则白名单 + `path.relative` 边界校验双重把关。
+- `backend/src/api.js`：新增 `POST /api/uploads`（multipart 上传，字段名 `image`）、`GET /api/uploads/:filename`（读取图片，长缓存）；`GET /backup/export?format=gz` 返回**原始 gzip 字节**。
+- `frontend/src/views/DocumentEdit.vue`：编辑器新增「🖼插入图片」按钮，支持三种入口——按钮选文件、**Ctrl+V 直接粘贴剪贴板截图**、拖拽图片到编辑区。上传完成后在光标处自动插入 `![文件名](/api/uploads/xxx.png)`，alt 取自文件名。
+- `frontend/src/views/KnowledgeBase.vue`：导出改为**下拉菜单**，可选「JSON 文件（.json）」或「压缩文件（.json.gz）」；导入端兼容 `.gz`（按 gzip 魔数而非扩展名识别，用浏览器内置 `DecompressionStream` 解压，不引入解压库）。
+- `backend/package.json`：新增唯一依赖 `busboy`（multipart 解析）。
+
+### Security
+- 图片类型校验采用**扩展名白名单 + 文件魔数双重校验**，把 `.exe` 改名成 `.png` 也会被拒绝（实测 `MZ` 开头伪装文件返回 400）。支持 png / jpg / jpeg / gif / webp / bmp / avif。
+- **默认拒绝 SVG**：SVG 可内嵌 `<script>`，虽经 `<img>` 加载一般不执行，仍属不必要的风险面。
+- 不限制单张图片体积（用户明确要求），仅设 512MB 整体兜底上限防止内存被打满。
+- Markdown 渲染白名单已含 `img`，且实测 `/api/uploads/...` 路径可原样保留；同时确认 `javascript:` 协议被剥离、`onerror` 属性被丢弃，安全边界未被放宽。
+
+### Notes
+- **图片存链接而非 base64 内嵌**（与用户确认的方案）：Markdown 保持可读可编辑、正文不暴涨。代价是**备份 JSON 只含图片链接，换机器恢复需另行拷贝 `data/uploads/` 目录**，已在代码注释中说明。
+- **gz 导出刻意不设 `Content-Encoding: gzip`**：若设置，浏览器会自动解压，前端拿到的将是明文而非可保存为 `.gz` 的压缩流；前端改用 `arrayBuffer()` 取原始字节。
+- 体积实测（2000/10000 页）：JSON 明文 ≈ SQLite 的 0.94倍，**gzip 后约为 SQLite 的 0.9%**（10000 页 14.56MB → 127KB），因此导出菜单推荐压缩格式。
+
+### Fixed
+- `resolveUploadPath` 路径边界校验在 Windows 上恒失败：原实现用 `abs.startsWith(resolvePath(UPLOAD_DIR) + '/')`，但 Windows 分隔符是 `\`，拼接 `/` 后永远不匹配，导致**所有上传成功的图片都无法读取（404）**。改用 `path.relative` + `startsWith('..')` 判断，与平台无关。
+- `UPLOAD_DIR` 原按 `process.cwd()` 解析，在 `backend/` 下启动时会落到 `backend/data/uploads`，与位于项目根的数据库目录错配。改为与 `db.js` 一致以 `PROJECT_ROOT` 为基准。
+- Express 5 的 `req` 不是原生 Request，**没有 `req.formData()`**（运行时抛 `TypeError`），故 multipart 解析改用 busboy。
+
+### Verified
+- 后端 `npm test` **106/106 通过**（新增 6 组用例：PNG 上传并读回、URL 在渲染中不被净化、非图片扩展名 400、伪装 PNG 魔数校验、路径穿越 404、gz 导出真实字节且解压内容一致）。
+- curl 联调：上传中文名 `架构图.png` → 201，读回 200/image/png，Markdown 渲染输出 `<img src="/api/uploads/...">`；`.exe` 与伪装 PNG 均 400；`..%2F..%2F` 穿越 404；gz 导出魔数 `1f 8b`、解压后与明文导出逐字段一致（仅导出时间戳不同）。
+- 真实浏览器 CDP **17/17 交互断言 PASS**：插图按钮渲染且可点击、隐藏 file input 限定图片类型、上传后自动插入 Markdown、alt 取自文件名、预览区 `<img>` **真实加载成功（60×40 非破图）**、导出下拉菜单含两种格式、gz 文件名正确、导出字节为真gzip（魔数 1f 8b）、浏览器端可解压且文档数正确、导入 `.gz` 自动识别解压并重建父子层级、后端拒绝非图片上传。控制台 0 异常，`npm run build` 通过。
+
 ### 数据导入 / 导出（F-KB-007 + F-OPS-002，实现 + 浏览器验证，待 Codex 验收）
 
 ### Added

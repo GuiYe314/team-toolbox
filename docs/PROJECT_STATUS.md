@@ -1,6 +1,6 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
-- 更新日期：2026-10-19（TASK-009 备份导出与恢复实现：知识库页「导入/导出」按钮 + 后端快照接口，后端 `npm test` 100/100、真实浏览器 10/10 断言通过，待 Codex 验收；同批含 TASK-011 比例锁定工具与导航层级调整）
+- 更新日期：2026-10-19（TASK-012 Markdown 图片附件 + 备份导出可选 gzip 实现，后端 `npm test` 106/106、真实浏览器 17/17 断言通过，待 Codex 验收；同批含 TASK-011 比例锁定、TASK-009 备份导入导出与导航层级调整）
 - 本文件是项目进度的**唯一来源**；README 等文档只链接引用、不复制进度。更新规则见 [AGENTS](../AGENTS.md)。
 - 仓库：https://github.com/GuiYe314/team-toolbox（私有）
 
@@ -75,6 +75,16 @@
 
 ## 2. 任务状态
 
+**TASK-012 Markdown 图片附件 + 备份导出可选 gzip（本次实现，用户新增范围）**：用户要求"Markdown 需要增加图片添加功能"并"可以导出 .gzip"。
+- **图片存储方案**（与用户确认）：图片以独立文件存 `<项目根>/data/uploads/`，Markdown 正文存 `![alt](/api/uploads/xxx.png)` 链接。**不采用 base64 内嵌**（会让 Markdown 不可读且正文暴涨）。代价：备份 JSON 只含图片链接，换机器恢复需另行拷贝 `data/uploads/` 目录。
+- **后端 `uploads.js`**：文件名完全由服务端生成（`时间戳-16位hex.扩展名`），杜绝路径穿越；`resolveUploadPath` 用正则白名单 + `path.relative` 边界校验。类型校验为**扩展名白名单 + 文件魔数双重校验**，改名伪装也会被拒；默认拒绝 SVG（可内嵌脚本）。不限制单张体积（用户要求），仅 512MB 兜底防止内存打满。
+- **接口**：`POST /api/uploads`（multipart，字段名 `image`）、`GET /api/uploads/:filename`（长缓存）。
+- **编辑器 `DocumentEdit.vue`**：三种插图入口——工具栏按钮、**Ctrl+V 粘贴剪贴板截图**、拖拽到编辑区；上传后在光标处自动插入 Markdown，alt 取自文件名。
+- **导出格式菜单**：`GET /backup/export?format=gz` 返回原始 gzip 字节（**刻意不设 `Content-Encoding: gzip`**，否则浏览器自动解压后拿不到可保存的压缩流）；前端下拉菜单二选一。导入端按 **gzip 魔数**（非扩展名）识别，用浏览器内置 `DecompressionStream` 解压。
+- **修复三个真实缺陷**：① `resolveUploadPath` 用 `startsWith(dir + '/')` 做边界检查，而 Windows 分隔符是 `\`，导致**所有上传成功的图片都读不回（404）**，改用 `path.relative`；② `UPLOAD_DIR` 按 `process.cwd()` 解析会落到 `backend/data/` 与数据库目录错配，改为与 `db.js` 一致用 `PROJECT_ROOT`；③ Express 5 的 `req` 无 `formData()`（运行时 TypeError），改用 busboy 解析 multipart。
+- **体积实测结论**（回答用户"数据多了 JSON 会不会很大"）：知识库存储引擎是 **SQLite**（`data/team-toolbox.sqlite3`），JSON 仅为导出格式。2000/10000 页压力测试：JSON 明文 ≈ SQLite 的 0.94 倍（**没有膨胀**），gzip 后约为 SQLite 的 0.9%（10000 页 14.56MB → 127KB）；exportSnapshot 约 9µs/页。当前规模远未到瓶颈，真正限制是导出一次性读入内存（十万页级才需流式）。
+- 验证：后端 `npm test` **106/106 通过**（新增 6 组用例）；真实浏览器 CDP **17/17 交互断言 PASS**（含预览区图片真实加载非破图、gz 魔数校验、`.gz` 导入重建层级）；`npm run build` 通过，控制台 0 异常。**待 Codex 验收。**
+
 当前开发阶段：阶段四（内容组织与查找）进行中（TASK-005 文档页面、TASK-006 分类与标签、TASK-007 搜索、TASK-008 首页最近更新均已实现 + 自测/构建/真实浏览器验证通过，待 Codex 验收）；TASK-002/003/004 已实现待 Codex 验收。功能阶段定义见 [开发计划](DEVELOPMENT_PLAN.md) 第 1 节；阶段一至六为第一版，阶段七、八为后续规划。
 
 | 任务 | 状态 | 说明 |
@@ -91,6 +101,8 @@
 | TASK-008 首页最近更新 | **已实现 + 单测/浏览器验证通过（待 Codex 验收）** | 本次接线 `Home.vue` 到 `listDocuments` 默认排序（updated_at 倒序、limit 20）+ 分页「查看更多」+ 空状态/错误重试；后端 `npm test` 96/96 全过，真实浏览器 9/9 交互断言 PASS |
 | TASK-009 备份导出与恢复 | **已实现 + 单测/浏览器验证通过（待 Codex 验收）** | 本次实现 `store.exportSnapshot`/`importSnapshot`（跨库可移植格式：分类名/标签名 + `ref`/`parent_ref` 相对引用）+ `GET /api/backup/export`、`POST /api/backup/import` + 知识库页「导出/导入」按钮；后端 `npm test` 100/100 全过，真实浏览器 10/10 交互断言 PASS。**备份脚本/恢复演练文档尚未编写** |
 | TASK-010 MVP 集成验收 | 未开始 | 依赖 TASK-005~TASK-009 |
+| TASK-011 工具箱首个工具（比例锁定） | **已实现 + 单测/浏览器验证通过（待 Codex 验收）** | 用户新增范围：`RatioLock.vue` 三步式比例换算；真实浏览器 8/8 交互断言 PASS |
+| TASK-012 图片附件与 gzip 导出 | **已实现 + 单测/浏览器验证通过（待 Codex 验收）** | 用户新增范围：Markdown 插图（按钮 / Ctrl+V 粘贴 / 拖拽三种入口）+ 导出可选 `.json.gz`；后端 `npm test` 106/106 全过，真实浏览器 17/17 交互断言 PASS |
 | TASK-D01 实时共同编辑（延期） | 未开始 | 阶段八，依赖 TASK-D02 与协同方案确认 |
 | TASK-D02 账号与权限（延期） | 未开始 | 阶段七，依赖 TASK-010 与账号方案确认 |
 

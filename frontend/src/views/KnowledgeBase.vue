@@ -97,9 +97,22 @@
                         <button v-if="searchQuery" class="kb-search-clear" type="button" @click="clearSearch">清除</button>
                     </div>
                     <div class="kb-io">
-                        <button class="kb-io-btn" type="button" :disabled="ioBusy !== ''" @click="doExport">
-                            {{ ioBusy === 'export' ? '导出中…' : '导出' }}
-                        </button>
+                        <!-- 导出下拉：json 体积小易读；gz 压缩后约为 1%，适合大库与归档 -->
+                        <div class="kb-io-menu" @mouseleave="exportMenu = false">
+                            <button class="kb-io-btn" type="button" :disabled="ioBusy !== ''" @click="exportMenu = !exportMenu">
+                                {{ ioBusy === 'export' ? '导出中…' : '导出 ▾' }}
+                            </button>
+                            <div v-if="exportMenu" class="kb-io-dropdown">
+                                <button type="button" @click="doExport('json')">
+                                    <span class="dd-title">JSON 文件（.json）</span>
+                                    <span class="dd-desc">体积与数据库相当，内容可直接阅读</span>
+                                </button>
+                                <button type="button" @click="doExport('gzip')">
+                                    <span class="dd-title">压缩文件（.json.gz）</span>
+                                    <span class="dd-desc">体积约为 JSON 的 1%，推荐用于备份归档</span>
+                                </button>
+                            </div>
+                        </div>
                         <button class="kb-io-btn" type="button" :disabled="ioBusy !== ''" @click="pickImportFile">
                             {{ ioBusy === 'import' ? '导入中…' : '导入' }}
                         </button>
@@ -107,7 +120,7 @@
                             ref="fileInput"
                             class="kb-io-file"
                             type="file"
-                            accept="application/json,.json"
+                            accept="application/json,.json,.gz,application/gzip"
                             @change="onImportFile"
                         />
                     </div>
@@ -160,6 +173,28 @@
 import { api } from '../api/client.js';
 import DocIcon from '../components/DocIcon.vue';
 
+/**
+ * 解压 gzip 为字符串。使用浏览器内置 DecompressionStream，避免引入解压库。
+ * 不支持时抛出带 __isGzip 标记的错误，便于上层给出准确提示。
+ * @param {ArrayBuffer} buf
+ * @returns {Promise<string>}
+ */
+async function gunzip(buf) {
+    if (typeof DecompressionStream === 'undefined') {
+        const err = new Error('当前浏览器不支持自动解压');
+        err.__isGzip = true;
+        throw err;
+    }
+    try {
+        const stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+        return await new Response(stream).text();
+    } catch (err) {
+        const e = new Error('gzip 解压失败');
+        e.__isGzip = true;
+        throw e;
+    }
+}
+
 export default {
     name: 'KnowledgeBase',
     components: { DocIcon },
@@ -187,7 +222,8 @@ export default {
                 // 备份导入 / 导出（F-KB-007、F-OPS-002）
                 ioBusy: '',
                 ioMessage: '',
-                ioError: false
+                ioError: false,
+                exportMenu: false
             };
         },
         async mounted() {
@@ -333,31 +369,52 @@ export default {
         // 注意：ioBusy 用空字符串表示“空闲”，绑定 :disabled 时必须显式比较，
         // 不能直接写 :disabled="ioBusy"——Vue 3 中空字符串为真，会让按钮永久禁用。
         // 导出：拉取全量快照 → 转 Blob → 触发本地下载，不经过服务端文件落盘
-        async doExport() {
+        // format='json' 为可读明文；'gzip' 保存**服务端压缩后的原始字节**。
+        // 注意：fetch 会自动解压 Content-Encoding: gzip 的响应体，
+        // 因此 gz 分支改用 arrayBuffer 拿原始压缩流再自行打包，否则会存出「假 gz」。
+        async doExport(format = 'json') {
             if (this.ioBusy !== '') return;
+            this.exportMenu = false;
             this.ioBusy = 'export';
             this.ioMessage = '';
             try {
-                const { res, body } = await api.exportBackup();
-                if (!res.ok) throw new Error((body && body.message) || '导出失败');
-                const counts = (body && body.counts) || {};
-                const text = JSON.stringify(body, null, 2);
-                const blob = new Blob([text], { type: 'application/json' });
+                let blob;
+                let counts = {};
+                if (format === 'gzip') {
+                    const res = await fetch('/api/backup/export?format=gz');
+                    if (!res.ok) throw new Error('导出失败');
+                    const buf = await res.arrayBuffer();   // 原始 gzip 字节
+                    blob = new Blob([buf], { type: 'application/gzip' });
+                } else {
+                    const { res, body } = await api.exportBackup();
+                    if (!res.ok) throw new Error((body && body.message) || '导出失败');
+                    counts = (body && body.counts) || {};
+                    blob = new Blob([JSON.stringify(body, null, 2)], { type: 'application/json' });
+                }
                 const url = URL.createObjectURL(blob);
                 const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+                const ext = format === 'gzip' ? '.json.gz' : '.json';
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `team-toolbox-backup-${stamp}.json`;
+                a.download = `team-toolbox-backup-${stamp}${ext}`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
                 // 立即 revoke 会让部分浏览器下载中断，延后释放
                 setTimeout(() => URL.revokeObjectURL(url), 10000);
                 this.ioError = false;
-                this.ioMessage = `已导出 ${counts.documents || 0} 个文档、${counts.categories || 0} 个分类。`;
+                const sizeKb = (blob.size / 1024).toFixed(1);
+                this.ioMessage = format === 'gzip'
+                    ? `已导出压缩包（${sizeKb} KB）：全部分类与页面。导入时直接选择该 .gz 文件即可。`
+                    : `已导出 ${counts.documents || 0} 个文档、${counts.categories || 0} 个分类（${sizeKb} KB）。`;
+                if (format !== 'gzip' && (counts.documents || 0) > 500) {
+                    this.ioMessage += ' 数据量较大，可改用「导出 ▾ → 压缩文件」以显著减小体积。';
+                }
             } catch (e) {
                 this.ioError = true;
-                this.ioMessage = e.network ? e.message : (e.message || '导出失败，请稍后重试');
+                this.ioMessage = e.message === '导出失败'
+                    ? '导出失败，请稍后重试'
+                    : (e.message || '导出失败，请稍后重试');
             } finally {
                 this.ioBusy = '';
             }
@@ -375,10 +432,16 @@ export default {
 
             let snapshot;
             try {
-                snapshot = JSON.parse(await file.text());
-            } catch {
+                const buf = await file.arrayBuffer();
+                // 按魔数判断而非扩展名：文件可能被改名，也可能扩展名是 .json 但内容其实是 gzip
+                const isGzip = buf.byteLength > 2 && new Uint8Array(buf)[0] === 0x1f && new Uint8Array(buf)[1] === 0x8b;
+                const text = isGzip ? await gunzip(buf) : new TextDecoder().decode(buf);
+                snapshot = JSON.parse(text);
+            } catch (err) {
                 this.ioError = true;
-                this.ioMessage = '备份文件不是合法的 JSON，请选择由本页导出的 .json 文件。';
+                this.ioMessage = err && err.__isGzip
+                    ? '压缩文件已损坏或格式不正确，无法解压。'
+                    : '备份文件不是合法的 JSON，请选择由本页导出的 .json 或 .json.gz 文件。';
                 return;
             }
             if (!snapshot || !Array.isArray(snapshot.documents)) {
@@ -760,6 +823,48 @@ export default {
 }
 .kb-io-file {
     display: none;
+}
+/* 导出格式下拉 */
+.kb-io-menu {
+    position: relative;
+}
+.kb-io-dropdown {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 30;
+    min-width: 268px;
+    padding: 4px;
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border-strong, #d4d3cf);
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(15, 15, 15, 0.12);
+}
+.kb-io-dropdown button {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+}
+.kb-io-dropdown button:hover {
+    background: var(--color-surface-muted, #f7f7f5);
+}
+.dd-title {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+}
+.dd-desc {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--color-text-muted, #787774);
 }
 .kb-io-msg {
     margin: 0 0 8px;

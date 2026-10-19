@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { createTestingDatabase } from './db.js';
 import { runMigrations } from './migrate.js';
 import { registerApi } from './api.js';
+import { gunzipSync } from 'node:zlib';
 
 const migrationsDir = fileURLToPath(new URL('./migrations', import.meta.url));
 
@@ -579,4 +580,81 @@ test('导入快照可重建父子层级与分类', async () => {
     assert.ok(child.parent_id === parent.id, '子页面应挂到父页面下');
     assert.equal(parent.category_id !== null, true, '页面应归属导入的分类');
     assert.equal(orphan.parent_id, null, '孤儿页面应作为顶层导入');
+});
+
+// ───────────────────────── 图片附件 / gzip 导出 ─────────────────────────
+
+// 最小合法 PNG（1x1 像素），用于构造 multipart 上传
+const PNG_1PX = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64'
+);
+
+async function uploadImage(buf, filename) {
+    const form = new FormData();
+    form.append('image', new Blob([buf], { type: 'application/octet-stream' }), filename);
+    const res = await fetch(base + '/api/uploads', { method: 'POST', body: form });
+    return { status: res.status, data: await res.json().catch(() => null) };
+}
+
+test('POST /api/uploads 上传 PNG → 返回可写入 Markdown 的 URL', async () => {
+    const r = await uploadImage(PNG_1PX, '截图.png');
+    assert.equal(r.status, 201);
+    assert.match(r.data.filename, /^\d+-[0-9a-f]{16}\.png$/, '文件名应由服务端生成');
+    assert.equal(r.data.url, `/api/uploads/${r.data.filename}`);
+    assert.equal(r.data.mime, 'image/png');
+    assert.equal(r.data.size, PNG_1PX.length);
+
+    const got = await fetch(base + r.data.url);
+    assert.equal(got.status, 200, '上传后应能读回图片');
+    assert.equal(got.headers.get('content-type'), 'image/png');
+    assert.deepEqual(Buffer.from(await got.arrayBuffer()), PNG_1PX);
+});
+
+test('POST /api/uploads 该URL 在 Markdown 渲染中不会被净化掉', async () => {
+    const r = await uploadImage(PNG_1PX, 'inline.png');
+    const md = `前言\n\n![插图](${r.data.url})`;
+    const render = await fetch(base + '/api/markdown/render', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ md })
+    });
+    const { html } = await render.json();
+    assert.ok(html.includes(`src="${r.data.url}"`), 'uploads 链接应原样保留在渲染结果中');
+});
+
+test('POST /api/uploads 非图片扩展名 → 400', async () => {
+    const r = await uploadImage(PNG_1PX, 'evil.exe');
+    assert.equal(r.status, 400);
+    assert.equal(r.data.error, 'invalid_input');
+});
+
+test('POST /api/uploads 伪装成 png 的可执行文件 → 400（魔数校验）', async () => {
+    const fake = Buffer.from('MZ'.repeat(20) + 'not a real png');
+    const r = await uploadImage(fake, 'fake.png');
+    assert.equal(r.status, 400, '魔数不匹配必须拒绝');
+    assert.match(r.data.message, /扩展名不符|不是有效/);
+});
+
+test('GET /api/uploads/路径穿越与非法文件名 → 404', async () => {
+    for (const name of ['..%2F..%2Fpackage.json', 'package.json', 'not-exist.png', 'x.png']) {
+        const r = await fetch(`${base}/api/uploads/${name}`);
+        assert.equal(r.status, 404, `${name} 应被拒绝`);
+    }
+});
+
+test('GET /api/backup/export?format=gz 返回真实 gzip 字节', async () => {
+    const res = await fetch(base + '/api/backup/export?format=gz');
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'application/gzip');
+    assert.equal(res.headers.get('content-encoding'), null, '不能设 Content-Encoding，否则浏览器会自动解压拿不到原始字节');
+    assert.match(res.headers.get('content-disposition'), /attachment; filename="team-toolbox-backup-.+\.json\.gz"/);
+
+    const buf = Buffer.from(await res.arrayBuffer());
+    assert.equal(buf[0], 0x1f);
+    assert.equal(buf[1], 0x8b);
+
+    const plain = await (await fetch(base + '/api/backup/export')).json();
+    const restored = JSON.parse(gunzipSync(buf).toString('utf8'));
+    assert.equal(restored.counts.documents, plain.counts.documents, '解压后内容应与明文导出一致');
 });

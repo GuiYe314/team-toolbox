@@ -16,8 +16,10 @@
 //         - 非生产环境附带内部 detail
 
 import express from 'express';
+import { gzipSync } from 'node:zlib';
 import * as store from './store.js';
 import { renderMarkdown } from './markdown.js';
+import { saveImage, resolveUploadPath, mimeOf, parseUploadFile } from './uploads.js';
 
 // 业务错误码 → HTTP 状态码
 const STATUS_MAP = {
@@ -67,6 +69,14 @@ function clampInt(value, def, min, max) {
     return Math.min(max, Math.max(min, n));
 }
 
+/** 备份文件名时间戳：2026-10-19-08-24-14（本地时间，便于人工辨认与排序）。 */
+function stamp() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+        + `-${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+}
+
 /**
  * 把 API 路由挂载到 app。
  * @param {import('express').Express} app
@@ -85,6 +95,11 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
         } catch (err) {
             sendError(res, err);
         }
+    };
+
+    // 异步 handler（multipart 上传需要 await）
+    const wrapAsync = (fn) => (req, res) => {
+        Promise.resolve(fn(req, res)).catch((err) => sendError(res, err));
     };
 
     // ───────────────────────── 文档 ─────────────────────────
@@ -271,14 +286,61 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
     // 快照使用分类名与相对引用（ref / parent_ref），可跨库跨机还原，见 store.exportSnapshot。
 
     // 导出全量快照（分类 / 标签 / 文档 + 正文 + 父子层级）
-    router.get('/backup/export', wrap((_req, res) => {
-        res.json(store.exportSnapshot({ connection: getDb() }));
+    // ?format=gz 时返回 **原始 gzip 字节**（实测约为明文的 1%）。
+    // 刻意不设置 Content-Encoding: gzip —— 那样浏览器会自动解压，
+    // 前端拿到的将是明文而非可保存为 .gz 的压缩流。文件名在 Content-Disposition 中给出。
+    router.get('/backup/export', wrap((req, res) => {
+        const snapshot = store.exportSnapshot({ connection: getDb() });
+        const useGz = String(req.query.format || '').toLowerCase() === 'gz';
+        const json = JSON.stringify(snapshot, null, 2);
+        if (useGz) {
+            const gz = gzipSync(Buffer.from(json, 'utf8'), { level: 9 });
+            res.setHeader('Content-Type', 'application/gzip');
+            res.setHeader('Content-Length', String(gz.length));
+            res.setHeader(
+                'Content-Disposition',
+                `attachment; filename="team-toolbox-backup-${stamp()}.json.gz"`
+            );
+            res.end(gz);
+            return;
+        }
+        res.json(snapshot);
     }));
 
     // 导入快照：合并模式，不删除既有数据；同级同标题跳过，返回导入统计
     router.post('/backup/import', wrap((req, res) => {
         const stats = store.importSnapshot({ connection: getDb(), snapshot: req.body });
         res.json(stats);
+    }));
+
+    // ───────────────────── 图片附件 ─────────────────────
+    // TASK-012。图片落盘到 data/uploads/，Markdown 正文存 ![](/api/uploads/xxx.png) 链接。
+    // 使用 Node 20+ 内置的 Request.formData() 解析 multipart，不引入 multer 依赖。
+
+    // 上传图片：multipart/form-data，字段名 image
+    // Express 5 的 req 无 formData()，由 uploads.parseUploadFile 用 busboy 解析。
+    const rawUpload = async (req, res) => {
+        const file = await parseUploadFile(req);
+        if (!file) {
+            return res.status(400).json({ error: 'invalid_input', message: '缺少图片文件（字段名应为 image）' });
+        }
+        const saved = saveImage({ buffer: file.buffer, originalName: file.filename });
+        res.status(201).json(saved);
+    };
+
+    // 异步 handler（multipart 上传需要 await）
+    router.post('/uploads', wrapAsync(rawUpload));
+
+    // 读取图片
+    router.get('/uploads/:filename', wrap((req, res) => {
+        const abs = resolveUploadPath(req.params.filename);
+        if (!abs) {
+            return res.status(404).json({ error: 'not_found', message: '图片不存在' });
+        }
+        res.type(mimeOf(req.params.filename));
+        // 文件名含时间戳且内容不可变，可长期缓存
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.sendFile(abs);
     }));
 
     // ───────────────────── Markdown 安全渲染 ─────────────────────
