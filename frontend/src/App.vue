@@ -20,12 +20,8 @@
                     <span class="nav-icon">📚</span>
                     <span class="nav-label">知识库</span>
                 </router-link>
-                <router-link to="/tools" class="nav-link" :class="{ 'is-active': $route.path.startsWith('/tools') }" @click="closeSidebar">
-                    <span class="nav-icon">🧰</span>
-                    <span class="nav-label">工具箱</span>
-                </router-link>
 
-                <!-- 页面树：作为「知识库」的二级列表，仅在知识库区块（/kb/*）激活时显示 -->
+                <!-- 页面树：紧贴「知识库」下方的二级列表，仅在知识库区块（/kb/*）激活时显示 -->
                 <div v-if="onKbSection" class="sidebar-tree kb-subtree">
                     <p v-if="treeLoading" class="tree-hint">加载中…</p>
                     <p v-else-if="treeError" class="tree-hint tree-hint-error">{{ treeError }}</p>
@@ -46,6 +42,11 @@
 
                     <button class="tree-add" type="button" @click="createPage">＋ 新建页面</button>
                 </div>
+
+                <router-link to="/tools" class="nav-link" :class="{ 'is-active': $route.path.startsWith('/tools') }" @click="closeSidebar">
+                    <span class="nav-icon">🧰</span>
+                    <span class="nav-label">工具箱</span>
+                </router-link>
             </div>
 
             <div class="nav-footer">
@@ -475,8 +476,9 @@ button { font-family: inherit; }
     gap: 1px;
 }
 .kb-subtree {
-    padding-left: 22px;
-    margin-top: 2px;
+    margin: 2px 8px 6px 20px;
+    padding: 0 0 0 8px;
+    border-left: 1px solid var(--color-border);
 }
 .tree-hint {
     margin: 2px 0;
