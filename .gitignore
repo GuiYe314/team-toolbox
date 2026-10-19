@@ -44,6 +44,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# ---- 本地工作区（记忆日志、验证脚本、截图，不入库）----
+.workbuddy/
+
 # SQLite 日志与辅助文件
 *.db-*
 *.sqlite-*

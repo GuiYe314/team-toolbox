@@ -1,6 +1,6 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
-- 更新日期：2026-10-19（TASK-008 首页最近更新实现 + 后端 96/96 单测通过 + 真实浏览器 9/9 交互断言通过，待 Codex 验收）
+- 更新日期：2026-10-19（详情页切换不刷新修复 + 侧边栏一级页面/右侧子页面列表调整，浏览器断言全 PASS，待 Codex 验收）
 - 本文件是项目进度的**唯一来源**；README 等文档只链接引用、不复制进度。更新规则见 [AGENTS](../AGENTS.md)。
 - 仓库：https://github.com/GuiYe314/team-toolbox（私有）
 
@@ -52,6 +52,12 @@
 - **前端 `Home.vue`**：「最近更新」区块由静态占位改为真实数据驱动——`mounted` 调用 `api.listDocuments('?limit=20&offset=0')`（注意 `client.request` 返回 `{res, body}`，须取 `body`）；渲染每行标题 / 分类 pill / 标签 pill / 更新时间（`formatTime` 与知识库一致）；"查看更多"按 `offset` 增量分页（`hasMore = recent.length < recentTotal`）；点击条目跳转 `/kb/:id` 详情；空库显示空状态并引导「新建文档」（跳转 `/kb/new`）；加载中与加载失败（含「重试」按钮）状态齐备，失败不丢已有列表（内联错误条 + 重试加载更多）。
 - **修复（被浏览器验证抓出）**：初版误用 `res.items`/`res.total`（`res` 实为 `{res, body}` 外层对象，`res.items` 恒 undefined → 列表恒空、误显空状态）；修正为读取 `body.items`/`body.total`，与 `KnowledgeBase.vue` 既有约定一致。
 - 构建（`npm run build`）通过；后端 `npm test` **96/96 通过**（store 34 + api 23 + 页面树 12 + 分类标签 +11 + 搜索 +8 + 本次默认排序/分页/空结果 +4）；以真实 Edge 浏览器（puppeteer-core，置于 `.workbuddy/ui-verify`，不入库）跑 9 项交互断言全部 PASS（首屏 20 条、首条标题非空、含分类/标签 pill、存在「查看更多」、点击后 25 条、点击条目跳详情；空库空状态渲染、含「新建文档」按钮、点击跳转 `/kb/new`）。**仍待 Codex 验收；交互式视觉验收需在浏览器手工确认。**
+
+**详情页切换修复与导航层级调整（本次修复，待 Codex 验收）**：针对用户反馈"点击左侧页面按钮，右侧页面信息没反应"与"二级页面不要出现在一级页面上，改为在右侧生成列表"，做了三处改动：
+- **修复 `DocumentDetail.vue`**：详情 → 详情 切换时 Vue Router 复用组件实例、`mounted` 不再触发，原实现导致 URL 已变而右侧仍显示上一篇文档。新增 `watch: { docId(id, oldId) }`，参数变化时清空 `doc`/`renderedHtml`/`children` 并重新加载。此前验证只覆盖"首页 → 详情"（首次挂载）故漏检，已补"详情 → 详情"回归断言。
+- **侧边栏层级调整**：`PageTree.vue` 由递归多级树退化为**扁平一级页面列表**（移除子级递归、展开箭头、`expanded`/`toggle` props/emits）；`App.vue` 把页面列表移入导航区内、紧跟「知识库」之后，`v-if="onKbSection"`（`$route.path.startsWith('/kb')`）——**仅知识库区块显示**并缩进 22px 作为二级列表；同步删除 `expanded` 状态与 `localStorage` 折叠记忆（`loadExpanded`/`saveExpanded`/`toggleNode`/`focusActive`）。
+- **右侧子页面列表**：`DocumentDetail.vue` 正文下方「子页面」区块增加标题与数量徽标、顶部分隔线与卡片容器 `.child-list`，二级页面统一在此查看与新建。
+- 验证：真实 Edge（CDP）断言全 PASS——首页/工具箱下页面列表隐藏（0 行）、`/kb` 与 `/kb/4` 显示 10 篇顶层且无子页面「方法」与展开箭头、`/kb/10` 右侧「子页面 1」含「方法」、`/kb/4 → /kb/3` 标题正确切换、控制台 0 异常；`npm run build` 通过。`.workbuddy/` 已加入 `.gitignore`。**仍待 Codex 验收。**
 
 ## 2. 任务状态
 

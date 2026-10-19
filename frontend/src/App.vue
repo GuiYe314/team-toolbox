@@ -24,32 +24,28 @@
                     <span class="nav-icon">🧰</span>
                     <span class="nav-label">工具箱</span>
                 </router-link>
-            </div>
 
-            <div class="nav-section-label">页面</div>
+                <!-- 页面树：作为「知识库」的二级列表，仅在知识库区块（/kb/*）激活时显示 -->
+                <div v-if="onKbSection" class="sidebar-tree kb-subtree">
+                    <p v-if="treeLoading" class="tree-hint">加载中…</p>
+                    <p v-else-if="treeError" class="tree-hint tree-hint-error">{{ treeError }}</p>
+                    <p v-else-if="pageTree.length === 0" class="tree-hint">还没有页面，点击下方新建</p>
 
-            <!-- 页面树（Notion 式多级页面） -->
-            <div class="sidebar-tree">
-                <p v-if="treeLoading" class="tree-hint">加载中…</p>
-                <p v-else-if="treeError" class="tree-hint tree-hint-error">{{ treeError }}</p>
-                <p v-else-if="pageTree.length === 0" class="tree-hint">还没有页面，点击下方新建</p>
+                    <PageTree
+                        v-if="pageTree.length"
+                        :nodes="pageTree"
+                        :depth="0"
+                        :active-id="activeId"
+                        :renaming-id="renamingId"
+                        @open="openNode"
+                        @create-child="createChild"
+                        @menu="openMenu"
+                        @rename-submit="submitRename"
+                        @rename-cancel="cancelRename"
+                    />
 
-                <PageTree
-                    v-if="pageTree.length"
-                    :nodes="pageTree"
-                    :depth="0"
-                    :active-id="activeId"
-                    :expanded="expanded"
-                    :renaming-id="renamingId"
-                    @open="openNode"
-                    @toggle="toggleNode"
-                    @create-child="createChild"
-                    @menu="openMenu"
-                    @rename-submit="submitRename"
-                    @rename-cancel="cancelRename"
-                />
-
-                <button class="tree-add" type="button" @click="createPage">＋ 新建页面</button>
+                    <button class="tree-add" type="button" @click="createPage">＋ 新建页面</button>
+                </div>
             </div>
 
             <div class="nav-footer">
@@ -102,8 +98,6 @@
 import { api } from './api/client.js';
 import PageTree from './components/PageTree.vue';
 
-const EXPANDED_KEY = 'kb-tree-expanded';
-
 export default {
     name: 'App',
     components: { PageTree },
@@ -114,7 +108,6 @@ export default {
             treeRows: [],
             treeLoading: true,
             treeError: '',
-            expanded: {},
             renamingId: null,
             renameBusy: false,
             menu: null,
@@ -125,6 +118,10 @@ export default {
         };
     },
     computed: {
+        /** 是否处于知识库区块（/kb/*），决定二级页面树是否显示 */
+        onKbSection() {
+            return this.$route.path.startsWith('/kb');
+        },
         /** 扁平行 → 嵌套树；父页面缺失的行降级为顶层，避免数据异常时整棵树消失 */
         pageTree() {
             const map = new Map();
@@ -150,7 +147,6 @@ export default {
     watch: {
         '$route.fullPath'() {
             this.menu = null;
-            this.focusActive();
         }
     },
     mounted() {
@@ -164,7 +160,6 @@ export default {
         this._treeChangeHandler = () => this.loadTree();
         window.addEventListener('kb-changed', this._treeChangeHandler);
 
-        this.loadExpanded();
         this.loadTree();
     },
     beforeUnmount() {
@@ -181,56 +176,10 @@ export default {
                 const { res, body } = await api.listDocumentTree();
                 if (!res.ok) throw new Error((body && body.message) || '页面树加载失败');
                 this.treeRows = (body && body.items) || [];
-                this.focusActive();
             } catch (e) {
                 this.treeError = e.network ? '无法连接后端服务' : (e.message || '页面树加载失败');
             } finally {
                 this.treeLoading = false;
-            }
-        },
-        loadExpanded() {
-            try {
-                const raw = localStorage.getItem(EXPANDED_KEY);
-                if (raw) this.expanded = JSON.parse(raw) || {};
-            } catch {
-                this.expanded = {};
-            }
-        },
-        saveExpanded() {
-            try {
-                localStorage.setItem(EXPANDED_KEY, JSON.stringify(this.expanded));
-            } catch { /* localStorage 不可用时忽略（仅影响折叠记忆） */ }
-        },
-        toggleNode(id) {
-            this.expanded = { ...this.expanded, [id]: !this.expanded[id] };
-            this.saveExpanded();
-        },
-        /** 自动展开当前页面及其祖先（Notion：打开页面时侧边栏展开该页） */
-        focusActive() {
-            const id = this.activeId;
-            if (!id) return;
-            const parentOf = new Map(this.treeRows.map((r) => [r.id, r.parent_id]));
-            const next = { ...this.expanded };
-            let changed = false;
-
-            // 当前页有子页面时展开自身
-            if (this.treeRows.some((r) => r.parent_id === id) && !next[id]) {
-                next[id] = true;
-                changed = true;
-            }
-
-            let p = parentOf.get(id);
-            let guard = 0;
-            while (p != null && guard++ < 200) {
-                if (!next[p]) {
-                    next[p] = true;
-                    changed = true;
-                }
-                p = parentOf.get(p);
-            }
-            if (changed) {
-                this.expanded = next;
-                this.saveExpanded();
             }
         },
 
@@ -247,8 +196,6 @@ export default {
         },
         createChild(node) {
             this.menu = null;
-            this.expanded = { ...this.expanded, [node.id]: true };
-            this.saveExpanded();
             this.closeSidebar();
             this.$router.push({ name: 'kb-new', query: { parent: String(node.id) } }).catch(() => {});
         },
@@ -520,12 +467,16 @@ button { font-family: inherit; }
     white-space: nowrap;
 }
 
-/* === 页面树容器 === */
+/* === 页面树容器（知识库的二级缩进列表） === */
 .sidebar-tree {
     padding: 0 8px;
     display: flex;
     flex-direction: column;
     gap: 1px;
+}
+.kb-subtree {
+    padding-left: 22px;
+    margin-top: 2px;
 }
 .tree-hint {
     margin: 2px 0;

@@ -34,21 +34,27 @@
                 <!-- 渲染 HTML 由后端 sanitize-html 白名单净化，可安全渲染 -->
                 <article class="markdown-body" v-html="renderedHtml"></article>
 
-                <!-- 子页面（Notion 页面下方的子页面链接列表） -->
+                <!-- 子页面（二级页面列表：不进入左侧导航，展示在本文档下方） -->
                 <div class="child-pages">
-                    <router-link
-                        v-for="c in children"
-                        :key="c.id"
-                        :to="{ name: 'kb-detail', params: { id: c.id } }"
-                        class="child-page"
-                    >
-                        <DocIcon class="child-icon" :size="15" />
-                        <span class="child-title">{{ c.title }}</span>
-                    </router-link>
-                    <button class="child-page child-new" type="button" @click="createChild">
-                        <span class="child-icon child-plus" aria-hidden="true">＋</span>
-                        <span class="child-title">新建子页面</span>
-                    </button>
+                    <h2 class="child-heading">
+                        子页面
+                        <span v-if="children.length" class="child-count">{{ children.length }}</span>
+                    </h2>
+                    <div class="child-list">
+                        <router-link
+                            v-for="c in children"
+                            :key="c.id"
+                            :to="{ name: 'kb-detail', params: { id: c.id } }"
+                            class="child-page"
+                        >
+                            <DocIcon class="child-icon" :size="15" />
+                            <span class="child-title">{{ c.title }}</span>
+                        </router-link>
+                        <button class="child-page child-new" type="button" @click="createChild">
+                            <span class="child-icon child-plus" aria-hidden="true">＋</span>
+                            <span class="child-title">新建子页面</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -107,6 +113,17 @@ export default {
         this._onExternalChange = () => this.load(true);
         window.addEventListener('kb-changed', this._onExternalChange);
         await this.load();
+    },
+    watch: {
+        // 详情 → 详情 切换时 Vue Router 会复用本组件实例，mounted 不会再次触发；
+        // 必须监听路由参数变化重新加载，否则 URL 已变而右侧内容停留在上一篇文档。
+        docId(id, oldId) {
+            if (id === oldId || id == null) return;
+            this.doc = null;
+            this.renderedHtml = '';
+            this.children = [];
+            this.load();
+        }
     },
     beforeUnmount() {
         window.removeEventListener('kb-changed', this._onExternalChange);
@@ -285,11 +302,36 @@ export default {
 
 /* 子页面列表（Notion：正文之后的页面链接） */
 .child-pages {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--color-border);
+}
+.child-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+.child-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 9px;
+    background: var(--color-sidebar-active);
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 500;
+}
+.child-list {
     display: flex;
     flex-direction: column;
     gap: 1px;
-    margin-top: 28px;
-    padding-top: 8px;
 }
 .child-page {
     display: flex;

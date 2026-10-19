@@ -4,6 +4,26 @@
 
 ## 2026-10-19
 
+### 修复与导航结构调整（实现 + 浏览器验证，待 Codex 验收）
+
+### Fixed
+- `frontend/src/views/DocumentDetail.vue`：**详情页 → 详情页切换右侧内容不刷新**。Vue Router 在 `/kb/4 → /kb/3` 时复用同一组件实例，原实现只在 `mounted` 加载数据，导致 URL 已变而右侧仍显示上一篇文档（用户反馈"点击左侧页面按钮右侧没反应"）。新增 `watch: { docId(id, oldId) }`，参数变化时清空 `doc`/`renderedHtml`/`children` 并重新加载。
+- `frontend/index.html`：新增内联 SVG favicon，消除开发期 favicon 404 请求。
+
+### Changed
+- `frontend/src/components/PageTree.vue`：由递归多级树退化为**扁平一级页面列表**——移除子级递归渲染、展开箭头（›）与 `expanded`/`toggle` 相关 props/emits。
+- `frontend/src/App.vue`：侧边栏「页面」区块移入导航区内、紧跟「知识库」之后，`v-if="onKbSection"`（`$route.path.startsWith('/kb')`）——**仅知识库区块显示，缩进 22px 作为其二级列表**；同时移除 `expanded` 状态与 `localStorage` 折叠记忆（`loadExpanded`/`saveExpanded`/`toggleNode`/`focusActive` 全部删除）。
+- `frontend/src/views/DocumentDetail.vue`：页面正文下方「子页面」区块加标题与数量徽标（`.child-heading` / `.child-count`）、顶部边框分隔与 `.child-list` 容器，二级页面统一在此列表展示。
+- `.gitignore`：忽略本地工作区 `.workbuddy/`（记忆日志、验证脚本、截图不入库）。
+
+### Verified
+- 真实 Edge 浏览器（CDP，脚本置于 `.workbuddy/ui-verify`，用后清理）断言全部 PASS：首页/工具箱下侧边栏页面树隐藏（0 行）、`/kb` 与 `/kb/4` 显示 10 篇顶层页面且无子页面「方法」、无展开箭头按钮；打开「技术分享纪要」(`/kb/10`) 右侧「子页面 1」列表含「方法」；详情 → 详情切换（`/kb/4 → /kb/3`）标题正确切换为「Unity 实用技巧」；控制台 0 异常。
+- `npm run build`（frontend）通过。
+
+### Notes
+- 变更动机：用户明确要求「侧边栏只保留一级页面入口，二级页面不要出现在一级页面上，改为在右侧生成列表展示」；同时修复其反馈的点击无反应问题。
+- 仍待 Codex 验收。
+
 ### TASK-008 首页最近更新（实现 + 单测/浏览器验证，待 Codex 验收）
 
 ### Changed

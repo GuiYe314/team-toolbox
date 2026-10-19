@@ -11,15 +11,7 @@
                 @keydown.enter.prevent="$emit('open', node)"
                 @keydown.space.prevent="$emit('open', node)"
             >
-                <button
-                    v-if="node.children.length"
-                    class="tree-caret"
-                    :class="{ open: !!expanded[node.id] }"
-                    :aria-label="expanded[node.id] ? '收起子页面' : '展开子页面'"
-                    :aria-expanded="!!expanded[node.id]"
-                    @click.stop="$emit('toggle', node.id)"
-                >›</button>
-                <span v-else class="tree-caret is-placeholder" aria-hidden="true"></span>
+                <span class="tree-caret is-placeholder" aria-hidden="true"></span>
 
                 <DocIcon class="tree-icon" :size="14" />
 
@@ -56,28 +48,14 @@
                     >···</button>
                 </span>
             </div>
-
-            <PageTree
-                v-if="node.children.length && expanded[node.id]"
-                :nodes="node.children"
-                :depth="depth + 1"
-                :active-id="activeId"
-                :expanded="expanded"
-                :renaming-id="renamingId"
-                @open="$emit('open', $event)"
-                @toggle="$emit('toggle', $event)"
-                @create-child="$emit('create-child', $event)"
-                @menu="(n, e) => $emit('menu', n, e)"
-                @rename-submit="(n, t) => $emit('rename-submit', n, t)"
-                @rename-cancel="$emit('rename-cancel')"
-            />
         </div>
     </div>
 </template>
 
 <script>
-// 递归页面树：与 Notion 侧边栏一致——可展开箭头、hover 显示「＋」（新建子页面）与「···」（更多）。
-// 展开状态、重命名状态、菜单与删除确认都由 App.vue 统一持有，本组件只负责渲染与派发事件。
+// 侧边栏页面列表：只显示一级（顶层）页面，子页面不出现在侧边栏，
+// 而是在右侧文档详情底部的「子页面」列表中展示（见 DocumentDetail.vue）。
+// 重命名状态、菜单与删除确认由 App.vue 统一持有，本组件只负责渲染与派发事件。
 import DocIcon from './DocIcon.vue';
 
 export default {
@@ -87,10 +65,9 @@ export default {
         nodes: { type: Array, default: () => [] },
         depth: { type: Number, default: 0 },
         activeId: { type: Number, default: null },
-        expanded: { type: Object, default: () => ({}) },
         renamingId: { type: Number, default: null }
     },
-    emits: ['open', 'toggle', 'create-child', 'menu', 'rename-submit', 'rename-cancel'],
+    emits: ['open', 'create-child', 'menu', 'rename-submit', 'rename-cancel'],
     directives: {
         focus: {
             mounted(el) {
