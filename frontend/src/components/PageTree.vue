@@ -4,7 +4,7 @@
             <div
                 class="tree-row"
                 :class="{ active: node.id === activeId }"
-                :style="{ paddingLeft: (8 + depth * 16) + 'px' }"
+                :style="{ paddingLeft: (6 + depth * 14) + 'px' }"
                 role="button"
                 tabindex="0"
                 @click="$emit('open', node)"
@@ -18,10 +18,17 @@
                     :aria-label="expanded[node.id] ? '收起子页面' : '展开子页面'"
                     :aria-expanded="!!expanded[node.id]"
                     @click.stop="$emit('toggle', node.id)"
-                >›</button>
+                >
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                </button>
                 <span v-else class="tree-caret is-placeholder" aria-hidden="true"></span>
 
-                <DocIcon class="tree-icon" :size="14" />
+                <svg class="icon icon-sm tree-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 3 14 8 19 8" />
+                </svg>
 
                 <input
                     v-if="renamingId === node.id"
@@ -46,14 +53,25 @@
                         title="新建子页面"
                         aria-label="新建子页面"
                         @click.stop="$emit('create-child', node)"
-                    >＋</button>
+                    >
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                    </button>
                     <button
                         class="tree-act"
                         type="button"
                         title="更多操作"
                         aria-label="更多操作"
                         @click.stop="$emit('menu', node, $event)"
-                    >···</button>
+                    >
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="5" r="1.4" />
+                            <circle cx="12" cy="12" r="1.4" />
+                            <circle cx="12" cy="19" r="1.4" />
+                        </svg>
+                    </button>
                 </span>
             </div>
 
@@ -76,13 +94,10 @@
 </template>
 
 <script>
-// 递归页面树：二级菜单内按父子层级展示页面——子页面缩进显示在其父页面下方，
-// 通过 › 箭头展开/收起；展开状态记忆与菜单/删除确认由 App.vue 统一持有。
-import DocIcon from './DocIcon.vue';
-
+// 递归页面树：按父子层级展示页面——子页面缩进显示在其父页面下方，
+// 通过箭头展开/收起；展开状态记忆与菜单/删除确认由 App.vue 统一持有。
 export default {
     name: 'PageTree',
-    components: { DocIcon },
     props: {
         nodes: { type: Array, default: () => [] },
         depth: { type: Number, default: 0 },
@@ -117,66 +132,61 @@ export default {
 .tree-row {
     display: flex;
     align-items: center;
-    gap: 4px;
-    min-height: 28px;
-    padding-right: 6px;
-    border-radius: 6px;
-    color: var(--color-sidebar-text);
-    font-size: 14px;
+    gap: 7px;
+    min-height: 38px;
+    padding-right: 8px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: var(--text-doc-title);
     cursor: pointer;
     user-select: none;
-    transition: background 0.1s;
+    border: 1px solid transparent;
+    transition: background var(--dur-base) var(--ease-out),
+                color var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out);
 }
 .tree-row:hover {
-    background: var(--color-sidebar-hover);
+    background: var(--hover-background);
+    color: var(--text-primary);
 }
 .tree-row:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: -2px;
+    outline: none;
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
 .tree-row.active {
-    background: var(--color-sidebar-active);
-    color: var(--color-text);
-    font-weight: 500;
+    background: var(--selected-background);
+    border-color: var(--selected-border);
+    color: var(--text-primary);
+    font-weight: var(--weight-medium);
 }
 
 .tree-caret {
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
     padding: 0;
     border: none;
-    background: none;
-    color: var(--color-text-faint);
-    font-size: 14px;
-    line-height: 1;
-    border-radius: 4px;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-tertiary);
     cursor: pointer;
-    transition: transform 0.12s, background 0.12s, color 0.12s;
+    transition: transform var(--dur-base) var(--ease-out),
+                background var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out);
 }
-.tree-caret:hover {
-    background: var(--color-sidebar-active);
-    color: var(--color-text);
-}
-.tree-caret.open {
-    transform: rotate(90deg);
-}
-.tree-caret.is-placeholder {
-    cursor: default;
-    pointer-events: none;
-}
+.tree-caret:hover { background: var(--hover-background); color: var(--text-primary); }
+.tree-caret.open { transform: rotate(90deg); }
+.tree-caret.is-placeholder { cursor: default; pointer-events: none; }
 
-.tree-icon {
-    flex-shrink: 0;
-    width: 16px;
-    margin: 0 1px;
-    color: var(--color-text-faint);
-}
+.tree-icon { color: var(--text-tertiary); }
+.tree-row.active .tree-icon { color: var(--accent); }
 
 .tree-label {
     flex: 1;
     min-width: 0;
-    padding: 4px 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -185,13 +195,14 @@ export default {
 .tree-rename {
     flex: 1;
     min-width: 0;
-    border: 1px solid var(--color-focus);
-    border-radius: 4px;
-    padding: 1px 4px;
-    font-size: 13px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 7px;
+    border: 1px solid var(--accent-border);
+    background: var(--surface-solid);
+    color: var(--text-primary);
     font-family: inherit;
-    color: var(--color-text);
-    background: var(--color-surface);
+    font-size: var(--text-doc-title);
     outline: none;
 }
 
@@ -200,36 +211,24 @@ export default {
     align-items: center;
     gap: 1px;
     opacity: 0;
-    transition: opacity 0.1s;
+    transition: opacity var(--dur-base) var(--ease-out);
 }
 .tree-row:hover .tree-actions,
-.tree-row:focus-within .tree-actions {
-    opacity: 1;
-}
+.tree-row:focus-within .tree-actions { opacity: 1; }
+
 .tree-act {
-    width: 22px;
-    height: 22px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
     padding: 0;
     border: none;
-    background: none;
-    border-radius: 4px;
-    color: var(--color-text-muted);
-    font-size: 13px;
-    line-height: 1;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-tertiary);
     cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.tree-act:hover {
-    background: var(--color-sidebar-active);
-    color: var(--color-text);
-}
-.tree-act:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 1px;
-}
-
-@media (max-width: 768px) {
-    .tree-actions {
-        opacity: 1;
-    }
-}
+.tree-act:hover { background: var(--hover-background); color: var(--text-primary); }
+.tree-act:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
 </style>

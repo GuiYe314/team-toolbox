@@ -277,14 +277,14 @@ function fmt(n, digits = 2) {
 .btn-back {
     background: none;
     border: none;
-    color: var(--color-focus);
+    color: var(--accent);
     cursor: pointer;
     font-size: 14px;
     padding: 0;
     margin-bottom: 12px;
 }
 .btn-back:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 2px;
 }
@@ -295,14 +295,14 @@ function fmt(n, digits = 2) {
     letter-spacing: -0.01em;
 }
 .subtitle {
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     margin: 0;
     font-size: 14px;
 }
 
 .card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 10px;
     padding: 20px;
     margin-bottom: 16px;
@@ -319,16 +319,16 @@ function fmt(n, digits = 2) {
     padding: 8px 12px;
     font-size: 14px;
     font-family: inherit;
-    color: var(--color-text);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border-strong);
+    color: var(--text-primary);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
     outline: none;
 }
 .text-input:focus,
 .num-input:focus {
-    border-color: var(--color-focus);
-    box-shadow: 0 0 0 2px var(--color-focus);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
     outline: none;
 }
 
@@ -343,7 +343,7 @@ function fmt(n, digits = 2) {
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .wh-item > span {
     flex-shrink: 0;
@@ -358,21 +358,21 @@ function fmt(n, digits = 2) {
 .preset {
     font-size: 12px;
     padding: 3px 10px;
-    border: 1px solid var(--color-border);
-    background: var(--color-surface);
-    color: var(--color-text-muted);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+    color: var(--text-secondary);
     border-radius: 12px;
     cursor: pointer;
 }
 .preset:hover {
-    border-color: var(--color-border-strong);
-    color: var(--color-text);
+    border-color: var(--panel-border);
+    color: var(--text-primary);
 }
 
 .err {
     margin: 10px 0 0;
     font-size: 13px;
-    color: var(--color-danger);
+    color: var(--danger);
 }
 
 .lock-btn {
@@ -381,29 +381,29 @@ function fmt(n, digits = 2) {
     font-size: 15px;
     font-family: inherit;
     font-weight: 500;
-    color: var(--color-text);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border-strong);
+    color: var(--text-primary);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
     cursor: pointer;
     transition: background 0.12s;
 }
 .lock-btn:hover {
-    background: var(--color-sidebar-bg);
+    background: var(--hover-background);
 }
 .lock-btn.locked {
-    background: var(--color-focus);
-    border-color: var(--color-focus);
+    background: var(--accent);
+    border-color: var(--accent);
     color: #fff;
 }
 .hint {
     margin: 10px 0 0;
     font-size: 13px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     line-height: 1.6;
 }
 .hint.ready strong {
-    color: var(--color-text);
+    color: var(--text-primary);
 }
 
 .result {
@@ -412,39 +412,39 @@ function fmt(n, digits = 2) {
     gap: 8px;
     margin-top: 16px;
     padding: 16px 18px;
-    background: var(--color-code-bg);
+    background: var(--surface-sunken);
     border-radius: 10px;
 }
 .result-num {
     font-size: 28px;
     font-weight: 600;
     letter-spacing: -0.01em;
-    color: var(--color-text);
+    color: var(--text-primary);
 }
 .result-unit {
     font-size: 13px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .btn-copy {
     margin-left: auto;
     padding: 5px 12px;
     font-size: 13px;
     font-family: inherit;
-    color: var(--color-focus);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    color: var(--accent);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 6px;
     cursor: pointer;
 }
 .btn-copy:hover {
-    background: var(--color-surface);
-    border-color: var(--color-border-strong);
+    background: var(--panel-background);
+    border-color: var(--panel-border);
 }
 
 .placeholder {
     margin: 0;
     font-size: 14px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 
 @media (max-width: 768px) {

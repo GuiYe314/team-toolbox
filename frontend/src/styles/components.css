@@ -1,0 +1,280 @@
+/* ==========================================================================
+   Components — 跨视图复用的原子样式
+   放在全局而非 scoped，是因为这些样式要作用在 App.vue 与各视图的
+   不同作用域元素上；集中一处可避免重复定义与不一致。
+   ========================================================================== */
+
+/* ── 导航项（一级/ 二级树/ 分类共用视觉语言）───────────────────── */
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: var(--h-nav-item);
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    font-size: var(--text-nav);
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
+    cursor: pointer;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    transition: background var(--dur-base) var(--ease-out),
+                color var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out);
+}
+.nav-item:hover { background: var(--hover-background); color: var(--text-primary); }
+.nav-item:focus-visible {
+    outline: none;
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.nav-item.is-active {
+    background: var(--selected-background);
+    border-color: var(--selected-border);
+    color: var(--text-primary);
+    font-weight: var(--weight-semibold);
+}
+.nav-item .nav-icon {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    flex: none;
+}
+.nav-item .nav-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Lucide 风格线性图标：统一 stroke 宽度与端点 */
+.icon {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    width: 18px;
+    height: 18px;
+    flex: none;
+}
+.icon-sm { width: 16px; height: 16px; }
+/* 大尺寸图标（Logo / 空状态）只降到 1.7，仍在 1.7–1.9 规范区间内 */
+.icon-lg { width: 30px; height: 30px; stroke-width: 1.7; }
+
+/* ── 按钮 ────────────────────────────────────────────────────────── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--text-doc-title);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out),
+                color var(--dur-base) var(--ease-out),
+                opacity var(--dur-base) var(--ease-out);
+}
+.btn:hover { background: var(--panel-background-hover); border-color: var(--accent-border); }
+.btn:focus-visible { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--focus-ring); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+    background: var(--accent);
+    border-color: transparent;
+    color: var(--accent-contrast);
+    font-weight: var(--weight-semibold);
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: transparent; }
+
+.btn-danger { color: var(--danger); }
+.btn-danger:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger); }
+
+.btn-ghost { background: transparent; border-color: transparent; }
+.btn-ghost:hover { background: var(--hover-background); border-color: transparent; }
+
+.btn-sm { height: 30px; padding: 0 10px; font-size: var(--text-secondary); }
+
+/* ── 标签 / 徽标 ─────────────────────────────────────────────────── */
+.tag {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+    color: var(--text-secondary);
+    font-size: var(--text-tag);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--dur-base) var(--ease-out),
+                color var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out);
+}
+.tag:hover { background: var(--panel-background-hover); color: var(--text-primary); }
+.tag.is-active {
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+
+/* 只读徽标（分类名 / 状态），不可点击 */
+.tag-static { cursor: default; }
+.tag-static:hover { background: var(--panel-background); color: var(--text-secondary); }
+
+/* 计数徽标 */
+.count-badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 19px;
+    padding: 0 6px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: var(--text-tag);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── 输入框 ──────────────────────────────────────────────────────── */
+.input {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--text-body);
+    outline: none;
+    transition: border-color var(--dur-base) var(--ease-out),
+                background var(--dur-base) var(--ease-out),
+                box-shadow var(--dur-base) var(--ease-out);
+}
+.input::placeholder { color: var(--text-tertiary); }
+.input:focus {
+    background: var(--panel-background-hover);
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* ── 消息条 ──────────────────────────────────────────────────────── */
+.notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 13px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+    font-size: var(--text-secondary);
+    color: var(--text-secondary);
+}
+.notice-success { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+.notice-error { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+
+.empty-hint {
+    padding: 26px 12px;
+    text-align: center;
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
+}
+
+/* ── 覆盖层与对话框 ──────────────────────────────────────────────── */
+.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-overlay);
+    display: grid;
+    place-items: center;
+    background: rgba(12, 18, 30, 0.42);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+}
+
+.dialog {
+    width: min(440px, calc(100vw - 48px));
+    padding: 22px;
+    border-radius: var(--radius-lg);
+    background: var(--glass-background-strong);
+    -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(var(--blur-saturate));
+    backdrop-filter: blur(var(--blur-lg)) saturate(var(--blur-saturate));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-overlay), var(--shadow-inset);
+    color: var(--text-primary);
+}
+.dialog-title {
+    margin: 0 0 8px;
+    font-size: var(--text-section-title);
+    font-weight: var(--weight-semibold);
+}
+.dialog-text {
+    margin: 0 0 8px;
+    font-size: var(--text-body);
+    color: var(--text-secondary);
+    line-height: var(--line-relaxed);
+}
+.dialog-warn { margin: 0 0 8px; font-size: var(--text-secondary); color: var(--warning); }
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+/* ── 下拉菜单：opacity + translateY 淡入，无缩放弹跳 ────────────────── */
+.dropdown {
+    position: absolute;
+    z-index: var(--z-dropdown);
+    min-width: 180px;
+    padding: 5px;
+    border-radius: var(--radius-sm);
+    background: var(--glass-background-strong);
+    -webkit-backdrop-filter: blur(var(--blur-md)) saturate(var(--blur-saturate));
+    backdrop-filter: blur(var(--blur-md)) saturate(var(--blur-saturate));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-overlay), var(--shadow-inset);
+    animation: dropdown-in var(--dur-base) var(--ease-out);
+}
+@keyframes dropdown-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.dropdown button {
+    display: block;
+    width: 100%;
+    padding: 8px 11px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--text-body);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out);
+}
+.dropdown button:hover { background: var(--hover-background); }
+.dropdown .dd-sep { height: 1px; margin: 5px 0; background: var(--panel-border); }
+.dropdown .dd-danger { color: var(--danger); }
+.dropdown .dd-danger:hover { background: var(--danger-soft); }
+
+a { color: inherit; text-decoration: none; }
+ul { list-style: none; padding: 0; margin: 0; }
+button { font-family: inherit; }

@@ -28,18 +28,18 @@ export default {
     font-size: 64px;
     margin: 0 0 8px;
     font-weight: 700;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .subtitle {
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     margin: 0;
     font-size: 18px;
 }
 .empty-state {
     text-align: center;
     padding: 48px 20px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
 }
 .empty-icon {
@@ -48,7 +48,7 @@ export default {
 }
 .empty-hint {
     font-size: 13px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     margin: 4px 0 16px;
 }
 .btn {
@@ -56,11 +56,11 @@ export default {
     border-radius: 6px;
     font-size: 14px;
     cursor: pointer;
-    border: 1px solid var(--color-border);
-    background: var(--color-surface);
-    color: var(--color-text);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+    color: var(--text-primary);
 }
 .btn-default {
-    background: var(--color-surface);
+    background: var(--panel-background);
 }
 </style>

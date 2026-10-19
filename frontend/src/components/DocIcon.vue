@@ -1,27 +1,22 @@
 <template>
-    <!-- Notion 风格的单色文档图标（描边文件 + 折角） -->
+    <!-- 文档图标：与全局 .icon 统一为 Lucide 风格（24 视图 / stroke 1.8），
+         使列表内图标与导航、工具栏图标视觉重量一致。 -->
     <svg
         :width="size"
         :height="size"
-        viewBox="0 0 16 16"
+        viewBox="0 0 24 24"
         fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
         aria-hidden="true"
         focusable="false"
         class="doc-icon"
     >
-        <path
-            d="M9.2 1.6H4.6a1 1 0 0 0-1 1v10.8a1 1 0 0 0 1 1h6.8a1 1 0 0 0 1-1V4.8L9.2 1.6Z"
-            stroke="currentColor"
-            stroke-width="1.1"
-            stroke-linejoin="round"
-        />
-        <path
-            d="M9.1 1.8v3.1h3.1"
-            stroke="currentColor"
-            stroke-width="1.1"
-            stroke-linejoin="round"
-        />
-        <path d="M5.9 8.4h4.2M5.9 10.9h4.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" />
+        <path d="M14 3.5H6.8A1.8 1.8 0 0 0 5 5.3v13.4a1.8 1.8 0 0 0 1.8 1.8h10.4a1.8 1.8 0 0 0 1.8-1.8V8.5z" />
+        <path d="M13.8 3.6v4.2H19" />
+        <path d="M8.6 13h6.8M8.6 16.4h4.6" />
     </svg>
 </template>
 
@@ -38,6 +33,6 @@ export default {
 .doc-icon {
     display: block;
     flex-shrink: 0;
-    color: var(--color-text-faint);
+    color: inherit;
 }
 </style>

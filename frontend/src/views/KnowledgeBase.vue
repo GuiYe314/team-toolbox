@@ -1,170 +1,154 @@
 <template>
     <div class="kb-page">
+        <!-- ═══ 内容区页头：标题 + 主操作 ═══ -->
         <header class="kb-head">
-            <div class="kb-title-row">
-                <span class="kb-emoji">📚</span>
+            <div class="kb-head-text">
                 <h1 class="kb-title">知识库</h1>
-                <button class="nt-btn nt-btn-primary" @click="goNew">新建</button>
+                <p class="kb-desc">
+                    {{ searchMode ? `搜索「${searchQuery}」· ${searchTotal} 条结果` : `${total} 个团队文档` }}
+                </p>
             </div>
-            <p class="kb-desc">团队 Markdown 知识沉淀</p>
+            <button class="btn btn-primary" @click="goNew">
+                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                新建
+            </button>
         </header>
 
-        <div class="kb-body">
-            <!-- 左侧目录（Notion 式页面树） -->
-            <aside class="kb-catalog">
-                <button
-                    class="cat-item"
-                    :class="{ active: selectedCategory === null }"
-                    @click="selectCategory(null)"
-                >
-                    <span class="cat-emoji">📄</span>
-                    <span class="cat-name">全部文档</span>
-                    <span class="cat-count" v-if="selectedCategory === null">{{ total }}</span>
+        <!-- ═══ 工具栏：搜索 + 导入导出 ═══ -->
+        <div class="kb-toolbar">
+            <div class="kb-search">
+                <span class="kb-search-icon">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="11" cy="11" r="6.5" />
+                        <line x1="16" y1="16" x2="20.5" y2="20.5" />
+                    </svg>
+                </span>
+                <input
+                    class="input kb-search-input"
+                    v-model="searchQuery"
+                    type="search"
+                    placeholder="搜索标题或正文…"
+                    @input="onSearchInput"
+                />
+                <button v-if="searchQuery" class="kb-search-clear" type="button" @click="clearSearch">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                    </svg>
                 </button>
+            </div>
 
-                <div
-                    v-for="c in categories"
-                    :key="c.id"
-                    class="cat-row"
-                    :class="{ active: selectedCategory === c.id }"
-                >
-                    <button
-                        class="cat-item"
-                        :class="{ active: selectedCategory === c.id }"
-                        @click="selectCategory(c.id)"
-                    >
-                        <span class="cat-emoji">📁</span>
-                        <input
-                            v-if="editingCatId === c.id"
-                            ref="catInput"
-                            class="cat-rename-input"
-                            v-model="editingCatName"
-                            @keyup.enter="saveRename(c)"
-                            @keyup.esc="cancelRename"
-                            @click.stop
-                        />
-                        <span v-else class="cat-name">{{ c.name }}</span>
-                        <span class="cat-count" v-if="selectedCategory === c.id">{{ total }}</span>
+            <div class="kb-io">
+                <!-- 导出下拉：json 体积小易读；gz 压缩后约为 1%，适合大库与归档 -->
+                <div class="kb-io-menu" @mouseleave="exportMenu = false">
+                    <button class="btn btn-sm" type="button" :disabled="ioBusy !== ''" @click="exportMenu = !exportMenu">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 3.5v11" />
+                            <polyline points="7.5 10.5 12 15 16.5 10.5" />
+                            <path d="M4.5 16.5v2A2.5 2.5 0 0 0 7 21h10a2.5 2.5 0 0 0 2.5-2.5v-2" />
+                        </svg>
+                        {{ ioBusy === 'export' ? '导出中…' : '导出' }}
+                        <svg class="icon icon-sm kb-caret" :class="{ open: exportMenu }" viewBox="0 0 24 24" aria-hidden="true">
+                            <polyline points="6 9.5 12 15.5 18 9.5" />
+                        </svg>
                     </button>
-                    <div class="cat-actions" v-if="editingCatId !== c.id">
-                        <button class="cat-act" title="重命名" @click.stop="startRename(c)">改名</button>
-                        <button class="cat-act cat-act-danger" title="删除" @click.stop="confirmDeleteCategory(c)">删除</button>
-                    </div>
-                </div>
-
-                <p v-if="!categories.length && !catLoading" class="cat-empty">暂无分类，点击下方新建</p>
-
-                <!-- 新建分类 -->
-                <div class="cat-new" v-if="addCatMode">
-                    <input
-                        ref="newCatInput"
-                        class="cat-rename-input"
-                        v-model="newCatName"
-                        placeholder="分类名称（1–30 字）"
-                        @keyup.enter="saveNewCategory"
-                        @keyup.esc="addCatMode = false"
-                    />
-                </div>
-                <button class="cat-add-btn" v-else @click="startAddCategory">＋ 新建分类</button>
-            </aside>
-
-            <!-- 右侧文档列表（Notion 列表视图） -->
-            <section class="kb-list-wrap">
-                <!-- 标签筛选（F-KB-005：按标签 AND 过滤） -->
-                <div class="kb-tag-filter" v-if="tags.length">
-                    <span class="filter-label">标签</span>
-                    <button
-                        v-for="t in tags"
-                        :key="t.id"
-                        class="tag-chip"
-                        :class="{ selected: selectedTags.includes(t.name) }"
-                        @click="toggleTag(t.name)"
-                    >#{{ t.name }}</button>
-                    <button class="clear-filter" v-if="selectedTags.length" @click="clearTagFilter">清除筛选</button>
-                </div>
-
-                <div class="kb-toolbar">
-                    <span class="kb-count" v-if="!searchMode">{{ total }} 个文档</span>
-                    <span class="kb-count" v-else>搜索「{{ searchQuery }}」· {{ searchTotal }} 条结果</span>
-                    <div class="kb-search">
-                        <input
-                            class="kb-search-input"
-                            v-model="searchQuery"
-                            type="search"
-                            placeholder="搜索标题或正文…"
-                            @input="onSearchInput"
-                        />
-                        <button v-if="searchQuery" class="kb-search-clear" type="button" @click="clearSearch">清除</button>
-                    </div>
-                    <div class="kb-io">
-                        <!-- 导出下拉：json 体积小易读；gz 压缩后约为 1%，适合大库与归档 -->
-                        <div class="kb-io-menu" @mouseleave="exportMenu = false">
-                            <button class="kb-io-btn" type="button" :disabled="ioBusy !== ''" @click="exportMenu = !exportMenu">
-                                {{ ioBusy === 'export' ? '导出中…' : '导出 ▾' }}
-                            </button>
-                            <div v-if="exportMenu" class="kb-io-dropdown">
-                                <button type="button" @click="doExport('json')">
-                                    <span class="dd-title">JSON 文件（.json）</span>
-                                    <span class="dd-desc">体积与数据库相当，内容可直接阅读</span>
-                                </button>
-                                <button type="button" @click="doExport('gzip')">
-                                    <span class="dd-title">压缩文件（.json.gz）</span>
-                                    <span class="dd-desc">体积约为 JSON 的 1%，推荐用于备份归档</span>
-                                </button>
-                            </div>
-                        </div>
-                        <button class="kb-io-btn" type="button" :disabled="ioBusy !== ''" @click="pickImportFile">
-                            {{ ioBusy === 'import' ? '导入中…' : '导入' }}
+                    <div v-if="exportMenu" class="dropdown kb-io-dropdown">
+                        <button type="button" @click="doExport('json')">
+                            <span class="dd-title">JSON 文件（.json）</span>
+                            <span class="dd-desc">体积与数据库相当，内容可直接阅读</span>
                         </button>
-                        <input
-                            ref="fileInput"
-                            class="kb-io-file"
-                            type="file"
-                            accept="application/json,.json,.gz,application/gzip"
-                            @change="onImportFile"
-                        />
+                        <button type="button" @click="doExport('gzip')">
+                            <span class="dd-title">压缩文件（.json.gz）</span>
+                            <span class="dd-desc">体积约为 JSON 的 1%，推荐用于备份归档</span>
+                        </button>
                     </div>
                 </div>
+                <button class="btn btn-sm" type="button" :disabled="ioBusy !== ''" @click="pickImportFile">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 15.5v-11" />
+                        <polyline points="7.5 8.5 12 4 16.5 8.5" />
+                        <path d="M4.5 16.5v2A2.5 2.5 0 0 0 7 21h10a2.5 2.5 0 0 0 2.5-2.5v-2" />
+                    </svg>
+                    {{ ioBusy === 'import' ? '导入中…' : '导入' }}
+                </button>
+                <input
+                    ref="fileInput"
+                    class="kb-io-file"
+                    type="file"
+                    accept="application/json,.json,.gz,application/gzip"
+                    @change="onImportFile"
+                />
+            </div>
+        </div>
 
-                <p v-if="ioMessage" class="kb-io-msg" :class="{ 'kb-io-msg-error': ioError }">{{ ioMessage }}</p>
+        <!-- ═══ 标签筛选（按标签 AND 过滤）═══ -->
+        <div class="kb-tag-filter" v-if="tags.length">
+            <button
+                v-for="t in tags"
+                :key="t.id"
+                class="tag"
+                :class="{ 'is-active': selectedTags.includes(t.name) }"
+                @click="toggleTag(t.name)"
+            >#{{ t.name }}</button>
+            <button class="btn btn-sm btn-ghost kb-clear-filter" v-if="selectedTags.length" @click="clearTagFilter">
+                清除筛选
+            </button>
+        </div>
 
-                <p v-if="loading" class="nt-state">加载中…</p>
-                <p v-else-if="error" class="nt-state nt-state-error">{{ error }}</p>
-                <p v-else-if="items.length === 0" class="nt-empty">
-                    <span class="nt-empty-emoji">🗒️</span>
-                    <template v-if="searchMode">未找到与「{{ searchQuery }}」相关的文档。<button class="nt-link" type="button" @click="clearSearch">查看全部文档</button></template>
-                    <template v-else>这里还没有文档。点击右上角「新建」开始记录团队知识。</template>
-                </p>
+        <div v-if="ioMessage" class="notice kb-io-msg" :class="ioError ? 'notice-error' : 'notice-success'">
+            {{ ioMessage }}
+        </div>
 
-                <ul v-else class="nt-doc-list">
-                    <li
-                        v-for="doc in items"
-                        :key="doc.id"
-                        class="nt-doc-row"
-                        @click="goDetail(doc.id)"
-                    >
-                        <DocIcon class="doc-emoji" :size="16" />
-                        <div class="doc-info">
-                            <span class="doc-title">{{ doc.title }}</span>
-                            <span v-if="doc.snippet" class="doc-snippet">{{ doc.snippet }}</span>
-                            <span class="doc-sub">
-                                <span v-if="doc.parent_id" class="doc-path">{{ pathLabel(doc.parent_id) }}</span>
-                                <span v-if="doc.category_name" class="nt-pill">{{ doc.category_name }}</span>
-                                <span v-for="t in (doc.tags || [])" :key="t" class="nt-pill nt-pill-tag">#{{ t }}</span>
-                                <span class="doc-time">{{ formatTime(doc.updated_at) }}</span>
-                            </span>
-                        </div>
-                        <div class="doc-actions">
-                            <button class="nt-ghost" @click.stop="goDetail(doc.id)">打开</button>
-                            <button class="nt-ghost" @click.stop="goEdit(doc.id)">编辑</button>
-                        </div>
-                    </li>
-                </ul>
+        <div class="scroll-area kb-scroll">
+        <p v-if="loading" class="empty-hint">加载中…</p>
+        <p v-else-if="error" class="empty-hint kb-error">{{ error }}</p>
+        <div v-else-if="items.length === 0" class="kb-empty">
+            <svg class="icon icon-lg kb-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 4.5h6.5a2 2 0 0 1 2 2V20a1.6 1.6 0 0 0-1.6-1.5H4z" />
+                <path d="M20 4.5h-6.5a2 2 0 0 0-2 2V20a1.6 1.6 0 0 1 1.6-1.5H20z" />
+            </svg>
+            <p v-if="searchMode">未找到与「{{ searchQuery }}」相关的文档。<button class="nt-link" type="button" @click="clearSearch">查看全部文档</button></p>
+            <p v-else>这里还没有文档。点击右上角「新建」开始记录团队知识。</p>
+        </div>
 
-                <p v-if="searchMode && searchTotal > items.length" class="kb-more">
-                    <button class="nt-btn" type="button" @click="loadMoreSearch" :disabled="loading">加载更多</button>
-                </p>
-            </section>
+        <ul v-else class="doc-list">
+            <li
+                v-for="doc in items"
+                :key="doc.id"
+                class="doc-row"
+                tabindex="0"
+                @click="goDetail(doc.id)"
+                @keyup.enter="goDetail(doc.id)"
+            >
+                <span class="doc-icon-wrap">
+                    <DocIcon :size="18" />
+                </span>
+                <div class="doc-main">
+                    <span class="doc-title">{{ doc.title }}</span>
+                    <span v-if="doc.snippet" class="doc-snippet">{{ doc.snippet }}</span>
+                </div>
+                <div class="doc-meta">
+                    <span v-if="doc.category_name" class="tag tag-static">{{ doc.category_name }}</span>
+                    <span v-for="t in (doc.tags || [])" :key="t" class="tag tag-static">#{{ t }}</span>
+                </div>
+                <span class="doc-time">{{ formatTime(doc.updated_at) }}</span>
+                <div class="doc-actions">
+                    <button class="mini-btn" type="button" title="编辑" aria-label="编辑文档" @click.stop="goEdit(doc.id)">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7.5 18.5l-4 1 1-4z" />
+                        </svg>
+                    </button>
+                </div>
+            </li>
+        </ul>
+
+        <div v-if="searchMode && searchTotal > items.length" class="kb-more">
+            <button class="btn" type="button" @click="loadMoreSearch" :disabled="loading">加载更多</button>
+        </div>
         </div>
     </div>
 </template>
@@ -198,45 +182,49 @@ async function gunzip(buf) {
 export default {
     name: 'KnowledgeBase',
     components: { DocIcon },
-        data() {
-            return {
-                items: [],
-                total: 0,
-                loading: true,
-                error: '',
-                categories: [],
-                catLoading: true,
-                selectedCategory: null,
-                pages: [],
-                tags: [],
-                selectedTags: [],
-                editingCatId: null,
-                editingCatName: '',
-                addCatMode: false,
-                newCatName: '',
-                // 搜索（F-KB-006）
-                searchQuery: '',
-                searchMode: false,
-                searchTotal: 0,
-                searchTimer: null,
-                // 备份导入 / 导出（F-KB-007、F-OPS-002）
-                ioBusy: '',
-                ioMessage: '',
-                ioError: false,
-                exportMenu: false
-            };
-        },
-        async mounted() {
-            this._onExternalChange = () => {
-                this.loadPageMap();
-                this.load();
-            };
-            window.addEventListener('kb-changed', this._onExternalChange);
-            await this.loadCategories();
-            await this.loadTags();
-            await this.loadPageMap();
-            await this.load();
-        },
+    props: {
+        // 分类筛选由App.vue 第三栏（CategorySidebar）持有并下发。
+        // 本视图只负责按它拉取列表，不再自己维护分类 CRUD。
+        category: { type: [String, Number], default: null }
+    },
+    data() {
+        return {
+            items: [],
+            total: 0,
+            loading: true,
+            error: '',
+            pages: [],
+            tags: [],
+            selectedTags: [],
+            // 搜索（F-KB-006）
+            searchQuery: '',
+            searchMode: false,
+            searchTotal: 0,
+            searchTimer: null,
+            // 备份导入 / 导出（F-KB-007、F-OPS-002）
+            ioBusy: '',
+            ioMessage: '',
+            ioError: false,
+            exportMenu: false
+        };
+    },
+    watch: {
+        // 第三栏切换分类 → 退出搜索态并重新拉取
+        category() {
+            this.exitSearch();
+            this.load();
+        }
+    },
+    async mounted() {
+        this._onExternalChange = () => {
+            this.loadPageMap();
+            this.load();
+        };
+        window.addEventListener('kb-changed', this._onExternalChange);
+        await this.loadTags();
+        await this.loadPageMap();
+        await this.load();
+    },
     beforeUnmount() {
         window.removeEventListener('kb-changed', this._onExternalChange);
     },
@@ -246,31 +234,7 @@ export default {
                 const { res, body } = await api.listDocumentTree();
                 if (res.ok) this.pages = (body && body.items) || [];
             } catch {
-                // 页面树加载失败只影响层级面包屑，不影响列表
-            }
-        },
-        /** 由 parent_id 反查祖先标题，拼成「父 / 祖父」路径 */
-        pathLabel(parentId) {
-            const map = new Map(this.pages.map((p) => [p.id, p]));
-            const names = [];
-            let cur = parentId;
-            let guard = 0;
-            while (cur != null && map.has(cur) && guard++ < 50) {
-                const node = map.get(cur);
-                names.unshift(node.title);
-                cur = node.parent_id;
-            }
-            return names.join(' / ');
-        },
-        async loadCategories() {
-            this.catLoading = true;
-            try {
-                const { res, body } = await api.listCategories();
-                if (res.ok) this.categories = body || [];
-            } catch {
-                // 分类加载失败不影响文档列表
-            } finally {
-                this.catLoading = false;
+                // 页面树加载失败不影响列表
             }
         },
         async loadTags() {
@@ -287,8 +251,8 @@ export default {
             try {
                 const params = new URLSearchParams();
                 params.set('limit', '200');
-                if (this.selectedCategory !== null) {
-                    params.set('category_id', String(this.selectedCategory));
+                if (this.category !== null && this.category !== undefined) {
+                    params.set('category_id', String(this.category));
                 }
                 if (this.selectedTags.length) {
                     params.set('tags', this.selectedTags.join(','));
@@ -302,11 +266,6 @@ export default {
             } finally {
                 this.loading = false;
             }
-        },
-        selectCategory(id) {
-            this.selectedCategory = id;
-            this.exitSearch();
-            this.load();
         },
         // ── 标签筛选（F-KB-005）──
         toggleTag(name) {
@@ -462,7 +421,6 @@ export default {
                 this.ioError = false;
                 this.ioMessage = `导入完成：新增 ${body.imported || 0} 个页面，跳过 ${body.skipped || 0} 个已存在页面，新建 ${body.categories_created || 0} 个分类。`;
                 // 通知页面树、分类、标签与详情页刷新
-                await this.loadCategories();
                 await this.loadTags();
                 await this.loadPageMap();
                 this.load();
@@ -472,74 +430,6 @@ export default {
                 this.ioMessage = e.network ? e.message : (e.message || '导入失败，请稍后重试');
             } finally {
                 this.ioBusy = '';
-            }
-        },
-        // ── 分类管理（F-KB-004）──
-        startAddCategory() {
-            this.addCatMode = true;
-            this.$nextTick(() => {
-                if (this.$refs.newCatInput) this.$refs.newCatInput.focus();
-            });
-        },
-        async saveNewCategory() {
-            const name = this.newCatName.trim();
-            if (!name) { this.addCatMode = false; return; }
-            try {
-                const { res, body } = await api.createCategory(name);
-                if (!res.ok) throw new Error(body?.message || '新建分类失败');
-                this.newCatName = '';
-                this.addCatMode = false;
-                await this.loadCategories();
-                window.dispatchEvent(new Event('kb-changed'));
-                this.load();
-            } catch (e) {
-                this.error = e.network ? e.message : (e.message || '新建分类失败');
-            }
-        },
-        startRename(c) {
-            this.editingCatId = c.id;
-            this.editingCatName = c.name;
-            this.$nextTick(() => {
-                if (this.$refs.catInput) this.$refs.catInput.focus();
-            });
-        },
-        cancelRename() {
-            this.editingCatId = null;
-            this.editingCatName = '';
-        },
-        async saveRename(c) {
-            const name = this.editingCatName.trim();
-            if (!name || name === c.name) { this.cancelRename(); return; }
-            try {
-                const { res, body } = await api.updateCategory(c.id, name);
-                if (!res.ok) throw new Error(body?.message || '重命名失败');
-                this.cancelRename();
-                await this.loadCategories();
-                window.dispatchEvent(new Event('kb-changed'));
-                this.load();
-            } catch (e) {
-                this.error = e.network ? e.message : (e.message || '重命名失败');
-                this.cancelRename();
-            }
-        },
-        async confirmDeleteCategory(c) {
-            try {
-                const { res, body } = await api.listDocuments(
-                    '?category_id=' + encodeURIComponent(c.id) + '&limit=1'
-                );
-                const count = (res.ok && body && typeof body.total === 'number') ? body.total : 0;
-                const msg = count > 0
-                    ? `分类「${c.name}」下有 ${count} 篇文档，删除后这些文档将变为「未分类」。确定删除？`
-                    : `确定删除分类「${c.name}」？`;
-                if (!window.confirm(msg)) return;
-                const del = await api.deleteCategory(c.id);
-                if (!del.res.ok) throw new Error((del.body && del.body.message) || '删除失败');
-                await this.loadCategories();
-                if (this.selectedCategory === c.id) this.selectedCategory = null;
-                window.dispatchEvent(new Event('kb-changed'));
-                this.load();
-            } catch (e) {
-                this.error = e.network ? e.message : (e.message || '删除失败');
             }
         },
         goNew() {
@@ -562,543 +452,280 @@ export default {
         }
     }
 };
-</script>
+</script><style scoped>
+/* ==========================================================================
+   知识库内容区
+   布局职责：MainContent 已是玻璃容器，本视图只负责内部纵向节奏。
+   左侧「页面树」与「分类」已提升为App.vue 的第二、三栏，此处不再重复。
+   所有颜色一律走 tokens/theme 变量，禁止硬编码。
+   ========================================================================== */
 
-<style scoped>
 .kb-page {
-    max-width: 1080px;
-    margin: 0 auto;
-    padding: 52px 48px 72px;
-}
-
-/* 页头 */
-.kb-head {
-    margin-bottom: 28px;
-}
-.kb-title-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-.kb-emoji {
-    font-size: 34px;
-    line-height: 1;
-}
-.kb-title {
-    font-size: 38px;
-    font-weight: 700;
-    margin: 0;
-    flex: 1;
-    letter-spacing: -0.01em;
-}
-.kb-desc {
-    color: var(--color-text-muted);
-    margin: 8px 0 0 46px;
-    font-size: 14px;
-}
-
-/* 主体两栏 */
-.kb-body {
-    display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: 28px;
-    align-items: start;
-}
-
-/* 左侧目录 */
-.kb-catalog {
-    position: sticky;
-    top: 24px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-}
-.cat-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 6px 8px;
-    border: none;
-    background: none;
-    border-radius: 6px;
-    cursor: pointer;
-    color: var(--color-sidebar-text);
-    font-size: 14px;
-    text-align: left;
-    transition: background 0.12s;
-}
-.cat-item:hover {
-    background: var(--color-sidebar-hover);
-}
-.cat-item.active {
-    background: var(--color-sidebar-active);
-    color: var(--color-text);
-    font-weight: 500;
-}
-.cat-emoji {
-    font-size: 14px;
-    flex-shrink: 0;
-}
-.cat-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.cat-count {
-    font-size: 12px;
-    color: var(--color-text-faint);
-}
-.cat-empty {
-    font-size: 12px;
-    color: var(--color-text-faint);
-    padding: 6px 8px;
-    margin: 4px 0 0;
+    gap: 14px;
+    padding: 26px 28px 22px;
+    min-height: 0;
+    height: 100%;
 }
 
-.cat-row {
+/* ── 页头 ────────────────────────────────────────────────────────── */
+.kb-head {
     display: flex;
-    align-items: center;
-    gap: 2px;
-    border-radius: 6px;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
 }
-.cat-row:hover {
-    background: var(--color-sidebar-hover);
+.kb-title {
+    margin: 0;
+    font-size: var(--text-page-title);
+    font-weight: var(--weight-bold);
+    letter-spacing: -0.015em;
+    color: var(--text-primary);
 }
-.cat-row.active {
-    background: var(--color-sidebar-active);
-}
-.cat-row .cat-item {
-    flex: 1;
-    min-width: 0;
-}
-.cat-actions {
-    display: flex;
-    gap: 2px;
-    opacity: 0;
-    transition: opacity 0.12s;
-}
-.cat-row:hover .cat-actions,
-.cat-row:focus-within .cat-actions {
-    opacity: 1;
-}
-.cat-act {
-    border: none;
-    background: none;
-    color: var(--color-text-muted);
-    font-size: 12px;
-    padding: 3px 6px;
-    border-radius: 5px;
-    cursor: pointer;
-    white-space: nowrap;
-}
-.cat-act:hover {
-    background: var(--color-sidebar-active);
-    color: var(--color-text);
-}
-.cat-act-danger:hover {
-    background: #fdecec;
-    color: var(--color-danger);
-}
-.cat-rename-input {
-    flex: 1;
-    min-width: 0;
-    border: 1px solid var(--color-focus);
-    border-radius: 5px;
-    padding: 3px 6px;
-    font-size: 14px;
-    background: var(--color-surface);
-    color: var(--color-text);
-}
-.cat-rename-input:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 1px;
-}
-.cat-add-btn {
-    margin-top: 4px;
-    border: none;
-    background: none;
-    color: var(--color-text-muted);
-    font-size: 13px;
-    padding: 6px 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    text-align: left;
-}
-.cat-add-btn:hover {
-    background: var(--color-sidebar-hover);
-    color: var(--color-text);
-}
-.cat-new {
-    margin-top: 2px;
+.kb-desc {
+    margin: 5px 0 0;
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
 }
 
-/* 标签筛选 */
-.kb-tag-filter {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    padding: 0 4px 12px;
-    border-bottom: 1px solid var(--color-border);
-    margin-bottom: 8px;
-}
-.filter-label {
-    font-size: 12px;
-    color: var(--color-text-faint);
-}
-.tag-chip {
-    font-size: 12px;
-    padding: 2px 9px;
-    border-radius: 12px;
-    border: 1px solid var(--color-border);
-    background: var(--color-surface);
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.tag-chip:hover {
-    border-color: var(--color-border-strong);
-}
-.tag-chip.selected {
-    background: var(--color-focus);
-    border-color: var(--color-focus);
-    color: #fff;
-}
-.clear-filter {
-    font-size: 12px;
-    border: none;
-    background: none;
-    color: var(--color-focus);
-    cursor: pointer;
-    padding: 2px 6px;
-}
-.clear-filter:hover {
-    text-decoration: underline;
-}
-
-/* 右侧列表 */
+/* ── 工具栏 ──────────────────────────────────────────────────────── */
 .kb-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 4px 10px;
-    border-bottom: 1px solid var(--color-border);
-    margin-bottom: 6px;
-}
-.kb-count {
-    font-size: 13px;
-    color: var(--color-text-muted);
-    font-weight: 500;
+    gap: 14px;
+    flex-wrap: wrap;
 }
 .kb-search {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-/* 备份导入 / 导出按钮组 */
-.kb-io {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: 4px;
-}
-.kb-io-btn {
-    padding: 5px 12px;
-    font-size: 13px;
-    color: var(--color-text);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border-strong);
-    border-radius: 7px;
-    cursor: pointer;
-}
-.kb-io-btn:hover:not(:disabled) {
-    border-color: var(--color-focus);
-    color: var(--color-focus);
-}
-.kb-io-btn:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-}
-.kb-io-file {
-    display: none;
-}
-/* 导出格式下拉 */
-.kb-io-menu {
     position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    max-width: 420px;
+    min-width: 200px;
 }
-.kb-io-dropdown {
+.kb-search-icon {
     position: absolute;
-    right: 0;
-    top: calc(100% + 6px);
-    z-index: 30;
-    min-width: 268px;
-    padding: 4px;
-    background: var(--color-surface, #fff);
-    border: 1px solid var(--color-border-strong, #d4d3cf);
-    border-radius: 10px;
-    box-shadow: 0 6px 20px rgba(15, 15, 15, 0.12);
-}
-.kb-io-dropdown button {
-    display: block;
-    width: 100%;
-    padding: 8px 10px;
-    text-align: left;
-    background: transparent;
-    border: none;
-    border-radius: 7px;
-    cursor: pointer;
-}
-.kb-io-dropdown button:hover {
-    background: var(--color-surface-muted, #f7f7f5);
-}
-.dd-title {
-    display: block;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--color-text);
-}
-.dd-desc {
-    display: block;
-    margin-top: 2px;
-    font-size: 12px;
-    line-height: 1.45;
-    color: var(--color-text-muted, #787774);
-}
-.kb-io-msg {
-    margin: 0 0 8px;
-    padding: 7px 10px;
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--color-success, #1a7f4b);
-    background: var(--color-surface-muted, #f2faf5);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-}
-.kb-io-msg-error {
-    color: var(--color-danger, #c0392b);
-    background: var(--color-surface-muted, #fdf3f2);
+    left: 11px;
+    display: grid;
+    place-items: center;
+    color: var(--text-tertiary);
+    pointer-events: none;
 }
 .kb-search-input {
-    width: 220px;
-    max-width: 50vw;
-    padding: 5px 10px;
-    font-size: 13px;
-    border: 1px solid var(--color-border-strong);
-    border-radius: 7px;
-    background: var(--color-surface);
-    color: var(--color-text);
-    outline: none;
+    width: 100%;
+    padding-left: 34px;
+    padding-right: 32px;
 }
-.kb-search-input:focus-visible {
-    border-color: var(--color-focus);
-    outline: 2px solid var(--color-focus);
-    outline-offset: 1px;
-}
+.kb-search-input::-webkit-search-cancel-button { display: none; }
 .kb-search-clear {
+    position: absolute;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
     border: none;
-    background: none;
-    color: var(--color-focus);
-    font-size: 12px;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--text-tertiary);
     cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 5px;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.kb-search-clear:hover {
-    text-decoration: underline;
-}
-.doc-snippet {
-    font-size: 13px;
-    color: var(--color-text-muted);
-    line-height: 1.5;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.kb-more {
-    text-align: center;
-    padding: 14px 0 4px;
-}
-.nt-link {
-    border: none;
-    background: none;
-    color: var(--color-focus);
-    cursor: pointer;
-    font-size: 14px;
-    padding: 0 2px;
-}
-.nt-link:hover {
-    text-decoration: underline;
-}
+.kb-search-clear:hover { background: var(--hover-background); color: var(--text-primary); }
 
-.nt-doc-list {
-    display: flex;
-    flex-direction: column;
+.kb-io { display: flex; align-items: center; gap: 8px; }
+.kb-io-file { display: none; }
+.kb-io-menu { position: relative; }
+.kb-io-dropdown {
+    right: 0;
+    top: calc(100% + 8px);
+    min-width: 268px;
 }
-.nt-doc-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--color-border);
-    transition: background 0.12s;
+.kb-io-dropdown .dd-title {
+    display: block;
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
 }
-.nt-doc-row:hover {
-    background: var(--color-sidebar-bg);
-}
-.nt-doc-row:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: -2px;
-}
-.doc-emoji {
-    flex-shrink: 0;
+.kb-io-dropdown .dd-desc {
+    display: block;
     margin-top: 2px;
-    color: var(--color-text-faint);
+    font-size: var(--text-secondary);
+    line-height: var(--line-tight);
+    color: var(--text-tertiary);
 }
-.doc-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-}
-.doc-title {
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--color-text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.doc-sub {
+/* 下拉箭头随展开旋转 180°，180ms 内完成，无弹跳 */
+.kb-caret { transition: transform var(--dur-base) var(--ease-out); }
+.kb-caret.open { transform: rotate(180deg); }
+
+.kb-io-msg { flex: none; }
+
+/* ── 标签筛选 ────────────────────────────────────────────────────── */
+.kb-tag-filter {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
 }
-.doc-time {
-    font-size: 12px;
-    color: var(--color-text-faint);
+.kb-clear-filter { color: var(--text-tertiary); }
+
+/* ── 列表滚动区 ──────────────────────────────────────────────────── */
+.kb-scroll {
+    flex: 1;
+    min-height: 0;
+    margin: 0 -6px;
+    padding: 0 6px 6px;
 }
-.doc-path {
-    font-size: 12px;
-    color: var(--color-text-muted);
-    max-width: 260px;
+.kb-error { color: var(--danger); }
+
+/* ── 空状态 ──────────────────────────────────────────────────────── */
+.kb-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 260px;
+    padding: 40px 20px;
+    text-align: center;
+    font-size: var(--text-body);
+    line-height: var(--line-relaxed);
+    color: var(--text-tertiary);
+}
+.kb-empty p { margin: 0; }
+.kb-empty-icon { color: var(--text-tertiary); opacity: 0.65; }
+
+.nt-link {
+    border: none;
+    background: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: inherit;
+    padding: 0 2px;
+}
+.nt-link:hover { text-decoration: underline; }
+
+/* ── 文档行 ──────────────────────────────────────────────────────── */
+/* 五列 Grid：图标 / 标题+摘要 / 分类标签 / 时间 / 操作。
+   用 Grid 而非 Flex，保证时间戳右对齐成一条竖线，扫读更稳。*/
+.doc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.doc-row {
+    display: grid;
+    grid-template-columns: 28px minmax(200px, 1fr) auto 104px 30px;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 7px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    background: var(--panel-background);
+    cursor: pointer;
+    transition: background var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out),
+                transform var(--dur-base) var(--ease-out);
+}
+.doc-row:hover {
+    background: var(--panel-background-hover);
+    border-color: var(--panel-border);
+    /* 极轻微上浮 1px：提供「可点」的反馈，但不做明显缩放 */
+    transform: translateY(-1px);
+}
+.doc-row:focus-visible {
+    outline: none;
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.doc-icon-wrap {
+    display: grid;
+    place-items: center;
+    color: var(--text-tertiary);
+}
+.doc-main {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+.doc-title {
+    font-size: var(--text-doc-title);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.nt-pill {
-    font-size: 12px;
-    padding: 1px 8px;
-    border-radius: 4px;
-    background: var(--color-sidebar-bg);
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-border);
+.doc-snippet {
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
+    line-height: var(--line-tight);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-.nt-pill-tag {
-    color: var(--color-text-muted);
+/* 标签区放不下时截断，不换行挤压标题 */
+.doc-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 260px;
+    overflow: hidden;
+    flex-wrap: nowrap;
+}
+.doc-time {
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
 }
 .doc-actions {
     display: flex;
-    gap: 4px;
+    justify-content: flex-end;
     opacity: 0;
-    transition: opacity 0.12s;
+    transition: opacity var(--dur-base) var(--ease-out);
 }
-.nt-doc-row:hover .doc-actions,
-.nt-doc-row:focus-within .doc-actions {
-    opacity: 1;
-}
-.nt-ghost {
-    border: none;
-    background: none;
-    color: var(--color-text-muted);
-    font-size: 13px;
-    padding: 4px 8px;
-    border-radius: 5px;
+.doc-row:hover .doc-actions,
+.doc-row:focus-within .doc-actions { opacity: 1; }
+.mini-btn {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
     cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out);
 }
-.nt-ghost:hover {
-    background: var(--color-sidebar-active);
-    color: var(--color-text);
-}
-
-/* 状态 */
-.nt-state {
-    padding: 16px;
-    font-size: 14px;
-    color: var(--color-text-muted);
-}
-.nt-state-error {
-    color: var(--color-danger);
-}
-.nt-empty {
-    text-align: center;
-    padding: 56px 20px;
-    color: var(--color-text-muted);
-    font-size: 14px;
-    line-height: 1.7;
-}
-.nt-empty-emoji {
-    display: block;
-    font-size: 40px;
-    margin-bottom: 12px;
+.mini-btn:hover { background: var(--hover-background); color: var(--text-primary); }
+.mini-btn:focus-visible {
+    outline: none;
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
-/* 通用按钮（Notion 风格） */
-.nt-btn {
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-size: 14px;
-    cursor: pointer;
-    border: 1px solid var(--color-border-strong);
-    background: var(--color-surface);
-    color: var(--color-text);
-    transition: background 0.12s, border-color 0.12s;
-}
-.nt-btn:hover {
-    background: var(--color-sidebar-bg);
-}
-.nt-btn:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 2px;
-}
-.nt-btn-primary {
-    background: var(--color-focus);
-    color: #fff;
-    border-color: var(--color-focus);
-}
-.nt-btn-primary:hover {
-    background: #1a6fc4;
+.kb-more {
+    display: flex;
+    justify-content: center;
+    padding: 16px 0 6px;
 }
 
-@media (max-width: 768px) {
-    .kb-page {
-        padding: 32px 18px 48px;
-    }
-    .kb-title {
-        font-size: 30px;
-    }
-    .kb-desc {
-        margin-left: 0;
-    }
-    .kb-body {
-        grid-template-columns: 1fr;
-        gap: 16px;
-    }
-    .kb-catalog {
-        position: static;
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
-    .doc-actions {
-        opacity: 1;
-    }
-    .cat-actions {
-        opacity: 1;
-    }
+/* ── 响应式：窄屏优先牺牲标签区，再牺牲时间列 ────────────────────── */
+@media (max-width: 1500px) {
+    .doc-row { grid-template-columns: 28px minmax(160px, 1fr) auto 30px; }
+    .doc-time { display: none; }
+}
+@media (max-width: 1340px) {
+    .doc-row { grid-template-columns: 28px minmax(140px, 1fr) 30px; }
+    .doc-meta { display: none; }
+    .kb-page { padding: 22px 20px 18px; }
 }
 </style>

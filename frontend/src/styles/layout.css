@@ -1,0 +1,131 @@
+/* ==========================================================================
+   Layout — 四栏桌面应用布局
+   MainSidebar / PageSidebar / CategorySidebar / MainContent
+   全部使用 Grid + Flex，不使用大量绝对定位。
+   ========================================================================== */
+
+html, body, #app { height: 100%; }
+
+body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--line-normal);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    /* 主题切换时背景与文字用 260ms 过渡，玻璃层同步淡入 */
+    transition: background-color var(--dur-theme) var(--ease-out),
+                color var(--dur-theme) var(--ease-out);
+    background-color: var(--background);
+    overflow: hidden;
+}
+
+/* 环境层：两处极淡色晕，让玻璃有可折射的内容。固定在视口，不参与布局 */
+.app-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(1100px 720px at 8% -10%, var(--background-tint-a), transparent 62%),
+        radial-gradient(900px 640px at 104% 108%, var(--background-tint-b), transparent 58%);
+    transition: opacity var(--dur-theme) var(--ease-out);
+}
+
+/* 四栏网格 */
+.app-layout {
+    position: relative;
+    z-index: 1;
+    height: 100vh;
+    display: grid;
+    grid-template-columns:
+        var(--w-main-sidebar)
+        var(--w-page-sidebar)
+        var(--w-category-sidebar)
+        minmax(var(--w-min-content), 1fr);
+    gap: var(--gap-column);
+    padding: var(--page-padding);
+    min-width: 1280px;
+}
+
+/* 侧栏与主内容共用的玻璃容器外观 */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-radius: var(--radius-lg);
+    padding: 14px 12px;
+    /* 侧栏内部滚动，不让内容撑破圆角 */
+    overflow: hidden;
+}
+
+.main-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+}
+
+/* 侧栏内的滚动区域：滚动条收窄，滚动区隐藏默认边框 */
+.scroll-area {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--text-tertiary) transparent;
+    padding-right: 2px;
+}
+.scroll-area::-webkit-scrollbar { width: 8px; }
+.scroll-area::-webkit-scrollbar-thumb {
+    background: var(--text-tertiary);
+    border-radius: var(--radius-pill);
+    opacity: 0.5;
+}
+.scroll-area::-webkit-scrollbar-track { background: transparent; }
+
+/* ── 响应式：逐级折叠侧栏，而非整体缩放页面 ────────────────────────── */
+
+/* 断点只负责「收窄」，不负责「折叠」——折叠由 App.vue 的 JS 状态控制，
+   这样用户手动展开后不会被媒体查询强制盖回去。*/
+@media (max-width: 1600px) {
+    :root {
+        --w-main-sidebar: 196px;
+        --w-page-sidebar: 222px;
+        --w-category-sidebar: 200px;
+        --gap-column: 12px;
+        --page-padding: 18px;
+    }
+}
+@media (max-width: 1440px) {
+    :root {
+        --w-main-sidebar: 186px;
+        --w-page-sidebar: 210px;
+    }
+}
+
+/* 折叠：移出网格流。对应列由 .app-layout.col-* 变体从模板中一并删掉，
+   不会出现「宽 0 但留gap」的空洞。*/
+.sidebar.is-collapsed { display: none; }
+
+/* 折叠策略：侧栏 display:none 从网格流中移除，
+   因此这里改为「减少列数」而不是「列宽置0」——
+   后者会留下一个 gap 的空洞，且元素仍在占位。*/
+.app-layout.col-page-hidden {
+    grid-template-columns:
+        var(--w-main-sidebar)
+        var(--w-category-sidebar)
+        minmax(var(--w-min-content), 1fr);
+}
+.app-layout.col-category-hidden {
+    grid-template-columns:
+        var(--w-main-sidebar)
+        var(--w-page-sidebar)
+        minmax(var(--w-min-content), 1fr);
+}
+.app-layout.col-both-hidden {
+    grid-template-columns:
+        var(--w-main-sidebar)
+        minmax(var(--w-min-content), 1fr);
+}

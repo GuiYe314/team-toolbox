@@ -73,7 +73,7 @@ export default {
     letter-spacing: -0.01em;
 }
 .subtitle {
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     margin: 0;
     font-size: 14px;
 }
@@ -83,8 +83,8 @@ export default {
     gap: 16px;
 }
 .tool-card {
-    background: var(--color-surface);
-    border: 1px dashed var(--color-border);
+    background: var(--panel-background);
+    border: 1px dashed var(--panel-border);
     border-radius: 8px;
     padding: 20px;
 }
@@ -100,7 +100,7 @@ export default {
 .tool-status {
     font-size: 11px;
     background: #f3f4f6;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     padding: 2px 8px;
     border-radius: 4px;
 }
@@ -115,18 +115,18 @@ export default {
 .tool-desc {
     margin: 0 0 16px;
     font-size: 13px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .tool-action {
     font-size: 13px;
-    color: var(--color-focus);
+    color: var(--accent);
     background: none;
     border: none;
     cursor: pointer;
     padding: 0;
 }
 .tool-action:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 2px;
 }

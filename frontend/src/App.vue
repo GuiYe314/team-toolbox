@@ -1,51 +1,118 @@
 <template>
-    <div class="app-layout" :class="{ 'sidebar-open': sidebarOpen }">
-        <!-- 移动端遮罩 -->
-        <div class="sidebar-overlay" @click="closeSidebar" aria-hidden="true"></div>
+    <div
+        class="app-layout"
+        :class="{
+            'col-page-hidden': !onKbSection || pageColHidden,
+            'col-category-hidden': categoryColHidden,
+            'col-both-hidden': (!onKbSection || pageColHidden) && categoryColHidden
+        }"
+    >
+        <!-- 环境层：为玻璃提供可折射的背景内容 -->
+        <div class="app-backdrop" aria-hidden="true"></div>
 
-        <!-- 左侧导航（Notion 风格：工作区 + 快捷入口 + 页面树） -->
-        <nav class="sidebar" role="navigation" aria-label="主导航">
-            <div class="sidebar-workspace" @click="closeSidebar">
-                <span class="ws-avatar">📦</span>
+        <!-- ═══ 栏 1：主导航 ═══ -->
+        <nav class="sidebar glass-panel glass-sheen main-sidebar" aria-label="主导航">
+            <div class="ws-head">
+                <span class="ws-mark">
+                    <svg class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M21 8.4v7.2a1.8 1.8 0 0 1-.95 1.6l-6.4 3.4a1.8 1.8 0 0 1-1.7 0l-6.4-3.4a1.8 1.8 0 0 1-.95-1.6V8.4a1.8 1.8 0 0 1 .95-1.6l6.4-3.4a1.8 1.8 0 0 1 1.7 0l6.4 3.4A1.8 1.8 0 0 1 21 8.4z" />
+                        <path d="M3.5 7.6 12 12.3l8.5-4.7" />
+                        <path d="M12 21.1v-8.8" />
+                    </svg>
+                </span>
                 <span class="ws-name">工具箱</span>
-                <span class="ws-caret">▾</span>
+                <svg class="icon icon-sm ws-caret" viewBox="0 0 24 24" aria-hidden="true">
+                    <polyline points="9 18 15 12 9 6" />
+                </svg>
             </div>
 
-            <div class="sidebar-menu">
-                <router-link to="/" class="nav-link" :class="{ 'is-active': $route.path === '/' }" @click="closeSidebar">
-                    <span class="nav-icon">🏠</span>
+            <div class="nav-group">
+                <router-link to="/" class="nav-item" :class="{ 'is-active': $route.path === '/' }">
+                    <span class="nav-icon">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 10.5 12 3.5l9 7" />
+                            <path d="M5.5 9.5V20h13V9.5" />
+                        </svg>
+                    </span>
                     <span class="nav-label">首页</span>
                 </router-link>
-                <router-link to="/kb" class="nav-link" :class="{ 'is-active': $route.path.startsWith('/kb') }" @click="closeSidebar">
-                    <span class="nav-icon">📚</span>
+                <router-link to="/kb" class="nav-item" :class="{ 'is-active': onKbSection }">
+                    <span class="nav-icon">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M4 4.5h6.5a2 2 0 0 1 2 2V20a1.6 1.6 0 0 0-1.6-1.5H4z" />
+                            <path d="M20 4.5h-6.5a2 2 0 0 0-2 2V20a1.6 1.6 0 0 1 1.6-1.5H20z" />
+                        </svg>
+                    </span>
                     <span class="nav-label">知识库</span>
                 </router-link>
-
-                <router-link to="/tools" class="nav-link" :class="{ 'is-active': $route.path.startsWith('/tools') }" @click="closeSidebar">
-                    <span class="nav-icon">🧰</span>
+                <router-link to="/tools" class="nav-item" :class="{ 'is-active': $route.path.startsWith('/tools') }">
+                    <span class="nav-icon">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3" y="8" width="18" height="12" rx="2" />
+                            <path d="M9 8V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V8" />
+                            <path d="M3 13h18" />
+                        </svg>
+                    </span>
                     <span class="nav-label">工具箱</span>
                 </router-link>
             </div>
 
             <div class="nav-footer">
-                <span class="version-tag">v0.1 MVP</span>
+                <!-- 侧栏折叠开关：窄屏自动折叠后，仍可手动唤回 -->
+                <div class="col-toggles" v-if="onKbSection">
+                    <button
+                        class="mini-btn"
+                        type="button"
+                        :class="{ 'is-on': !pageColHidden }"
+                        :title="pageColHidden ? '显示页面栏' : '隐藏页面栏'"
+                        :aria-pressed="String(!pageColHidden)"
+                        @click="pageColHidden = !pageColHidden"
+                    >
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3" y="4.5" width="18" height="15" rx="2" />
+                            <line x1="9" y1="4.5" x2="9" y2="19.5" />
+                        </svg>
+                    </button>
+                    <button
+                        class="mini-btn"
+                        type="button"
+                        :class="{ 'is-on': !categoryColHidden }"
+                        :title="categoryColHidden ? '显示分类栏' : '隐藏分类栏'"
+                        :aria-pressed="String(!categoryColHidden)"
+                        @click="categoryColHidden = !categoryColHidden"
+                    >
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3" y="4.5" width="18" height="15" rx="2" />
+                            <line x1="15" y1="4.5" x2="15" y2="19.5" />
+                        </svg>
+                    </button>
+                </div>
+                <ThemeToggle />
+                <span class="version-tag">
+                    <span class="dot"></span>v0.1 MVP
+                </span>
             </div>
         </nav>
 
-        <!-- 移动端菜单按钮 -->
-        <button v-if="isMobile && !sidebarOpen" class="mobile-menu-btn" @click="openSidebar" aria-label="打开导航" ref="menuBtnRef">☰</button>
+        <!-- ═══ 栏 2：页面树（仅知识库区块）═══ -->
+        <aside v-if="onKbSection" class="sidebar glass-panel page-sidebar" :class="{ 'is-collapsed': pageColHidden }" aria-label="页面">
+            <header class="side-head">
+                <h2 class="side-title">页面</h2>
+                <button class="icon-btn" type="button" title="新建页面" aria-label="新建页面" @click="createPage">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                </button>
+            </header>
 
-        <!-- 主内容区：左侧为二级页面菜单（仅知识库区块），右侧为页面内容 -->
-        <main class="main-content" role="main" tabindex="-1" ref="mainContentRef">
-            <aside v-if="onKbSection" class="sub-menu" aria-label="页面菜单">
-                <h2 class="sub-menu-title">页面</h2>
-
-                <p v-if="treeLoading" class="tree-hint">加载中…</p>
-                <p v-else-if="treeError" class="tree-hint tree-hint-error">{{ treeError }}</p>
-                <p v-else-if="pageTree.length === 0" class="tree-hint">还没有页面，点击下方新建</p>
+            <div class="scroll-area">
+                <p v-if="treeLoading" class="empty-hint">加载中…</p>
+                <p v-else-if="treeError" class="empty-hint notice-error-text">{{ treeError }}</p>
+                <p v-else-if="pageTree.length === 0" class="empty-hint">还没有页面，点击下方新建</p>
 
                 <PageTree
-                    v-if="pageTree.length"
+                    v-else
                     :nodes="pageTree"
                     :depth="0"
                     :active-id="activeId"
@@ -58,41 +125,157 @@
                     @rename-submit="submitRename"
                     @rename-cancel="cancelRename"
                 />
-
-                <button class="tree-add" type="button" @click="createPage">＋ 新建页面</button>
-            </aside>
-
-            <div class="content-body">
-                <router-view />
             </div>
+
+            <button class="btn side-add" type="button" @click="createPage">
+                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                新建页面
+            </button>
+        </aside>
+
+        <!-- ═══ 栏 3：分类（仅知识库区块）═══ -->
+        <aside v-if="onKbSection" class="sidebar glass-panel category-sidebar" :class="{ 'is-collapsed': categoryColHidden }" aria-label="分类">
+            <header class="side-head">
+                <h2 class="side-title">分类</h2>
+            </header>
+
+            <div class="scroll-area">
+                <button
+                    class="nav-item cat-item"
+                    :class="{ 'is-active': selectedCategory === null }"
+                    type="button"
+                    @click="selectCategory(null)"
+                >
+                    <span class="nav-icon">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M4 6.5h16" />
+                            <path d="M4 12h16" />
+                            <path d="M4 17.5h16" />
+                        </svg>
+                    </span>
+                    <span class="nav-label">全部文档</span>
+                    <span class="count-badge">{{ totalCount }}</span>
+                </button>
+
+                <p v-if="categoryLoading" class="empty-hint">加载中…</p>
+                <p v-else-if="categories.length === 0" class="empty-hint">还没有分类</p>
+
+                <div v-for="c in categories" :key="c.id" class="cat-row">
+                    <!-- 编辑态：行内输入改名 -->
+                    <input
+                        v-if="editingCatId === c.id"
+                        ref="catInput"
+                        class="input cat-input"
+                        v-model="editingCatName"
+                        maxlength="30"
+                        @keyup.enter="saveRenameCategory(c)"
+                        @keyup.esc="cancelRenameCategory"
+                        @blur="saveRenameCategory(c)"
+                    />
+                    <button
+                        v-else
+                        class="nav-item cat-item"
+                        :class="{ 'is-active': selectedCategory === c.id }"
+                        type="button"
+                        @click="selectCategory(c.id)"
+                    >
+                        <span class="nav-icon">
+                            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M3.5 7.2A1.7 1.7 0 0 1 5.2 5.5h3.9a1.7 1.7 0 0 1 1.36.68l.94 1.12a1.7 1.7 0 0 0 1.36.68h6.78A1.7 1.7 0 0 1 20.5 9.7v7.1a1.7 1.7 0 0 1-1.7 1.7H5.2a1.7 1.7 0 0 1-1.7-1.7z" />
+                            </svg>
+                        </span>
+                        <span class="nav-label">{{ c.name }}</span>
+                        <span v-if="c.document_count" class="count-badge">{{ c.document_count }}</span>
+                    </button>
+
+                    <!-- hover 显形的分类操作 -->
+                    <div v-if="editingCatId !== c.id" class="cat-actions">
+                        <button class="mini-btn" type="button" title="重命名" aria-label="重命名分类" @click="startRenameCategory(c)">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7.5 18.5l-4 1 1-4z" />
+                            </svg>
+                        </button>
+                        <button class="mini-btn" type="button" title="删除" aria-label="删除分类" @click="askDeleteCategory(c)">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v13.5A1.5 1.5 0 0 1 17.5 21h-11A1.5 1.5 0 0 1 5 19.5V6" />
+                                <path d="M9 6V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V6" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 新建分类：行内输入 -->
+                <div v-if="addCatMode" class="cat-row">
+                    <input
+                        ref="newCatInput"
+                        class="input cat-input"
+                        v-model="newCatName"
+                        placeholder="分类名称（1–30 字）"
+                        maxlength="30"
+                        @keyup.enter="saveNewCategory"
+                        @keyup.esc="cancelAddCategory"
+                    />
+                </div>
+            </div>
+
+            <button v-if="!addCatMode" class="btn side-add" type="button" @click="startAddCategory">
+                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                新建分类
+            </button>
+        </aside>
+
+        <!-- ═══ 栏 4：主内容 ═══ -->
+        <main class="main-content glass-panel glass-sheen" role="main" ref="mainContentRef">
+            <router-view :category="selectedCategory" @category-change="onCategoryChange" />
         </main>
 
         <!-- 页面「···」菜单 -->
-        <div v-if="menu" class="menu-backdrop" @click="menu = null"></div>
-        <div v-if="menu" class="page-menu" role="menu" :style="{ top: menu.y + 'px', left: menu.x + 'px' }">
-            <button class="menu-item" type="button" role="menuitem" @click="menuCreateChild">新建子页面</button>
-            <button class="menu-item" type="button" role="menuitem" @click="menuRename">重命名</button>
-            <button class="menu-item" type="button" role="menuitem" @click="menuCopyLink">复制链接</button>
-            <div class="menu-sep"></div>
-            <button class="menu-item menu-danger" type="button" role="menuitem" @click="menuDelete">删除</button>
+        <div v-if="menu" class="dropdown menu-pop" role="menu" :style="{ top: menu.y + 'px', left: menu.x + 'px' }">
+            <button type="button" role="menuitem" @click="menuCreateChild">新建子页面</button>
+            <button type="button" role="menuitem" @click="menuRename">重命名</button>
+            <button type="button" role="menuitem" @click="menuCopyLink">复制链接</button>
+            <div class="dd-sep"></div>
+            <button class="dd-danger" type="button" role="menuitem" @click="menuDelete">删除</button>
         </div>
 
-        <!-- 删除确认（与 Notion 一致：提示将连带删除子页面） -->
-        <div v-if="deleteTarget" class="modal-mask" @click.self="cancelDelete">
-            <div class="modal" role="dialog" aria-modal="true" aria-label="删除页面">
-                <h2 class="modal-title">删除页面</h2>
-                <p class="modal-text">
-                    确定要删除「<strong>{{ deleteTarget.title }}</strong>」吗？
-                </p>
-                <p v-if="deleteDescendants > 0" class="modal-warn">
+        <!-- 删除确认（提示将连带删除子页面） -->
+        <div v-if="deleteTarget" class="overlay" @click.self="cancelDelete">
+            <div class="dialog" role="dialog" aria-modal="true" aria-label="删除页面">
+                <h2 class="dialog-title">删除页面</h2>
+                <p class="dialog-text">确定要删除「<strong>{{ deleteTarget.title }}</strong>」吗？</p>
+                <p v-if="deleteDescendants > 0" class="dialog-warn">
                     其下 {{ deleteDescendants }} 个子页面也会一并删除，且不可撤销。
                 </p>
-                <p v-else class="modal-note">此操作不可撤销。</p>
-                <p v-if="deleteError" class="modal-error">{{ deleteError }}</p>
-                <div class="modal-actions">
-                    <button class="nt-btn" type="button" :disabled="deleting" @click="cancelDelete">取消</button>
-                    <button class="nt-btn nt-btn-danger" type="button" :disabled="deleting" @click="confirmDelete">
+                <p v-else class="dialog-text">此操作不可撤销。</p>
+                <p v-if="deleteError" class="notice notice-error">{{ deleteError }}</p>
+                <div class="dialog-actions">
+                    <button class="btn" type="button" :disabled="deleting" @click="cancelDelete">取消</button>
+                    <button class="btn btn-danger" type="button" :disabled="deleting" @click="confirmDelete">
                         {{ deleting ? '删除中…' : '删除' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分类删除确认 -->
+        <div v-if="deleteCatTarget" class="overlay" @click.self="cancelDeleteCategory">
+            <div class="dialog" role="dialog" aria-modal="true" aria-label="删除分类">
+                <h2 class="dialog-title">删除分类</h2>
+                <p class="dialog-text">确定要删除分类「<strong>{{ deleteCatTarget.name }}</strong>」吗？</p>
+                <p class="dialog-warn">该分类下的文档不会被删除，但会变为「未分类」。</p>
+                <p v-if="categoryError" class="notice notice-error">{{ categoryError }}</p>
+                <div class="dialog-actions">
+                    <button class="btn" type="button" :disabled="categoryBusy" @click="cancelDeleteCategory">取消</button>
+                    <button class="btn btn-danger" type="button" :disabled="categoryBusy" @click="confirmDeleteCategory">
+                        {{ categoryBusy ? '删除中…' : '删除' }}
                     </button>
                 </div>
             </div>
@@ -103,16 +286,15 @@
 <script>
 import { api } from './api/client.js';
 import PageTree from './components/PageTree.vue';
+import ThemeToggle from './components/ThemeToggle.vue';
 
 const EXPANDED_KEY = 'kb-tree-expanded';
 
 export default {
     name: 'App',
-    components: { PageTree },
+    components: { PageTree, ThemeToggle },
     data() {
         return {
-            sidebarOpen: false,
-            isMobile: window.innerWidth <= 768,
             treeRows: [],
             treeLoading: true,
             treeError: '',
@@ -123,11 +305,26 @@ export default {
             deleteTarget: null,
             deleteDescendants: 0,
             deleteError: '',
-            deleting: false
+            deleting: false,
+            // 分类（第三栏）
+            categories: [],
+            categoryLoading: true,
+            selectedCategory: null,
+            totalCount: 0,
+            addCatMode: false,
+            newCatName: '',
+            editingCatId: null,
+            editingCatName: '',
+            deleteCatTarget: null,
+            categoryError: '',
+            categoryBusy: false,
+            // 响应式折叠
+            pageColHidden: false,
+            categoryColHidden: false
         };
     },
     computed: {
-        /** 是否处于知识库区块（/kb/*），决定二级页面树是否显示 */
+        /** 是否处于知识库区块（/kb/*），决定页面栏与分类栏是否显示 */
         onKbSection() {
             return this.$route.path.startsWith('/kb');
         },
@@ -160,27 +357,38 @@ export default {
         }
     },
     mounted() {
-        this._resizeHandler = () => {
-            this.isMobile = window.innerWidth <= 768;
-        };
-        window.addEventListener('resize', this._resizeHandler);
         document.addEventListener('keydown', this.handleKeydown);
 
-        // 任意视图在新增/保存/删除后派发 kb-changed，侧边栏据此刷新页面树
-        this._treeChangeHandler = () => this.loadTree();
-        window.addEventListener('kb-changed', this._treeChangeHandler);
+        // 任意视图在新增/保存/删除后派发 kb-changed，侧边栏据此刷新
+        this._changeHandler = () => {
+            this.loadTree();
+            this.loadCategories();
+        };
+        window.addEventListener('kb-changed', this._changeHandler);
+
+        this.applyResponsive();
+        window.addEventListener('resize', this.applyResponsive);
 
         this.loadExpanded();
         this.loadTree();
+        this.loadCategories();
     },
     beforeUnmount() {
-        window.removeEventListener('resize', this._resizeHandler);
+        window.removeEventListener('resize', this.applyResponsive);
         document.removeEventListener('keydown', this.handleKeydown);
-        window.removeEventListener('kb-changed', this._treeChangeHandler);
+        window.removeEventListener('kb-changed', this._changeHandler);
     },
     methods: {
-        // ── 树加载与展开状态 ──
+        // ── 响应式：逐级折叠侧栏 ──
+        applyResponsive() {
+            const w = window.innerWidth;
+            // ≤1440 收起分类栏；≤1320 再收起页面栏（用 hidden class 而非改 CSS 变量，
+            // 这样折叠状态可由用户手动切换，不被媒体查询强制覆盖）
+            this.categoryColHidden = w <= 1440;
+            this.pageColHidden = w <= 1320;
+        },
 
+        // ── 树加载与展开状态 ──
         async loadTree() {
             this.treeError = '';
             try {
@@ -240,26 +448,122 @@ export default {
         },
 
         // ── 导航 ──
-
         openNode(node) {
-            this.closeSidebar();
             if (this.activeId === node.id) return;
             this.$router.push({ name: 'kb-detail', params: { id: node.id } }).catch(() => {});
         },
         createPage() {
-            this.closeSidebar();
             this.$router.push({ name: 'kb-new' }).catch(() => {});
         },
         createChild(node) {
             this.menu = null;
             this.expanded = { ...this.expanded, [node.id]: true };
             this.saveExpanded();
-            this.closeSidebar();
             this.$router.push({ name: 'kb-new', query: { parent: String(node.id) } }).catch(() => {});
         },
 
-        // ── 「···」菜单 ──
+        // ── 分类 ──
+        async loadCategories() {
+            this.categoryError = '';
+            try {
+                const [cats, docs] = await Promise.all([api.listCategories(), api.listDocuments('?limit=1')]);
+                if (cats.res.ok) {
+                    // 后端分类列表含 document_count；缺失时补 0 保证模板取值安全
+                    this.categories = (cats.body || []).map((c) => ({ ...c, document_count: c.document_count || 0 }));
+                }
+                if (docs.res.ok) this.totalCount = (docs.body && docs.body.total) || 0;
+            } catch (e) {
+                this.categoryError = e.network ? '无法连接后端服务' : (e.message || '分类加载失败');
+            } finally {
+                this.categoryLoading = false;
+            }
+        },
+        selectCategory(id) {
+            this.selectedCategory = id;
+        },
+        onCategoryChange(id) {
+            this.selectedCategory = id;
+        },
+        startAddCategory() {
+            this.addCatMode = true;
+            this.$nextTick(() => this.$refs.newCatInput && this.$refs.newCatInput.focus());
+        },
+        cancelAddCategory() {
+            this.addCatMode = false;
+            this.newCatName = '';
+        },
+        async saveNewCategory() {
+            const name = this.newCatName.trim();
+            if (!name) { this.addCatMode = false; return; }
+            this.categoryBusy = true;
+            this.categoryError = '';
+            try {
+                const { res, body } = await api.createCategory(name);
+                if (!res.ok) throw new Error((body && body.message) || '新建分类失败');
+                this.cancelAddCategory();
+                await this.loadCategories();
+                window.dispatchEvent(new Event('kb-changed'));
+            } catch (e) {
+                this.categoryError = e.network ? e.message : (e.message || '新建分类失败');
+            } finally {
+                this.categoryBusy = false;
+            }
+        },
+        startRenameCategory(c) {
+            this.editingCatId = c.id;
+            this.editingCatName = c.name;
+            this.$nextTick(() => this.$refs.catInput && this.$refs.catInput[0] && this.$refs.catInput[0].focus());
+        },
+        cancelRenameCategory() {
+            this.editingCatId = null;
+            this.editingCatName = '';
+        },
+        async saveRenameCategory(c) {
+            if (this.editingCatId !== c.id || this.categoryBusy) return;
+            const name = this.editingCatName.trim();
+            if (!name || name === c.name) { this.cancelRenameCategory(); return; }
+            this.categoryBusy = true;
+            try {
+                const { res, body } = await api.updateCategory(c.id, name);
+                if (!res.ok) throw new Error((body && body.message) || '重命名失败');
+                this.cancelRenameCategory();
+                await this.loadCategories();
+                window.dispatchEvent(new Event('kb-changed'));
+            } catch (e) {
+                this.categoryError = e.network ? e.message : (e.message || '重命名失败');
+                this.cancelRenameCategory();
+            } finally {
+                this.categoryBusy = false;
+            }
+        },
+        askDeleteCategory(c) {
+            this.categoryError = '';
+            this.deleteCatTarget = c;
+        },
+        cancelDeleteCategory() {
+            if (this.categoryBusy) return;
+            this.deleteCatTarget = null;
+            this.categoryError = '';
+        },
+        async confirmDeleteCategory() {
+            if (!this.deleteCatTarget) return;
+            const target = this.deleteCatTarget;
+            this.categoryBusy = true;
+            try {
+                const { res, body } = await api.deleteCategory(target.id);
+                if (!res.ok) throw new Error((body && body.message) || '删除分类失败');
+                this.deleteCatTarget = null;
+                if (this.selectedCategory === target.id) this.selectedCategory = null;
+                await this.loadCategories();
+                window.dispatchEvent(new Event('kb-changed'));
+            } catch (e) {
+                this.categoryError = e.network ? e.message : (e.message || '删除分类失败');
+            } finally {
+                this.categoryBusy = false;
+            }
+        },
 
+        // ── 「···」菜单 ──
         openMenu(node, ev) {
             const rect = ev.currentTarget.getBoundingClientRect();
             const MENU_W = 176;
@@ -303,7 +607,6 @@ export default {
         },
 
         // ── 重命名（行内输入） ──
-
         async submitRename(node, rawTitle) {
             if (this.renamingId !== node.id || this.renameBusy) return;
             const title = String(rawTitle || '').trim();
@@ -331,7 +634,6 @@ export default {
         },
 
         // ── 删除确认 ──
-
         cancelDelete() {
             if (this.deleting) return;
             this.deleteTarget = null;
@@ -357,501 +659,148 @@ export default {
             }
         },
 
-        // ── 布局 ──
-
-        openSidebar() {
-            this.sidebarOpen = true;
-        },
-        closeSidebar() {
-            this.sidebarOpen = false;
-            this.$nextTick(() => {
-                if (this.isMobile) {
-                    this.$refs.menuBtnRef && this.$refs.menuBtnRef.focus();
-                } else {
-                    this.$refs.mainContentRef && this.$refs.mainContentRef.focus();
-                }
-            });
-        },
         handleKeydown(e) {
-            if (e.key === 'Escape') {
-                if (this.menu) {
-                    this.menu = null;
-                    return;
-                }
-                if (this.deleteTarget) {
-                    this.cancelDelete();
-                    return;
-                }
-                if (this.sidebarOpen) {
-                    e.preventDefault();
-                    this.closeSidebar();
-                }
-            }
+            if (e.key !== 'Escape') return;
+            if (this.menu) { this.menu = null; return; }
+            if (this.deleteTarget) { this.cancelDelete(); return; }
+            if (this.deleteCatTarget) { this.cancelDeleteCategory(); return; }
+            if (this.addCatMode) { this.cancelAddCategory(); return; }
         }
     }
 };
 </script>
 
 <style>
-/* === 基础重置 === */
-*, *::before, *::after {
-    box-sizing: border-box;
-}
-:root {
-    /* Notion 风格调色板 */
-    --color-bg: #ffffff;
-    --color-surface: #ffffff;
-    --color-sidebar-bg: #f7f7f5;
-    --color-sidebar-text: #5f5e5b;
-    --color-sidebar-hover: #efefee;
-    --color-sidebar-active: #e8e7e4;
-    --color-text: #37352f;
-    --color-text-muted: #787774;
-    --color-text-faint: #9b9a97;
-    --color-border: #e9e9e7;
-    --color-border-strong: #dddddb;
-    --color-focus: #2383e2;
-    --color-danger: #eb5757;
-    --color-code-bg: #f5f4f2;
-    --sidebar-width: 248px;
-    --content-width: 860px;
-    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
-}
-body {
-    margin: 0;
-    background: var(--color-bg);
-    color: var(--color-text);
-    -webkit-font-smoothing: antialiased;
-}
-a { color: inherit; text-decoration: none; }
-ul { list-style: none; padding: 0; margin: 0; }
-button { font-family: inherit; }
-
-/* === 布局 === */
-.app-layout {
-    display: flex;
-    min-height: 100vh;
-}
-
-/* === 侧边栏（Notion：浅灰、圆角项、hover 显形） === */
-.sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: var(--sidebar-width);
-    height: 100vh;
-    background: var(--color-sidebar-bg);
-    color: var(--color-sidebar-text);
-    display: flex;
-    flex-direction: column;
-    z-index: 100;
-    overflow-y: auto;
-    padding: 8px 0 10px;
-}
-.sidebar-workspace {
+/* 本组件的样式全部走全局样式文件（styles/*），此处只保留布局专属部分，
+   避免与 token 体系形成两套并行规则。 */
+.main-sidebar { padding: 16px 12px; }
+.ws-head {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 4px 8px 10px;
-    padding: 6px 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    color: var(--color-text);
-    font-weight: 600;
-    font-size: 14px;
+    gap: 10px;
+    padding: 4px 10px 14px;
 }
-.sidebar-workspace:hover {
-    background: var(--color-sidebar-hover);
-}
-.ws-avatar {
-    font-size: 18px;
-    line-height: 1;
+.ws-mark {
+    display: grid;
+    place-items: center;
+    color: var(--accent);
 }
 .ws-name {
     flex: 1;
+    font-size: var(--text-section-title);
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0.1px;
 }
-.ws-caret {
-    color: var(--color-text-faint);
-    font-size: 12px;
-}
-.sidebar-menu {
-    padding: 0 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-}
-.nav-section-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--color-text-faint);
-    padding: 14px 16px 4px;
-}
-.nav-link {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border-radius: 6px;
-    color: var(--color-sidebar-text);
-    font-size: 14px;
-    transition: background 0.12s;
-}
-.nav-link:hover,
-.nav-link:focus-visible {
-    background: var(--color-sidebar-hover);
-    outline: none;
-}
-.nav-link:focus-visible {
-    box-shadow: 0 0 0 2px var(--color-focus);
-}
-.nav-link.is-active {
-    background: var(--color-sidebar-active);
-    color: var(--color-text);
-    font-weight: 500;
-}
-.nav-icon {
-    font-size: 15px;
-    width: 18px;
-    text-align: center;
-    flex-shrink: 0;
-}
-.nav-label {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
+.ws-caret { color: var(--text-tertiary); }
 
-/* === 页面树容器（内容区二级菜单内） === */
-.sidebar-tree {
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-}
-.tree-hint {
-    margin: 2px 0;
-    padding: 4px 8px;
-    font-size: 13px;
-    color: var(--color-text-faint);
-}
-.tree-hint-error {
-    color: var(--color-danger);
-}
-.tree-add {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    margin-top: 2px;
-    padding: 5px 8px;
-    border: none;
-    background: none;
-    border-radius: 6px;
-    color: var(--color-text-faint);
-    font-size: 14px;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-}
-.tree-add:hover {
-    background: var(--color-sidebar-hover);
-    color: var(--color-text);
-}
-.tree-add:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: -2px;
-}
-
-/* === 页面「···」菜单 === */
-.menu-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 300;
-}
-.page-menu {
-    position: fixed;
-    z-index: 301;
-    min-width: 176px;
-    padding: 4px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    box-shadow: 0 8px 28px rgba(15, 15, 15, 0.16);
-}
-.menu-item {
-    display: block;
-    width: 100%;
-    padding: 7px 10px;
-    border: none;
-    background: none;
-    border-radius: 5px;
-    color: var(--color-text);
-    font-size: 14px;
-    text-align: left;
-    cursor: pointer;
-}
-.menu-item:hover {
-    background: var(--color-sidebar-hover);
-}
-.menu-danger {
-    color: var(--color-danger);
-}
-.menu-danger:hover {
-    background: #fdecec;
-}
-.menu-sep {
-    height: 1px;
-    margin: 4px 6px;
-    background: var(--color-border);
-}
-
-/* === 删除确认弹窗 === */
-.modal-mask {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 15, 15, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 320;
-}
-.modal {
-    background: var(--color-surface);
-    border-radius: 10px;
-    padding: 24px;
-    width: min(420px, 90vw);
-    box-shadow: 0 14px 44px rgba(15, 15, 15, 0.2);
-}
-.modal-title {
-    font-size: 18px;
-    margin: 0 0 12px;
-}
-.modal-text {
-    font-size: 14px;
-    color: var(--color-text);
-    margin: 0 0 8px;
-    line-height: 1.6;
-}
-.modal-warn {
-    font-size: 13px;
-    color: #b54708;
-    background: #fdf3e7;
-    border: 1px solid #f3dcc0;
-    border-radius: 6px;
-    padding: 8px 10px;
-    margin: 0 0 12px;
-    line-height: 1.6;
-}
-.modal-note {
-    font-size: 13px;
-    color: var(--color-text-muted);
-    margin: 0 0 12px;
-}
-.modal-error {
-    font-size: 13px;
-    color: var(--color-danger);
-    margin: 0 0 12px;
-}
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-}
-.nt-btn {
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-size: 14px;
-    cursor: pointer;
-    border: 1px solid var(--color-border-strong);
-    background: var(--color-surface);
-    color: var(--color-text);
-    transition: background 0.12s;
-}
-.nt-btn:hover {
-    background: var(--color-sidebar-bg);
-}
-.nt-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-.nt-btn:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 2px;
-}
-.nt-btn-danger {
-    background: var(--color-danger);
-    color: #fff;
-    border-color: var(--color-danger);
-}
-.nt-btn-danger:hover {
-    background: #d64545;
-}
+.nav-group { display: flex; flex-direction: column; gap: 2px; }
 
 .nav-footer {
     margin-top: auto;
-    padding: 12px 16px 4px;
-    border-top: 1px solid var(--color-border);
-}
-.version-tag {
-    font-size: 11px;
-    color: var(--color-text-faint);
-}
-
-/* === 主内容区（含二级页面菜单） === */
-.main-content {
-    flex: 1;
-    margin-left: var(--sidebar-width);
-    padding: 0;
-    background: var(--color-bg);
-    min-height: 100vh;
+    padding-top: 12px;
     display: flex;
-    align-items: stretch;
+    align-items: center;
+    gap: 8px;
 }
-.main-content:focus {
-    outline: none;
+/* 侧栏折叠开关组：两枚图标按钮，常驻但仅在知识库区块显示 */
+.col-toggles {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--radius-sm);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
 }
-
-/* 二级页面菜单：位于主内容区左侧，点击「知识库」后出现 */
-.sub-menu {
-    flex-shrink: 0;
-    align-self: flex-start;
-    position: sticky;
-    top: 0;
-    width: 232px;
-    max-height: 100vh;
-    overflow-y: auto;
-    padding: 24px 10px 40px 16px;
-    border-right: 1px solid var(--color-border);
+/* 开启态用 accent Tint 表示「该栏可见」，与关闭态一眼可辨 */
+.col-toggles .mini-btn.is-on { color: var(--accent); background: var(--accent-soft); }
+.version-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-tag);
+    color: var(--text-tertiary);
 }
-.sub-menu-title {
-    margin: 0 0 8px;
-    padding-left: 8px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--color-text-faint);
-}
-.content-body {
-    flex: 1;
-    min-width: 0;
+.version-tag .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
 }
 
-/* === 移动端按钮 === */
-.mobile-menu-btn {
-    display: none;
-    position: fixed;
-    top: 12px;
-    left: 12px;
-    z-index: 90;
-    background: var(--color-surface);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 16px;
+.side-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 10px 12px;
+}
+.side-title {
+    margin: 0;
+    font-size: var(--text-section-title);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+.side-add { width: 100%; margin-top: 10px; color: var(--text-secondary); }
+.side-add:hover { color: var(--text-primary); }
+
+.icon-btn {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
     cursor: pointer;
+    transition: background var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
 }
-.mobile-menu-btn:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 2px;
-}
-.sidebar-overlay {
+.icon-btn:hover { background: var(--hover-background); color: var(--text-primary); }
+.icon-btn:focus-visible { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--focus-ring); }
+
+/* 分类栏 */
+.cat-row { position: relative; }
+.cat-item { padding-right: 8px; }
+.cat-actions {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
     display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 15, 15, 0.4);
-    z-index: 99;
-}
-
-/* === 响应式 === */
-@media (max-width: 768px) {
-    .sidebar {
-        transform: translateX(-100%);
-        transition: transform 0.2s;
-        box-shadow: 0 0 24px rgba(15, 15, 15, 0.12);
-    }
-    .sidebar-open .sidebar {
-        transform: translateX(0);
-    }
-    .sidebar-open .sidebar-overlay {
-        display: block;
-    }
-    .mobile-menu-btn {
-        display: block;
-    }
-    .main-content {
-        margin-left: 0;
-        padding-top: 56px;
-        flex-direction: column;
-    }
-    /* 窄屏下二级页面菜单移到内容顶部 */
-    .sub-menu {
-        position: static;
-        width: auto;
-        max-height: 42vh;
-        padding: 16px 16px 12px;
-        border-right: none;
-        border-bottom: 1px solid var(--color-border);
-    }
-    .app-layout:not(.sidebar-open) .sidebar {
-        display: none;
-    }
-    .app-layout.sidebar-open .sidebar {
-        display: flex;
-    }
-}
-
-/* === Markdown 渲染区（Notion 阅读排版） === */
-.markdown-body {
-    line-height: 1.65;
-    color: var(--color-text);
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    font-size: 16px;
-}
-.markdown-body > *:first-child { margin-top: 0; }
-.markdown-body > *:last-child { margin-bottom: 0; }
-.markdown-body h1 { font-size: 1.7em; font-weight: 700; margin: 1.2em 0 0.5em; line-height: 1.3; }
-.markdown-body h2 { font-size: 1.4em; font-weight: 600; margin: 1.1em 0 0.4em; line-height: 1.3; }
-.markdown-body h3 { font-size: 1.2em; font-weight: 600; margin: 1em 0 0.4em; }
-.markdown-body h4, .markdown-body h5, .markdown-body h6 { font-weight: 600; margin: 0.9em 0 0.4em; }
-.markdown-body p { margin: 0.5em 0; }
-.markdown-body ul, .markdown-body ol { padding-left: 1.6em; margin: 0.5em 0; }
-.markdown-body li { margin: 0.2em 0; }
-.markdown-body li::marker { color: var(--color-text-muted); }
-.markdown-body code {
-    background: var(--color-code-bg);
-    padding: 0.12em 0.4em;
-    border-radius: 4px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.88em;
-    color: #eb5757;
-}
-.markdown-body pre {
-    background: var(--color-code-bg);
-    color: var(--color-text);
-    padding: 16px;
+    gap: 2px;
+    padding: 2px;
     border-radius: 8px;
-    overflow: auto;
-    font-size: 0.9em;
-    border: 1px solid var(--color-border);
+    background: var(--glass-background-strong);
+    border: 1px solid var(--panel-border);
 }
-.markdown-body pre code { background: none; padding: 0; color: inherit; font-size: 1em; }
-.markdown-body blockquote {
-    border-left: 3px solid var(--color-border-strong);
-    margin: 0.8em 0;
-    padding: 0.2em 1em;
-    color: var(--color-text-muted);
+.cat-row:hover .cat-actions { display: flex; }
+.mini-btn {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.markdown-body a { color: var(--color-focus); text-decoration: none; }
-.markdown-body a:hover { text-decoration: underline; }
-.markdown-body table { border-collapse: collapse; margin: 0.8em 0; width: 100%; }
-.markdown-body th, .markdown-body td { border: 1px solid var(--color-border); padding: 6px 12px; text-align: left; }
-.markdown-body th { background: var(--color-sidebar-bg); font-weight: 600; }
-.markdown-body img { max-width: 100%; border-radius: 4px; }
-.markdown-body hr { border: none; border-top: 1px solid var(--color-border); margin: 1.4em 0; }
+.mini-btn:hover { background: var(--hover-background); color: var(--text-primary); }
+.cat-input { width: 100%; height: 34px; font-size: var(--text-nav); }
+.notice-error-text { color: var(--danger); }
+
+/* 页面菜单定位在视口坐标系，故用 fixed */
+.menu-pop { position: fixed; }
+
+/* 主内容区滚动由子视图自身负责，这里仅提供内边距与溢出边界 */
+.main-content > * { min-height: 0; }
+
+@media (max-width: 1280px) {
+    /* 低于 1280 时侧栏已由 JS 折叠，此处仅保证内容区可用宽度 */
+    body { overflow: auto; }
+}
 </style>

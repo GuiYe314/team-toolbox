@@ -229,14 +229,14 @@ export default {
     gap: 4px;
     min-width: 0;
     font-size: 13px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .crumb-link {
     border: none;
     background: none;
     padding: 2px 4px;
     border-radius: 4px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     cursor: pointer;
     max-width: 200px;
@@ -245,15 +245,15 @@ export default {
     white-space: nowrap;
 }
 .crumb-link:hover {
-    background: var(--color-sidebar-hover);
-    color: var(--color-text);
+    background: var(--hover-background);
+    color: var(--text-primary);
 }
 .crumb-sep {
-    color: var(--color-text-faint);
+    color: var(--text-tertiary);
 }
 .crumb-current {
     padding: 2px 4px;
-    color: var(--color-text);
+    color: var(--text-primary);
     max-width: 240px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -281,12 +281,12 @@ export default {
     gap: 8px;
     padding-bottom: 18px;
     margin-bottom: 8px;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--panel-border);
 }
 .doc-time,
 .doc-version {
     font-size: 13px;
-    color: var(--color-text-faint);
+    color: var(--text-tertiary);
 }
 .doc-version {
     margin-left: auto;
@@ -295,16 +295,16 @@ export default {
     font-size: 12px;
     padding: 2px 9px;
     border-radius: 4px;
-    background: var(--color-sidebar-bg);
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-border);
+    background: var(--hover-background);
+    color: var(--text-secondary);
+    border: 1px solid var(--panel-border);
 }
 
 /* 子页面列表（Notion：正文之后的页面链接） */
 .child-pages {
     margin-top: 40px;
     padding-top: 20px;
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--panel-border);
 }
 .child-heading {
     display: flex;
@@ -313,7 +313,7 @@ export default {
     margin: 0 0 10px;
     font-size: 15px;
     font-weight: 600;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .child-count {
     display: inline-flex;
@@ -323,8 +323,8 @@ export default {
     height: 18px;
     padding: 0 6px;
     border-radius: 9px;
-    background: var(--color-sidebar-active);
-    color: var(--color-text-muted);
+    background: var(--selected-background);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 500;
 }
@@ -342,20 +342,20 @@ export default {
     border: none;
     background: none;
     border-radius: 6px;
-    color: var(--color-text);
+    color: var(--text-primary);
     font-size: 15px;
     text-align: left;
     cursor: pointer;
     transition: background 0.1s;
 }
 .child-page:hover {
-    background: var(--color-sidebar-hover);
+    background: var(--hover-background);
 }
 .child-page:hover .child-title {
     text-decoration-color: currentColor;
 }
 .child-page:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
 }
 .child-icon {
@@ -363,10 +363,10 @@ export default {
     font-size: 15px;
     text-align: center;
     flex-shrink: 0;
-    color: var(--color-text-faint);
+    color: var(--text-tertiary);
 }
 .child-plus {
-    color: var(--color-text-faint);
+    color: var(--text-tertiary);
     line-height: 1;
 }
 .child-title {
@@ -379,11 +379,11 @@ export default {
     text-decoration-color: #d9d8d5;
 }
 .child-new {
-    color: var(--color-text-faint);
+    color: var(--text-tertiary);
     font-size: 14px;
 }
 .child-new:hover {
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .child-new:hover .child-title {
     text-decoration: none;
@@ -393,15 +393,15 @@ export default {
 .nt-state {
     padding: 16px;
     font-size: 14px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .nt-state-error {
-    color: var(--color-danger);
+    color: var(--danger);
 }
 .nt-ghost {
     border: none;
     background: none;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     font-size: 14px;
     padding: 6px 10px;
     border-radius: 6px;
@@ -409,38 +409,38 @@ export default {
     transition: background 0.12s, color 0.12s;
 }
 .nt-ghost:hover {
-    background: var(--color-sidebar-hover);
-    color: var(--color-text);
+    background: var(--hover-background);
+    color: var(--text-primary);
 }
 .nt-ghost:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 .nt-ghost-danger:hover {
     background: #fdecec;
-    color: var(--color-danger);
+    color: var(--danger);
 }
 .nt-btn {
     padding: 7px 14px;
     border-radius: 6px;
     font-size: 14px;
     cursor: pointer;
-    border: 1px solid var(--color-border-strong);
-    background: var(--color-surface);
-    color: var(--color-text);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+    color: var(--text-primary);
     transition: background 0.12s;
 }
 .nt-btn:hover {
-    background: var(--color-sidebar-bg);
+    background: var(--hover-background);
 }
 .nt-btn:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 .nt-btn-danger {
-    background: var(--color-danger);
+    background: var(--danger);
     color: #fff;
-    border-color: var(--color-danger);
+    border-color: var(--danger);
 }
 .nt-btn-danger:hover {
     background: #d64545;
@@ -457,7 +457,7 @@ export default {
     z-index: 200;
 }
 .modal {
-    background: var(--color-surface);
+    background: var(--panel-background);
     border-radius: 10px;
     padding: 24px;
     width: min(420px, 90vw);
@@ -469,7 +469,7 @@ export default {
 }
 .modal-text {
     font-size: 14px;
-    color: var(--color-text);
+    color: var(--text-primary);
     margin: 0 0 8px;
     line-height: 1.6;
 }

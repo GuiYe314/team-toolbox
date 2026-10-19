@@ -192,7 +192,7 @@ export default {
     letter-spacing: -0.01em;
 }
 .subtitle {
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     margin: 0;
     font-size: 14px;
 }
@@ -203,13 +203,13 @@ export default {
     font-size: 18px;
     margin: 0 0 16px;
     padding-bottom: 8px;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--panel-border);
 }
 .empty-state {
     text-align: center;
     padding: 40px 20px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
 }
 .empty-icon {
@@ -218,13 +218,13 @@ export default {
 }
 .empty-hint {
     font-size: 13px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     margin: 4px 0 16px;
 }
 .empty-action {
     font-size: 14px;
     color: #fff;
-    background: var(--color-focus);
+    background: var(--accent);
     border: none;
     border-radius: 6px;
     padding: 8px 18px;
@@ -234,39 +234,39 @@ export default {
     filter: brightness(1.05);
 }
 .empty-action:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 .state-loading {
     padding: 40px 20px;
     text-align: center;
-    color: var(--color-text-muted);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    color: var(--text-secondary);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
 }
 .state-error {
     text-align: center;
     padding: 32px 20px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
 }
 .state-error p {
     margin: 0 0 12px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .retry-btn {
     font-size: 14px;
     color: #fff;
-    background: var(--color-focus);
+    background: var(--accent);
     border: none;
     border-radius: 6px;
     padding: 8px 18px;
     cursor: pointer;
 }
 .retry-btn:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 .state-error-inline {
@@ -276,7 +276,7 @@ export default {
 }
 .retry-link {
     font-size: 13px;
-    color: var(--color-focus);
+    color: var(--accent);
     background: none;
     border: none;
     cursor: pointer;
@@ -285,7 +285,7 @@ export default {
     text-decoration: underline;
 }
 .retry-link:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 2px;
 }
@@ -293,8 +293,8 @@ export default {
     list-style: none;
     margin: 0;
     padding: 0;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
     overflow: hidden;
 }
@@ -304,14 +304,14 @@ export default {
     justify-content: space-between;
     gap: 16px;
     padding: 14px 18px;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--panel-border);
     cursor: pointer;
 }
 .recent-item:last-child {
     border-bottom: none;
 }
 .recent-item:hover {
-    background: var(--color-bg);
+    background: var(--background);
 }
 .recent-main {
     min-width: 0;
@@ -320,7 +320,7 @@ export default {
     display: block;
     font-size: 15px;
     font-weight: 600;
-    color: var(--color-text);
+    color: var(--text-primary);
     margin-bottom: 6px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -347,29 +347,29 @@ export default {
 .recent-time {
     flex: none;
     font-size: 12px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 .more-btn {
     display: block;
     margin: 16px auto 0;
     font-size: 14px;
-    color: var(--color-focus);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    color: var(--accent);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 6px;
     padding: 9px 22px;
     cursor: pointer;
 }
 .more-btn:hover:not(:disabled) {
-    border-color: var(--color-focus);
+    border-color: var(--accent);
 }
 .more-btn:disabled {
     opacity: 0.6;
     cursor: default;
 }
 .more-btn:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 .tools-grid {
@@ -378,8 +378,8 @@ export default {
     gap: 16px;
 }
 .tool-card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
     padding: 16px;
 }
@@ -398,7 +398,7 @@ export default {
 .tool-status {
     font-size: 11px;
     background: #f3f4f6;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     padding: 2px 6px;
     border-radius: 4px;
 }
@@ -409,18 +409,18 @@ export default {
 .tool-desc {
     margin: 0 0 12px;
     font-size: 13px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .tool-action {
     font-size: 13px;
-    color: var(--color-focus);
+    color: var(--accent);
     background: none;
     border: none;
     cursor: pointer;
     padding: 0;
 }
 .tool-action:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 2px;
 }

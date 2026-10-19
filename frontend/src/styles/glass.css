@@ -1,0 +1,50 @@
+/* ==========================================================================
+   Glass System — 统一玻璃实现
+   性能约定：backdrop-filter 只出现在 .glass-panel 这一类「大型容器」上；
+   列表项、按钮、输入框一律使用半透明背景色，不叠加模糊，
+   避免几十层 backdrop-filter 造成 GPU 占用飙升。
+   ========================================================================== */
+
+.glass-panel {
+    background: var(--glass-background);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--blur-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--blur-saturate));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow), var(--shadow-inset);
+}
+
+/* 顶部内高光：模拟玻璃上沿受光，是"玻璃感"的关键细节 */
+.glass-sheen {
+    position: relative;
+    overflow: hidden;
+}
+.glass-sheen::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 40%;
+    pointer-events: none;
+    background: linear-gradient(180deg, var(--glass-highlight), transparent);
+    opacity: 0.85;
+}
+
+/* 非玻璃表面：半透明底 + 细边框，用于内层卡片与列表项 */
+.surface {
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
+}
+
+.surface-hover {
+    transition: background var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out);
+}
+.surface-hover:hover {
+    background: var(--panel-background-hover);
+}
+
+/* 不支持 backdrop-filter 时回退为更实的背景，保证可读性 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-panel {
+        background: var(--glass-background-strong);
+    }
+}

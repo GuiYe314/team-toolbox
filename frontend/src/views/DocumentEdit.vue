@@ -526,13 +526,13 @@ export default {
     background: transparent;
     font-size: 38px;
     font-weight: 700;
-    color: var(--color-text);
+    color: var(--text-primary);
     padding: 0;
     line-height: 1.2;
     letter-spacing: -0.01em;
 }
 .edit-title::placeholder {
-    color: var(--color-text-faint);
+    color: var(--text-tertiary);
 }
 
 /* 元信息行 */
@@ -542,7 +542,7 @@ export default {
     gap: 20px;
     margin: 18px 0 14px;
     padding-bottom: 14px;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--panel-border);
 }
 .meta-field {
     display: flex;
@@ -551,20 +551,20 @@ export default {
 }
 .meta-label {
     font-size: 13px;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
 }
 .nt-select,
 .nt-input {
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--panel-border);
     border-radius: 6px;
     padding: 5px 9px;
     font-size: 14px;
-    background: var(--color-surface);
-    color: var(--color-text);
+    background: var(--panel-background);
+    color: var(--text-primary);
 }
 .nt-select:focus-visible,
 .nt-input:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 1px;
 }
 .nt-input {
@@ -575,7 +575,7 @@ export default {
 .edit-mode-switch {
     display: inline-flex;
     gap: 2px;
-    background: var(--color-sidebar-bg);
+    background: var(--hover-background);
     border-radius: 8px;
     padding: 3px;
     margin-bottom: 14px;
@@ -583,7 +583,7 @@ export default {
 .mode-btn {
     border: none;
     background: none;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     padding: 5px 14px;
     border-radius: 6px;
@@ -591,19 +591,19 @@ export default {
     transition: background 0.12s, color 0.12s;
 }
 .mode-btn:hover {
-    color: var(--color-text);
+    color: var(--text-primary);
 }
 .mode-btn.active {
-    background: var(--color-surface);
-    color: var(--color-text);
+    background: var(--panel-background);
+    color: var(--text-primary);
     box-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
 }
 
 /* 图片插入工具按钮：与模式切换视觉区分，避免误以为也是模式切换 */
 .mode-btn-tool {
     margin-left: auto;
-    color: var(--color-text-muted, #787774);
-    border: 1px dashed var(--color-border-strong, #d4d3cf);
+    color: var(--text-secondary, #787774);
+    border: 1px dashed var(--panel-border, #d4d3cf);
 }
 .mode-btn-tool:hover:not(:disabled) {
     color: #2383e2;
@@ -626,7 +626,7 @@ export default {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
     overflow: hidden;
 }
@@ -634,7 +634,7 @@ export default {
     min-height: 420px;
 }
 .pane-write {
-    border-right: 1px solid var(--color-border);
+    border-right: 1px solid var(--panel-border);
 }
 .md-input {
     width: 100%;
@@ -644,15 +644,15 @@ export default {
     outline: none;
     resize: none;
     padding: 18px;
-    background: var(--color-surface);
-    color: var(--color-text);
+    background: var(--panel-background);
+    color: var(--text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 14px;
     line-height: 1.7;
 }
 .pane-preview {
     padding: 18px;
-    background: var(--color-surface);
+    background: var(--panel-background);
     overflow: auto;
     max-height: 640px;
 }
@@ -670,7 +670,7 @@ export default {
 .link-btn {
     background: none;
     border: none;
-    color: var(--color-focus);
+    color: var(--accent);
     cursor: pointer;
     font-size: 13px;
     text-decoration: underline;
@@ -683,7 +683,7 @@ export default {
     margin: 16px 0 0;
 }
 .nt-state-error {
-    color: var(--color-danger);
+    color: var(--danger);
     border: 1px solid #f3c9c9;
     background: #fdecec;
 }
@@ -711,34 +711,34 @@ export default {
     border-radius: 6px;
     font-size: 14px;
     cursor: pointer;
-    border: 1px solid var(--color-border-strong);
-    background: var(--color-surface);
-    color: var(--color-text);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+    color: var(--text-primary);
     transition: background 0.12s;
 }
 .nt-btn:hover {
-    background: var(--color-sidebar-bg);
+    background: var(--hover-background);
 }
 .nt-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
 .nt-btn:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 .nt-btn-primary {
-    background: var(--color-focus);
+    background: var(--accent);
     color: #fff;
-    border-color: var(--color-focus);
+    border-color: var(--accent);
 }
 .nt-btn-primary:hover {
     background: #1a6fc4;
 }
 .nt-btn-danger {
-    background: var(--color-danger);
+    background: var(--danger);
     color: #fff;
-    border-color: var(--color-danger);
+    border-color: var(--danger);
 }
 .nt-btn-danger:hover {
     background: #d64545;
@@ -746,7 +746,7 @@ export default {
 .nt-ghost {
     border: none;
     background: none;
-    color: var(--color-text-muted);
+    color: var(--text-secondary);
     font-size: 14px;
     padding: 6px 10px;
     border-radius: 6px;
@@ -754,11 +754,11 @@ export default {
     transition: background 0.12s, color 0.12s;
 }
 .nt-ghost:hover {
-    background: var(--color-sidebar-hover);
-    color: var(--color-text);
+    background: var(--hover-background);
+    color: var(--text-primary);
 }
 .nt-ghost:focus-visible {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 
@@ -774,7 +774,7 @@ export default {
     }
     .pane-write {
         border-right: none;
-        border-bottom: 1px solid var(--color-border);
+        border-bottom: 1px solid var(--panel-border);
     }
 }
 </style>

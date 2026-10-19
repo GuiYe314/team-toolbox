@@ -1,0 +1,111 @@
+/* ==========================================================================
+   Theme — Light / Dark
+   背景采用柔和的色彩层（浅色偏冷白、深色偏深蓝灰），不做纯黑，
+   这样玻璃层的高光与模糊才有可感知的层次。
+   深色下大面积背景用两层极淡径向渐变模拟环境光，避免死板的纯色。
+   ========================================================================== */
+
+:root,
+[data-theme="light"] {
+    color-scheme: light;
+
+    /* 背景：冷白基调 + 两处极淡色晕，为玻璃提供折射内容 */
+    --background: #eef1f6;
+    --background-tint-a: rgba(150, 178, 235, 0.30);
+    --background-tint-b: rgba(196, 178, 232, 0.24);
+
+    /* 玻璃 */
+    --glass-background: rgba(255, 255, 255, 0.56);
+    --glass-background-strong: rgba(255, 255, 255, 0.70);
+    --glass-border: rgba(255, 255, 255, 0.42);
+    --glass-highlight: rgba(255, 255, 255, 0.55);
+    --glass-blur: var(--blur-lg);
+
+    /* 非玻璃面板（列表项、输入框等）*/
+    --panel-background: rgba(255, 255, 255, 0.42);
+    --panel-background-hover: rgba(255, 255, 255, 0.62);
+    --panel-border: rgba(255, 255, 255, 0.34);
+
+    /* 文字 */
+    --text-primary: #1c2333;
+    --text-secondary: #5b6579;
+    --text-tertiary: #8b95a8;
+    --text-inverse: #ffffff;
+
+    /* 强调色：克制的靛蓝，非霓虹 */
+    --accent: #4c6ef5;
+    --accent-hover: #3b5bdb;
+    --accent-soft: rgba(76, 110, 245, 0.12);
+    --accent-border: rgba(76, 110, 245, 0.32);
+    --accent-contrast: #ffffff;
+
+    /* 状态 */
+    --danger: #e03131;
+    --danger-soft: rgba(224, 49, 49, 0.12);
+    --success: #2f9e44;
+    --success-soft: rgba(47, 158, 68, 0.13);
+    --warning: #f08c00;
+
+    /* 交互态 */
+    --hover-background: rgba(255, 255, 255, 0.52);
+    --selected-background: rgba(76, 110, 245, 0.10);
+    --selected-border: rgba(76, 110, 245, 0.26);
+    --focus-ring: rgba(76, 110, 245, 0.45);
+
+    /* 阴影：极轻，靠高光而非投影塑造体积 */
+    --shadow: 0 4px 16px rgba(31, 45, 79, 0.07);
+    --shadow-overlay: 0 12px 40px rgba(31, 45, 79, 0.16);
+    --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+
+    /* 代码块等少量实底区域 */
+    --surface-solid: rgba(255, 255, 255, 0.82);
+    --surface-sunken: rgba(228, 233, 242, 0.55);
+}
+
+[data-theme="dark"] {
+    color-scheme: dark;
+
+    /* 深蓝灰基调，非纯黑 */
+    --background: #090f18;
+    --background-tint-a: rgba(58, 78, 122, 0.30);
+    --background-tint-b: rgba(40, 62, 96, 0.22);
+
+    --glass-background: rgba(20, 28, 42, 0.62);
+    --glass-background-strong: rgba(24, 33, 49, 0.78);
+    --glass-border: rgba(255, 255, 255, 0.10);
+    --glass-highlight: rgba(255, 255, 255, 0.07);
+    --glass-blur: var(--blur-lg);
+
+    --panel-background: rgba(255, 255, 255, 0.045);
+    --panel-background-hover: rgba(255, 255, 255, 0.085);
+    --panel-border: rgba(255, 255, 255, 0.07);
+
+    --text-primary: #e7ecf5;
+    --text-secondary: #a3aec4;
+    --text-tertiary: #6c7893;
+    --text-inverse: #0b1119;
+
+    --accent: #7d95f8;
+    --accent-hover: #93a7f9;
+    --accent-soft: rgba(125, 149, 248, 0.16);
+    --accent-border: rgba(125, 149, 248, 0.34);
+    --accent-contrast: #0b1119;
+
+    --danger: #ff8787;
+    --danger-soft: rgba(255, 135, 135, 0.14);
+    --success: #69db7c;
+    --success-soft: rgba(105, 219, 124, 0.14);
+    --warning: #ffc078;
+
+    --hover-background: rgba(255, 255, 255, 0.07);
+    --selected-background: rgba(125, 149, 248, 0.16);
+    --selected-border: rgba(125, 149, 248, 0.30);
+    --focus-ring: rgba(125, 149, 248, 0.50);
+
+    --shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+    --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.44);
+    --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+
+    --surface-solid: rgba(18, 25, 37, 0.88);
+    --surface-sunken: rgba(0, 0, 0, 0.24);
+}

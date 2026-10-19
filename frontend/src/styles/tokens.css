@@ -1,0 +1,68 @@
+/* ==========================================================================
+   Design Token — 单一事实来源
+   所有颜色、圆角、模糊、间距、字号均在此定义，组件内禁止硬编码色值。
+   主题差异见 theme.css（本文件只声明与主题无关的量与默认浅色值）。
+   ========================================================================== */
+
+:root {
+    /* ── 字体层级（高信息密度：主标题克制，不做超大字号）───────────── */
+    --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+        "Liberation Mono", monospace;
+
+    --text-page-title: 30px;
+    --text-section-title: 17px;
+    --text-nav: 15px;
+    --text-doc-title: 14px;
+    --text-body: 14px;
+    --text-secondary: 12.5px;
+    --text-tag: 11.5px;
+
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+
+    /* 行高 */
+    --line-tight: 1.3;
+    --line-normal: 1.55;
+    --line-relaxed: 1.75;
+
+    /* ── 圆角阶梯 ────────────────────────────────────────────────── */
+    --radius-xl: 24px;   /* 主容器 */
+    --radius-lg: 20px;   /* 侧栏 */
+    --radius-md: 12px;   /* 列表项 */
+    --radius-sm: 10px;   /* 按钮 */
+    --radius-pill: 999px;/* 标签 */
+
+    /* ── 模糊强度（仅大型 Panel 使用，见 performance 约定）────────── */
+    --blur-lg: 30px;
+    --blur-md: 20px;
+    --blur-saturate: 135%;
+
+    /* ── 间距 ────────────────────────────────────────────────────── */
+    --gap-column: 14px;
+    --page-padding: 22px;
+
+    /* ── 侧栏宽度（四栏布局）─────────────────────────────────────── */
+    --w-main-sidebar: 214px;
+    --w-page-sidebar: 240px;
+    --w-category-sidebar: 220px;
+    --w-min-content: 600px;
+
+    /* ── 高度 ────────────────────────────────────────────────────── */
+    --h-nav-item: 46px;
+    --h-doc-item: 60px;
+
+    /* ── 动效：轻、快、无弹跳 ────────────────────────────────────── */
+    --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --dur-fast: 120ms;
+    --dur-base: 150ms;
+    --dur-theme: 260ms;
+
+    /* ── 层级 ────────────────────────────────────────────────────── */
+    --z-dropdown: 30;
+    --z-overlay: 40;
+    --z-modal: 50;
+}
