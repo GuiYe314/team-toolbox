@@ -21,10 +21,12 @@
     --glass-highlight: rgba(255, 255, 255, 0.55);
     --glass-blur: var(--blur-lg);
 
-    /* 非玻璃面板（列表项、输入框等）*/
-    --panel-background: rgba(255, 255, 255, 0.42);
-    --panel-background-hover: rgba(255, 255, 255, 0.62);
-    --panel-border: rgba(255, 255, 255, 0.34);
+    /* 非玻璃面板（列表项、输入框等）。
+       边框不能用白色半透明：Light 主题背景本身就是浅色，白边等于隐形，
+       输入框/卡片会看起来「消失」。浅色主题下用中性灰蓝描边才可见。*/
+    --panel-background: rgba(255, 255, 255, 0.52);
+    --panel-background-hover: rgba(255, 255, 255, 0.74);
+    --panel-border: rgba(28, 35, 51, 0.11);
 
     /* 文字 */
     --text-primary: #1c2333;
@@ -45,6 +47,7 @@
     --success: #2f9e44;
     --success-soft: rgba(47, 158, 68, 0.13);
     --warning: #f08c00;
+    --warning-soft: rgba(240, 140, 0, 0.12);
 
     /* 交互态 */
     --hover-background: rgba(255, 255, 255, 0.52);
@@ -56,6 +59,8 @@
     --shadow: 0 4px 16px rgba(31, 45, 79, 0.07);
     --shadow-overlay: 0 12px 40px rgba(31, 45, 79, 0.16);
     --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    /* 遮罩层底色：Light 下用中性深灰，Dark 下更深，避免遮住内容但不发灰 */
+    --overlay-backdrop: rgba(28, 35, 51, 0.42);
 
     /* 代码块等少量实底区域 */
     --surface-solid: rgba(255, 255, 255, 0.82);
@@ -78,7 +83,7 @@
 
     --panel-background: rgba(255, 255, 255, 0.045);
     --panel-background-hover: rgba(255, 255, 255, 0.085);
-    --panel-border: rgba(255, 255, 255, 0.07);
+    --panel-border: rgba(255, 255, 255, 0.11);
 
     --text-primary: #e7ecf5;
     --text-secondary: #a3aec4;
@@ -96,6 +101,7 @@
     --success: #69db7c;
     --success-soft: rgba(105, 219, 124, 0.14);
     --warning: #ffc078;
+    --warning-soft: rgba(255, 192, 120, 0.14);
 
     --hover-background: rgba(255, 255, 255, 0.07);
     --selected-background: rgba(125, 149, 248, 0.16);
@@ -105,6 +111,7 @@
     --shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
     --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.44);
     --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    --overlay-backdrop: rgba(4, 8, 15, 0.58);
 
     --surface-solid: rgba(18, 25, 37, 0.88);
     --surface-sunken: rgba(0, 0, 0, 0.24);

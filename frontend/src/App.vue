@@ -2,9 +2,13 @@
     <div
         class="app-layout"
         :class="{
-            'col-page-hidden': !onKbSection || pageColHidden,
-            'col-category-hidden': categoryColHidden,
-            'col-both-hidden': (!onKbSection || pageColHidden) && categoryColHidden
+            // 非知识库区块只有「主导航 + 主内容」两栏。
+            // 必须显式声明两列：否则沿用四栏模板时，第二栏（页面树）不渲染，
+            // 内容会被挤到第三/四列位置上，宽度只剩几百像素。
+            'col-single': !onKbSection,
+            'col-page-hidden': onKbSection && pageColHidden,
+            'col-category-hidden': onKbSection && categoryColHidden,
+            'col-both-hidden': onKbSection && pageColHidden && categoryColHidden
         }"
     >
         <!-- 环境层：为玻璃提供可折射的背景内容 -->

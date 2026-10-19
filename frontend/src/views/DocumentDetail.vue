@@ -1,5 +1,5 @@
 <template>
-    <div class="doc-page">
+    <div class="view-page doc-page">
         <div class="doc-container">
             <div class="doc-topbar">
                 <!-- 面包屑：知识库 / 祖先页面 / 当前页（Notion 顶部路径） -->
@@ -204,13 +204,12 @@ export default {
 </script>
 
 <style scoped>
-.doc-page {
-    min-height: 100vh;
-}
+/* 根容器走全局 .view-page（负责滚动）；.doc-container 只收窄阅读宽度。
+   旧版 min-height:100vh 会让内容在玻璃面板内被裁且无法滚动。*/
 .doc-container {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 20px 48px 96px;
+    width: 100%;
+    max-width: 780px;
+    padding: 4px 0 40px;
 }
 
 /* 顶栏 + 面包屑 */
@@ -268,11 +267,12 @@ export default {
     margin-top: 8px;
 }
 .doc-title {
-    font-size: 40px;
-    font-weight: 700;
-    margin: 0 0 14px;
-    letter-spacing: -0.01em;
+    font-size: var(--text-page-title);
+    font-weight: var(--weight-bold);
+    margin: 0 0 12px;
+    letter-spacing: -0.015em;
     line-height: 1.25;
+    color: var(--text-primary);
 }
 .doc-meta {
     display: flex;
@@ -376,7 +376,7 @@ export default {
     white-space: nowrap;
     text-decoration: underline;
     text-underline-offset: 3px;
-    text-decoration-color: #d9d8d5;
+    text-decoration-color: var(--text-tertiary);
 }
 .child-new {
     color: var(--text-tertiary);
@@ -417,7 +417,7 @@ export default {
     outline-offset: 2px;
 }
 .nt-ghost-danger:hover {
-    background: #fdecec;
+    background: var(--danger-soft);
     color: var(--danger);
 }
 .nt-btn {
@@ -439,18 +439,18 @@ export default {
 }
 .nt-btn-danger {
     background: var(--danger);
-    color: #fff;
+    color: var(--text-inverse);
     border-color: var(--danger);
 }
 .nt-btn-danger:hover {
-    background: #d64545;
+    background: var(--danger);
 }
 
 /* 删除弹窗 */
 .modal-mask {
     position: fixed;
     inset: 0;
-    background: rgba(15, 15, 15, 0.4);
+    background: var(--overlay-backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -461,7 +461,7 @@ export default {
     border-radius: 10px;
     padding: 24px;
     width: min(420px, 90vw);
-    box-shadow: 0 14px 44px rgba(15, 15, 15, 0.2);
+    box-shadow: var(--shadow-overlay);
 }
 .modal-title {
     font-size: 18px;
@@ -475,9 +475,9 @@ export default {
 }
 .modal-warn {
     font-size: 13px;
-    color: #b54708;
-    background: #fdf3e7;
-    border: 1px solid #f3dcc0;
+    color: var(--warning);
+    background: var(--warning-soft);
+    border: 1px solid var(--warning);
     border-radius: 6px;
     padding: 8px 10px;
     margin: 0 0 12px;
@@ -489,13 +489,8 @@ export default {
     gap: 12px;
 }
 
-@media (max-width: 768px) {
-    .doc-container {
-        padding: 20px 18px 64px;
-    }
-    .doc-title {
-        font-size: 30px;
-    }
+@media (max-width: 1340px) {
+    /* 主内容区变窄时顶栏换行，避免面包屑把按钮挤出可视区 */
     .doc-topbar {
         flex-wrap: wrap;
     }

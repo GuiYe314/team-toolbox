@@ -1,8 +1,8 @@
 <template>
-    <div class="page-home">
-        <header class="page-header">
-            <h1>团队工具箱</h1>
-            <p class="subtitle">首页</p>
+    <div class="view-page page-home">
+        <header class="view-head">
+            <h1 class="view-title">团队工具箱</h1>
+            <p class="view-subtitle">首页</p>
         </header>
 
         <!-- 最近更新 -->
@@ -17,10 +17,13 @@
             </div>
 
             <div v-else-if="recent.length === 0" class="empty-state">
-                <p class="empty-icon">📋</p>
+                <svg class="icon icon-lg empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 4.5h6.5a2 2 0 0 1 2 2V20a1.6 1.6 0 0 0-1.6-1.5H4z" />
+                    <path d="M20 4.5h-6.5a2 2 0 0 0-2 2V20a1.6 1.6 0 0 1 1.6-1.5H20z" />
+                </svg>
                 <p>知识库还没有文档</p>
                 <p class="empty-hint">点击下方按钮创建第一篇文档，开始沉淀团队知识。</p>
-                <button class="empty-action" @click="goNew">新建文档</button>
+                <button class="btn btn-primary" @click="goNew">新建文档</button>
             </div>
 
             <template v-else>
@@ -51,7 +54,7 @@
                 </ul>
                 <button
                     v-if="hasMore"
-                    class="more-btn"
+                    class="btn more-btn"
                     :disabled="loading"
                     @click="loadMore"
                 >{{ loading ? '加载中…' : '查看更多' }}</button>
@@ -64,12 +67,12 @@
             <div class="tools-grid">
                 <div v-for="tool in tools" :key="tool.id" class="tool-card" :class="{ 'planned': tool.status === 'planned' }">
                     <div class="tool-card-header">
-                        <span class="tool-icon">{{ tool.icon }}</span>
+                        <ToolIcon :tool-id="tool.id" />
                         <span class="tool-status" v-if="tool.status === 'planned'">规划中</span>
                     </div>
                     <h3 class="tool-name">{{ tool.name }}</h3>
                     <p class="tool-desc">{{ tool.desc }}</p>
-                    <button v-if="tool.status === 'planned'" class="tool-action" @click="$router.push({ name: tool.routeName })">
+                    <button v-if="tool.status === 'planned'" class="btn btn-sm" @click="$router.push({ name: tool.routeName })">
                         查看详情
                     </button>
                 </div>
@@ -80,9 +83,11 @@
 
 <script>
 import { api } from '../api/client.js';
+import ToolIcon from '../components/ToolIcon.vue';
 
 export default {
     name: 'Home',
+    components: { ToolIcon },
     data() {
         return {
             tools: [
@@ -90,7 +95,6 @@ export default {
                     id: 'json-fmt',
                     name: 'JSON 格式化',
                     desc: 'JSON 数据的美化与压缩',
-                    icon: '{ }',
                     status: 'planned',
                     routeName: 'tool-json-fmt'
                 },
@@ -98,7 +102,6 @@ export default {
                     id: 'qrcode',
                     name: '二维码生成',
                     desc: '文本或链接快速生成二维码',
-                    icon: '⬡',
                     status: 'planned',
                     routeName: 'tool-qrcode'
                 }
@@ -174,154 +177,115 @@ export default {
         }
     }
 };
-</script>
+</script><style scoped>
+/* 根容器统一用全局 .view-page（自带纵向滚动 + token 内边距），
+   这里只做栅格与卡片外观，不再重复写 max-width / padding。*/
 
-<style scoped>
-.page-home {
-    max-width: 1080px;
-    margin: 0 auto;
-    padding: 52px 48px 72px;
-}
-.page-header {
-    margin-bottom: 32px;
-}
-.page-header h1 {
-    font-size: 36px;
-    font-weight: 700;
-    margin: 0 0 4px;
-    letter-spacing: -0.01em;
-}
-.subtitle {
-    color: var(--text-secondary);
-    margin: 0;
-    font-size: 14px;
-}
 .section {
-    margin-bottom: 32px;
+    flex: none;
+    margin-bottom: 26px;
 }
+.section:last-child { margin-bottom: 0; }
 .section-title {
-    font-size: 18px;
-    margin: 0 0 16px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--panel-border);
+    margin: 0 0 12px;
+    font-size: var(--text-section-title);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
 }
-.empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    background: var(--panel-background);
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-}
-.empty-icon {
-    font-size: 36px;
-    margin: 0 0 8px;
-}
-.empty-hint {
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin: 4px 0 16px;
-}
-.empty-action {
-    font-size: 14px;
-    color: #fff;
-    background: var(--accent);
-    border: none;
-    border-radius: 6px;
-    padding: 8px 18px;
-    cursor: pointer;
-}
-.empty-action:hover {
-    filter: brightness(1.05);
-}
-.empty-action:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-}
-.state-loading {
-    padding: 40px 20px;
-    text-align: center;
-    color: var(--text-secondary);
-    background: var(--panel-background);
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-}
+
+/* ── 状态 ────────────────────────────────────────────────────────── */
+.state-loading,
 .state-error {
-    text-align: center;
-    padding: 32px 20px;
+    padding: 22px;
+    border-radius: var(--radius-md);
     background: var(--panel-background);
     border: 1px solid var(--panel-border);
-    border-radius: 8px;
-}
-.state-error p {
-    margin: 0 0 12px;
+    font-size: var(--text-body);
     color: var(--text-secondary);
 }
-.retry-btn {
-    font-size: 14px;
-    color: #fff;
-    background: var(--accent);
-    border: none;
-    border-radius: 6px;
-    padding: 8px 18px;
-    cursor: pointer;
-}
-.retry-btn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-}
+.state-error { border-color: var(--danger); color: var(--danger); }
+.state-error p { margin: 0 0 10px; }
 .state-error-inline {
-    font-size: 13px;
-    color: #b42318;
-    margin: 0 0 12px;
-}
-.retry-link {
-    font-size: 13px;
-    color: var(--accent);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    margin-left: 6px;
-    text-decoration: underline;
-}
-.retry-link:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    border-radius: 2px;
-}
-.recent-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    background: var(--panel-background);
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    overflow: hidden;
-}
-.recent-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--panel-border);
-    cursor: pointer;
+    gap: 10px;
+    margin: 0 0 10px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: var(--text-secondary);
 }
-.recent-item:last-child {
-    border-bottom: none;
+.retry-btn,
+.retry-link {
+    border: none;
+    background: none;
+    color: var(--accent);
+    font-size: inherit;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+}
+.retry-link { font-size: var(--text-secondary); }
+
+/* ── 空状态 ──────────────────────────────────────────────────────── */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 44px 24px;
+    text-align: center;
+    border-radius: var(--radius-lg);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
+    color: var(--text-secondary);
+    font-size: var(--text-body);
+}
+.empty-state p { margin: 0; }
+.empty-icon { color: var(--text-tertiary); opacity: 0.7; margin-bottom: 4px; }
+.empty-hint {
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
+    margin-bottom: 8px !important;
+}
+
+/* ── 最近更新列表：与知识库文档行同一视觉语言 ──────────────────── */
+.recent-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.recent-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 104px;
+    align-items: center;
+    gap: 14px;
+    min-height: 48px;
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    background: var(--panel-background);
+    cursor: pointer;
+    transition: background var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out),
+                transform var(--dur-base) var(--ease-out);
 }
 .recent-item:hover {
-    background: var(--background);
+    background: var(--panel-background-hover);
+    border-color: var(--panel-border);
+    transform: translateY(-1px);
 }
 .recent-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     min-width: 0;
 }
 .recent-title {
-    display: block;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: var(--text-doc-title);
+    font-weight: var(--weight-semibold);
     color: var(--text-primary);
-    margin-bottom: 6px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -331,97 +295,93 @@ export default {
     flex-wrap: wrap;
     gap: 6px;
 }
+.recent-sub:empty { display: none; }
 .doc-pill {
-    font-size: 11px;
-    line-height: 1;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: #eef2ff;
-    color: #4338ca;
-    white-space: nowrap;
-}
-.doc-pill-tag {
-    background: #ecfdf5;
-    color: #047857;
-}
-.recent-time {
-    flex: none;
-    font-size: 12px;
-    color: var(--text-secondary);
-    white-space: nowrap;
-}
-.more-btn {
-    display: block;
-    margin: 16px auto 0;
-    font-size: 14px;
-    color: var(--accent);
-    background: var(--panel-background);
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: var(--radius-pill);
+    background: var(--panel-background-hover);
     border: 1px solid var(--panel-border);
-    border-radius: 6px;
-    padding: 9px 22px;
-    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: var(--text-tag);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
 }
-.more-btn:hover:not(:disabled) {
-    border-color: var(--accent);
+.doc-pill-tag { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
+.recent-time {
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
 }
-.more-btn:disabled {
-    opacity: 0.6;
-    cursor: default;
-}
-.more-btn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-}
+
+/* ── 工具卡片网格：自适应列，窄屏自动降列 ──────────────────────── */
 .tools-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(min(228px, 100%), 1fr));
+    gap: 12px;
 }
 .tool-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    border-radius: var(--radius-lg);
     background: var(--panel-background);
     border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    padding: 16px;
+    transition: background var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out),
+                transform var(--dur-base) var(--ease-out);
 }
-.tool-card.planned {
-    border-style: dashed;
+.tool-card:hover {
+    background: var(--panel-background-hover);
+    border-color: var(--accent-border);
+    transform: translateY(-1px);
 }
+.tool-card.planned { opacity: 0.82; }
 .tool-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
-}
-.tool-icon {
-    font-size: 24px;
+    gap: 10px;
 }
 .tool-status {
-    font-size: 11px;
-    background: #f3f4f6;
-    color: var(--text-secondary);
-    padding: 2px 6px;
-    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: var(--radius-pill);
+    background: var(--panel-background-hover);
+    color: var(--text-tertiary);
+    font-size: var(--text-tag);
+    font-weight: var(--weight-medium);
 }
 .tool-name {
-    margin: 0 0 4px;
-    font-size: 15px;
+    margin: 2px 0 0;
+    font-size: var(--text-doc-title);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
 }
 .tool-desc {
-    margin: 0 0 12px;
-    font-size: 13px;
-    color: var(--text-secondary);
+    margin: 0;
+    flex: 1;
+    font-size: var(--text-secondary);
+    line-height: var(--line-relaxed);
+    color: var(--text-tertiary);
 }
-.tool-action {
-    font-size: 13px;
-    color: var(--accent);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
+.tool-card .btn { align-self: flex-start; }
+
+.more-btn {
+    align-self: center;
+    margin-top: 14px;
 }
-.tool-action:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    border-radius: 2px;
+
+@media (max-width: 1340px) {
+    /* 主内容区变窄时优先牺牲时间列，保住标题可读 */
+    .recent-item { grid-template-columns: minmax(0, 1fr); }
+    .recent-time { display: none; }
 }
 </style>

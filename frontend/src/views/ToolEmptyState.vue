@@ -1,101 +1,88 @@
 <template>
-    <div class="page-tool-empty">
-        <header class="page-header">
+    <div class="view-page page-tool-empty">
+        <header class="view-head">
             <div class="header-top">
-                <button class="btn-back" @click="$router.push({ name: 'tools' })">← 返回工具箱</button>
+                <button class="btn-back" @click="$router.push({ name: 'tools' })">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <polyline points="14.5 6 8.5 12 14.5 18" />
+                    </svg>
+                    返回工具箱
+                </button>
             </div>
-            <h1>{{ toolName }}</h1>
-            <p class="subtitle">工具尚未实现</p>
+            <h1 class="view-title">{{ toolName }}</h1>
+            <p class="view-subtitle">工具尚未实现</p>
         </header>
 
         <div class="empty-state">
-            <p class="empty-icon">{{ toolIcon }}</p>
+            <ToolIcon :tool-id="toolId" class="empty-icon" />
             <p>该工具尚在规划中，暂未实现。</p>
             <p class="empty-hint">具体工具功能将在用户选定技术方案后另拆任务开发。</p>
-            <button class="btn btn-default" @click="$router.push({ name: 'tools' })">返回工具箱</button>
+            <button class="btn btn-primary" @click="$router.push({ name: 'tools' })">返回工具箱</button>
         </div>
     </div>
 </template>
 
 <script>
+import ToolIcon from '../components/ToolIcon.vue';
+
 export default {
     name: 'ToolEmptyState',
+    components: { ToolIcon },
     computed: {
         toolId() {
             return this.$route.name.replace('tool-', '');
         },
-        toolMeta() {
-            const meta = {
-                'json-fmt': { name: 'JSON 格式化', icon: '{ }' },
-                'qrcode': { name: '二维码生成', icon: '⬡' }
-            };
-            return meta[this.toolId] || { name: '未知工具', icon: '❓' };
-        },
         toolName() {
-            return this.toolMeta.name;
-        },
-        toolIcon() {
-            return this.toolMeta.icon;
+            const meta = {
+                'json-fmt': 'JSON 格式化',
+                qrcode: '二维码生成'
+            };
+            return meta[this.toolId] || '未知工具';
         }
     }
 };
 </script>
 
 <style scoped>
-.page-header {
-    margin-bottom: 24px;
-}
-.header-top {
-    margin-bottom: 12px;
-}
+.header-top { margin-bottom: 12px; }
 .btn-back {
-    background: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     border: none;
-    color: var(--accent);
+    background: none;
+    color: var(--text-secondary);
     cursor: pointer;
-    font-size: 14px;
-    padding: 0;
+    font-size: var(--text-secondary);
+    padding: 4px 8px 4px 4px;
+    border-radius: var(--radius-sm);
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
+.btn-back:hover { background: var(--hover-background); color: var(--text-primary); }
 .btn-back:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    border-radius: 2px;
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
-.page-header h1 {
-    font-size: 28px;
-    margin: 0 0 4px;
-}
-.subtitle {
-    color: var(--text-secondary);
-    margin: 0;
-    font-size: 14px;
-}
+
 .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 52px 24px;
     text-align: center;
-    padding: 48px 20px;
+    border-radius: var(--radius-lg);
     background: var(--panel-background);
     border: 1px solid var(--panel-border);
-    border-radius: 8px;
-}
-.empty-icon {
-    font-size: 48px;
-    margin: 0 0 12px;
-}
-.empty-hint {
-    font-size: 13px;
+    font-size: var(--text-body);
     color: var(--text-secondary);
-    margin: 4px 0 16px;
 }
-.btn {
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-size: 14px;
-    cursor: pointer;
-    border: 1px solid var(--panel-border);
-    background: var(--panel-background);
-    color: var(--text-primary);
-}
-.btn-default {
-    background: var(--panel-background);
+.empty-state p { margin: 0; }
+/* ToolIcon 自带 34px 方形底，此处仅放大一档作为空状态主视觉 */
+.empty-icon { width: 48px; height: 48px; margin-bottom: 4px; }
+.empty-hint {
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
+    margin-bottom: 8px !important;
 }
 </style>

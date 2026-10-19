@@ -203,7 +203,7 @@
     z-index: var(--z-overlay);
     display: grid;
     place-items: center;
-    background: rgba(12, 18, 30, 0.42);
+    background: var(--overlay-backdrop);
     -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
 }

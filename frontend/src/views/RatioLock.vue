@@ -1,9 +1,14 @@
 <template>
-    <div class="page-tool">
+    <div class="view-page page-tool">
         <header class="tool-header">
-            <button class="btn-back" @click="$router.push({ name: 'tools' })">← 返回工具箱</button>
-            <h1>比例锁定</h1>
-            <p class="subtitle">锁定宽高比后，输入任一侧尺寸，自动换算另一侧</p>
+            <button class="btn-back" @click="$router.push({ name: 'tools' })">
+                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <polyline points="14.5 6 8.5 12 14.5 18" />
+                </svg>
+                返回工具箱
+            </button>
+            <h1 class="view-title">比例锁定</h1>
+            <p class="view-subtitle">锁定宽高比后，输入任一侧尺寸，自动换算另一侧</p>
         </header>
 
         <!-- ① 原始尺寸 -->
@@ -38,7 +43,15 @@
         <!-- ② 锁定比例 -->
         <section class="card">
             <button type="button" class="lock-btn" :class="{ locked: isLocked }" @click="toggleLock">
-                {{ isLocked ? '🔒 已锁定比例' : '🔓 锁定当前比例' }}
+                <svg v-if="isLocked" class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+                    <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+                </svg>
+                <svg v-else class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+                    <path d="M8 10.5V7.5a4 4 0 0 1 7.5-2" />
+                </svg>
+                {{ isLocked ? '已锁定比例' : '锁定当前比例' }}
             </button>
             <p class="hint" :class="{ ready: isLocked }">
                 <template v-if="isLocked">
@@ -266,46 +279,40 @@ function fmt(n, digits = 2) {
 </script>
 
 <style scoped>
-.page-tool {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 52px 48px 72px;
-}
+/* 根容器走全局 .view-page；工具页内容不铺满，用 max-width 收窄成
+   「阅读宽度」，避免表单元素在宽屏上被拉得过长。*/
+.page-tool { max-width: 720px; }
+
 .tool-header {
-    margin-bottom: 28px;
+    flex: none;
+    margin-bottom: 22px;
 }
 .btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     background: none;
     border: none;
-    color: var(--accent);
-    cursor: pointer;
-    font-size: 14px;
-    padding: 0;
-    margin-bottom: 12px;
-}
-.btn-back:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    border-radius: 2px;
-}
-.tool-header h1 {
-    font-size: 32px;
-    font-weight: 700;
-    margin: 0 0 4px;
-    letter-spacing: -0.01em;
-}
-.subtitle {
     color: var(--text-secondary);
-    margin: 0;
-    font-size: 14px;
+    cursor: pointer;
+    font-size: var(--text-secondary);
+    padding: 4px 8px 4px 4px;
+    margin-bottom: 10px;
+    border-radius: var(--radius-sm);
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.btn-back:hover { background: var(--hover-background); color: var(--text-primary); }
+.btn-back:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .card {
     background: var(--panel-background);
     border: 1px solid var(--panel-border);
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 16px;
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    margin-bottom: 12px;
 }
 .card-title {
     font-size: 15px;
@@ -316,20 +323,22 @@ function fmt(n, digits = 2) {
 .text-input,
 .num-input {
     width: 100%;
-    padding: 8px 12px;
-    font-size: 14px;
+    height: 38px;
+    padding: 0 12px;
+    font-size: var(--text-body);
     font-family: inherit;
     color: var(--text-primary);
     background: var(--panel-background);
     border: 1px solid var(--panel-border);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     outline: none;
+    transition: border-color var(--dur-base) var(--ease-out),
+                box-shadow var(--dur-base) var(--ease-out);
 }
 .text-input:focus,
 .num-input:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent);
-    outline: none;
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .wh-row {
@@ -356,17 +365,25 @@ function fmt(n, digits = 2) {
     margin-top: 12px;
 }
 .preset {
-    font-size: 12px;
-    padding: 3px 10px;
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 10px;
+    font-size: var(--text-secondary);
+    font-family: inherit;
     border: 1px solid var(--panel-border);
     background: var(--panel-background);
     color: var(--text-secondary);
-    border-radius: 12px;
+    border-radius: var(--radius-pill);
     cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out);
 }
 .preset:hover {
-    border-color: var(--panel-border);
+    border-color: var(--accent-border);
     color: var(--text-primary);
+    background: var(--panel-background-hover);
 }
 
 .err {
@@ -376,25 +393,32 @@ function fmt(n, digits = 2) {
 }
 
 .lock-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     width: 100%;
-    padding: 10px 16px;
-    font-size: 15px;
+    height: 42px;
+    font-size: var(--text-body);
     font-family: inherit;
-    font-weight: 500;
+    font-weight: var(--weight-medium);
     color: var(--text-primary);
     background: var(--panel-background);
     border: 1px solid var(--panel-border);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: background 0.12s;
+    transition: background var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out),
+                color var(--dur-base) var(--ease-out);
 }
 .lock-btn:hover {
-    background: var(--hover-background);
+    background: var(--panel-background-hover);
+    border-color: var(--accent-border);
 }
 .lock-btn.locked {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--accent-contrast);
 }
 .hint {
     margin: 10px 0 0;
@@ -447,13 +471,8 @@ function fmt(n, digits = 2) {
     color: var(--text-secondary);
 }
 
-@media (max-width: 768px) {
-    .page-tool {
-        padding: 32px 18px 48px;
-    }
-    .tool-header h1 {
-        font-size: 26px;
-    }
+@media (max-width: 1340px) {
+    /* 主内容区变窄时上下两组输入改为纵向排列 */
     .wh-row {
         flex-direction: column;
         gap: 10px;

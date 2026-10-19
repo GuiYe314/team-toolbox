@@ -129,3 +129,55 @@ body {
         var(--w-main-sidebar)
         minmax(var(--w-min-content), 1fr);
 }
+/* 非知识库区块：页面树与分类栏都不渲染，只留两栏 */
+.app-layout.col-single {
+    grid-template-columns:
+        var(--w-main-sidebar)
+        minmax(var(--w-min-content), 1fr);
+}
+/* ── 视图页面容器 ──────────────────────────────────────────────────
+   所有非知识库视图的根元素挂 .view-page：
+   1. 自己负责纵向滚动，父级 .main-content 只做 overflow:hidden 的裁切边界；
+   2. 用 flex + min-height:0 而非固定高度，避免子内容溢出被裁掉；
+   3. 内边距走 token。旧版写死 52px/48px 的上下左右内边距在主内容区
+      （最窄仅600px）会把可用宽度挤没，因此这里收敛到 28px 量级。*/
+.view-page {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 26px 28px 24px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--text-tertiary) transparent;
+}
+.view-page::-webkit-scrollbar { width: 8px; }
+.view-page::-webkit-scrollbar-thumb {
+    background: var(--text-tertiary);
+    border-radius: var(--radius-pill);
+    opacity: 0.5;
+}
+.view-page::-webkit-scrollbar-track { background: transparent; }
+
+/* 视图页头：标题 + 副标题，跨视图统一 */
+.view-head {
+    flex: none;
+    margin-bottom: 22px;
+}
+.view-title {
+    margin: 0;
+    font-size: var(--text-page-title);
+    font-weight: var(--weight-bold);
+    letter-spacing: -0.015em;
+    color: var(--text-primary);
+}
+.view-subtitle {
+    margin: 5px 0 0;
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
+}
+
+@media (max-width: 1440px) {
+    .view-page { padding: 22px 22px 20px; }
+}

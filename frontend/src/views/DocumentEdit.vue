@@ -1,5 +1,5 @@
 <template>
-    <div class="edit-page">
+    <div class="view-page edit-page">
         <div class="edit-container">
             <div class="edit-topbar">
                 <button class="nt-ghost" @click="goBack">← 返回</button>
@@ -493,13 +493,12 @@ export default {
 </script>
 
 <style scoped>
-.edit-page {
-    min-height: 100vh;
-}
+/* 根容器走全局 .view-page（负责滚动）；.edit-container 只收窄编辑宽度。
+   旧版 min-height:100vh 会让编辑区在玻璃面板内被裁且无法滚动。*/
 .edit-container {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: 28px 48px 96px;
+    width: 100%;
+    max-width: 920px;
+    padding: 4px 0 40px;
 }
 .edit-topbar {
     display: flex;
@@ -524,8 +523,8 @@ export default {
     border: none;
     outline: none;
     background: transparent;
-    font-size: 38px;
-    font-weight: 700;
+    font-size: var(--text-page-title);
+    font-weight: var(--weight-bold);
     color: var(--text-primary);
     padding: 0;
     line-height: 1.2;
@@ -596,18 +595,18 @@ export default {
 .mode-btn.active {
     background: var(--panel-background);
     color: var(--text-primary);
-    box-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+    box-shadow: var(--shadow-inset);
 }
 
 /* 图片插入工具按钮：与模式切换视觉区分，避免误以为也是模式切换 */
 .mode-btn-tool {
     margin-left: auto;
-    color: var(--text-secondary, #787774);
-    border: 1px dashed var(--panel-border, #d4d3cf);
+    color: var(--text-secondary);
+    border: 1px dashed var(--panel-border);
 }
 .mode-btn-tool:hover:not(:disabled) {
-    color: #2383e2;
-    border-color: #2383e2;
+    color: var(--accent);
+    border-color: var(--accent);
     border-style: solid;
 }
 .mode-btn-tool:disabled {
@@ -660,9 +659,9 @@ export default {
 /* 通知 */
 .draft-notice {
     font-size: 13px;
-    color: #92691a;
-    background: #fbf3df;
-    border: 1px solid #f3e2b8;
+    color: var(--warning);
+    background: var(--warning-soft);
+    border: 1px solid var(--warning);
     border-radius: 6px;
     padding: 8px 12px;
     margin: 16px 0 0;
@@ -684,21 +683,21 @@ export default {
 }
 .nt-state-error {
     color: var(--danger);
-    border: 1px solid #f3c9c9;
-    background: #fdecec;
+    border: 1px solid var(--danger);
+    background: var(--danger-soft);
 }
 .nt-state-ok {
-    color: #1e7a46;
-    border: 1px solid #bfe6cd;
-    background: #ecf8f0;
+    color: var(--success);
+    border: 1px solid var(--success);
+    background: var(--success-soft);
 }
 .conflict-banner {
     padding: 12px 14px;
     border-radius: 6px;
     font-size: 14px;
-    color: #92691a;
-    border: 1px solid #f3e2b8;
-    background: #fbf3df;
+    color: var(--warning);
+    border: 1px solid var(--warning);
+    background: var(--warning-soft);
     margin: 16px 0 0;
 }
 .conflict-banner .nt-btn {
@@ -729,19 +728,19 @@ export default {
 }
 .nt-btn-primary {
     background: var(--accent);
-    color: #fff;
+    color: var(--text-inverse);
     border-color: var(--accent);
 }
 .nt-btn-primary:hover {
-    background: #1a6fc4;
+    background: var(--accent-hover);
 }
 .nt-btn-danger {
     background: var(--danger);
-    color: #fff;
+    color: var(--text-inverse);
     border-color: var(--danger);
 }
 .nt-btn-danger:hover {
-    background: #d64545;
+    background: var(--danger);
 }
 .nt-ghost {
     border: none;
@@ -762,13 +761,8 @@ export default {
     outline-offset: 2px;
 }
 
-@media (max-width: 768px) {
-    .edit-container {
-        padding: 20px 18px 64px;
-    }
-    .edit-title {
-        font-size: 30px;
-    }
+@media (max-width: 1340px) {
+    /* 主内容区变窄时分栏退化为上下，避免两栏各自被压到不可输入 */
     .edit-body.mode-split {
         grid-template-columns: 1fr;
     }

@@ -184,16 +184,76 @@ check('手动可唤回页面栏', back.visible && back.cols === 3, JSON.stringif
 console.log('\n响应式汇总：', JSON.stringify(resp));
 await goto(`${URL_BASE}/kb`, 1600, 1000);
 
-// ── 7. 首页 / 工具箱 / 详情页无旧样式断层 ──
-for (const [name, path] of [['首页', '/'], ['工具箱', '/tools'], ['404', '/nope-404']]) {
-    await goto(`${URL_BASE}${path}`);
-    const x = await evalJs(`(() => {
-      const el = document.querySelector('.main-content');
-      return { html: el ? el.innerHTML.length : 0, overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
-               bg: getComputedStyle(document.body).backgroundColor };
-    })()`);
-    check(`${name} 渲染正常`, x.html > 200 && !x.overflow, JSON.stringify(x));
+// ── 7. 全部路由：无裁切、可滚动、无旧样式断层 ──
+// 取一个真实文档 id，覆盖详情页与编辑页
+const firstDoc = await evalJs(`(async () => {
+  const r = await fetch('/api/documents?limit=1');
+  const j = await r.json();
+  return j && j.items && j.items[0] ? j.items[0].id : null;
+})()`);
+const ROUTES = [
+    ['首页', '/'], ['工具箱', '/tools'], ['比例锁定', '/tools/ratio-lock'],
+    ['JSON占位', '/tools/json-fmt'], ['二维码占位', '/tools/qrcode'], ['404', '/nope-404'],
+    ['知识库', '/kb'], ['新建文档', '/kb/new']
+];
+if (firstDoc) {
+    ROUTES.push(['文档详情', `/kb/${firstDoc}`], ['文档编辑', `/kb/${firstDoc}/edit`]);
 }
+const routeResults = [];
+for (const [name, path] of ROUTES) {
+    await goto(`${URL_BASE}${path}`, 1600, 1000);
+    const x = await evalJs(`(() => {
+      const q = s => document.querySelector(s);
+      const mc = q('.main-content');
+      const view = mc && mc.firstElementChild;
+      const vr = view ? view.getBoundingClientRect() : null;
+      const vcs = view ? getComputedStyle(view) : null;
+      const layout = document.querySelector('.app-layout');
+      const cols = layout ? getComputedStyle(layout).gridTemplateColumns.split(' ').length : 0;
+      const contentW = Math.round(mc ? mc.getBoundingClientRect().width : 0);
+      // 关键指标：视图根元素的可滚动高度应 >= 可见高度（否则内容被裁且滚不动）
+      const scrollable = view ? view.scrollHeight - view.clientHeight : -1;
+      // 子元素右边界不得超出主内容区右边界（横向溢出 = 被裁）
+      let maxRight = 0;
+      if (mc) {
+        const mcr = mc.getBoundingClientRect();
+        for (const el of mc.querySelectorAll('*')) {
+          const b = el.getBoundingClientRect();
+          if (b.width > 0 && b.right > maxRight) maxRight = b.right;
+        }
+        var mcrRight = mcr.right;
+      }
+      return {
+        cls: view ? view.className : null,
+        cols,
+        content: contentW,
+        viewOverflowY: vcs ? vcs.overflowY : null,
+        canScroll: vcs ? ['auto','scroll'].includes(vcs.overflowY) : false,
+        scrollable,
+        clippedRight: Math.round(maxRight - (mcrRight ?? 0)),
+        docOverflowX: document.documentElement.scrollWidth > window.innerWidth + 1,
+        // 旧样式断层：视图根元素不应再有写死的 96px 左右内边距
+        padX: vcs ? vcs.paddingLeft + ' / ' + vcs.paddingRight : null
+      };
+    })()`);
+    routeResults.push({ name, path, ...x });
+    // 知识库列表自带内滚动区（.kb-scroll），因此不要求根元素可滚动；
+    // 其余视图一律走 .view-page 由根元素负责纵向滚动。
+    const kbStyle = name === '知识库';
+    const scrollOK = kbStyle
+        ? String(x.cls).includes('kb-page')
+        : (x.canScroll && String(x.cls).includes('view-page'));
+    check(`${name}：${kbStyle ? '使用列表内滚动区' : '根元素挂 view-page 且可纵向滚动'}`,
+        scrollOK, `${x.cls} overflow-y=${x.viewOverflowY}`);
+    check(`${name}：无横向裁切`, x.clippedRight <= 1 && !x.docOverflowX, `右溢出 ${x.clippedRight}px, pad=${x.padX}`);
+    // 非知识库区块必须退化为两栏。否则不渲染的第二/三栏会把主内容挤窄
+    // （曾出现首页主内容仅 145px：沿用四栏模板但空着一列 220px 的分类栏）
+    if (!['知识库', '新建文档', '文档详情', '文档编辑'].includes(name)) {
+        check(`${name}：两栏布局且内容区宽裕`, x.cols === 2 && x.content > 700,
+            `cols=${x.cols}, content=${x.content}px`);
+    }
+}
+console.log('\n路由汇总：', JSON.stringify(routeResults, null, 1));
 await goto(`${URL_BASE}/kb`, 1600, 1000);
 await evalJs(`document.querySelector('.theme-toggle').click()`);
 await sleep(600);

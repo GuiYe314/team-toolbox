@@ -1,19 +1,19 @@
 <template>
-    <div class="page-tools">
-        <header class="page-header">
-            <h1>工具箱</h1>
-            <p class="subtitle">小工具集合</p>
+    <div class="view-page page-tools">
+        <header class="view-head">
+            <h1 class="view-title">工具箱</h1>
+            <p class="view-subtitle">小工具集合</p>
         </header>
 
         <div class="tools-grid">
-            <div v-for="tool in tools" :key="tool.id" class="tool-card">
+            <div v-for="tool in tools" :key="tool.id" class="tool-card" :class="{ planned: tool.status !== '可用' }">
                 <div class="tool-card-header">
-                    <span class="tool-icon">{{ tool.icon }}</span>
+                    <ToolIcon :tool-id="tool.id" />
                     <span class="tool-status" :class="{ ready: tool.status === '可用' }">{{ tool.status }}</span>
                 </div>
                 <h3 class="tool-name">{{ tool.name }}</h3>
                 <p class="tool-desc">{{ tool.desc }}</p>
-                <button class="tool-action" @click="$router.push({ name: tool.routeName })">
+                <button class="btn btn-sm" @click="$router.push({ name: tool.routeName })">
                     {{ tool.status === '可用' ? '打开工具' : '查看详情' }}
                 </button>
             </div>
@@ -22,8 +22,11 @@
 </template>
 
 <script>
+import ToolIcon from '../components/ToolIcon.vue';
+
 export default {
     name: 'Tools',
+    components: { ToolIcon },
     data() {
         return {
             tools: [
@@ -31,7 +34,6 @@ export default {
                     id: 'ratio-lock',
                     name: '比例锁定',
                     desc: '锁定宽高比，输入任一侧自动换算另一侧',
-                    icon: '📐',
                     routeName: 'tool-ratio-lock',
                     status: '可用'
                 },
@@ -39,7 +41,6 @@ export default {
                     id: 'json-fmt',
                     name: 'JSON 格式化',
                     desc: 'JSON 数据的美化与压缩',
-                    icon: '{ }',
                     routeName: 'tool-json-fmt',
                     status: '规划中'
                 },
@@ -47,7 +48,6 @@ export default {
                     id: 'qrcode',
                     name: '二维码生成',
                     desc: '文本或链接快速生成二维码',
-                    icon: '⬡',
                     routeName: 'tool-qrcode',
                     status: '规划中'
                 }
@@ -58,76 +58,64 @@ export default {
 </script>
 
 <style scoped>
-.page-tools {
-    max-width: 1080px;
-    margin: 0 auto;
-    padding: 52px 48px 72px;
-}
-.page-header {
-    margin-bottom: 32px;
-}
-.page-header h1 {
-    font-size: 36px;
-    font-weight: 700;
-    margin: 0 0 4px;
-    letter-spacing: -0.01em;
-}
-.subtitle {
-    color: var(--text-secondary);
-    margin: 0;
-    font-size: 14px;
-}
+/* 卡片外观与首页「小工具」区块保持一致，同一组件两处呈现不割裂 */
 .tools-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(min(228px, 100%), 1fr));
+    gap: 12px;
 }
 .tool-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    border-radius: var(--radius-lg);
     background: var(--panel-background);
-    border: 1px dashed var(--panel-border);
-    border-radius: 8px;
-    padding: 20px;
+    border: 1px solid var(--panel-border);
+    transition: background var(--dur-base) var(--ease-out),
+                border-color var(--dur-base) var(--ease-out),
+                transform var(--dur-base) var(--ease-out);
 }
+.tool-card:hover {
+    background: var(--panel-background-hover);
+    border-color: var(--accent-border);
+    transform: translateY(-1px);
+}
+.tool-card.planned { opacity: 0.82; }
 .tool-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    gap: 10px;
 }
-.tool-icon {
-    font-size: 28px;
-}
+/* 状态标签：可用为成功色软底，规划中为中性灰 */
 .tool-status {
-    font-size: 11px;
-    background: #f3f4f6;
-    color: var(--text-secondary);
-    padding: 2px 8px;
-    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: var(--radius-pill);
+    background: var(--panel-background-hover);
+    color: var(--text-tertiary);
+    font-size: var(--text-tag);
+    font-weight: var(--weight-medium);
 }
 .tool-status.ready {
-    background: #e7f3ea;
-    color: #1d7a3c;
+    background: var(--success-soft);
+    color: var(--success);
 }
 .tool-name {
-    margin: 0 0 6px;
-    font-size: 16px;
+    margin: 2px 0 0;
+    font-size: var(--text-doc-title);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
 }
 .tool-desc {
-    margin: 0 0 16px;
-    font-size: 13px;
-    color: var(--text-secondary);
+    margin: 0;
+    flex: 1;
+    font-size: var(--text-secondary);
+    line-height: var(--line-relaxed);
+    color: var(--text-tertiary);
 }
-.tool-action {
-    font-size: 13px;
-    color: var(--accent);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-}
-.tool-action:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    border-radius: 2px;
-}
+.tool-card .btn { align-self: flex-start; }
 </style>
