@@ -5,11 +5,16 @@
 //   title: 1-100 字符（去首尾空白）
 //   content_md: UTF8 编码，最大 1MB
 //   tags: 每文档最多 10 个
+//   parent_id: 正整数或 NULL（NULL = 顶层页面），且不能形成环
 //
 // 乐观锁：UPDATE WHERE id AND version，一致则写入并 version+1，否则返回冲突快照。
 // 事务：文档与标签关联同事务，失败全部回滚。
 //
 // 错误码：invalid_input / not_found / conflict（版本冲突）/ constraint_failed
+//
+// 页面树（迁移 002 引入）：documents.parent_id 自引用，ON DELETE CASCADE。
+//   getDocument 额外返回 path（祖先，根→父）、child_count、descendant_count，
+//   供阅读页面包屑、子页面列表与删除确认使用。
 
 import { errorMap } from './errors.js';
 
@@ -96,6 +101,43 @@ function validateCategoryId(categoryId) {
     return { valid: true, value: n };
 }
 
+/**
+ * 校验父页面 ID（NULL 表示顶层页面）。
+ * @param {any} parentId
+ * @returns {{ valid: boolean, message?: string, value?: number|null }}
+ */
+function validateParentId(parentId) {
+    if (parentId === undefined || parentId === null || parentId === '') {
+        return { valid: true, value: null };
+    }
+    const n = Number(parentId);
+    if (!Number.isInteger(n) || n < 1) {
+        return { valid: false, message: '父页面 ID 无效' };
+    }
+    return { valid: true, value: n };
+}
+
+/**
+ * 判断 candidateId 是否为 rootId 的后代（含自身）。
+ * 用于移动页面时防环：新父页面不能是自己或自己的后代。
+ *
+ * @param {import('better-sqlite3').Database} db
+ * @param {number} rootId
+ * @param {number} candidateId
+ * @returns {boolean}
+ */
+function isSelfOrDescendant(db, rootId, candidateId) {
+    const hit = db.prepare(`
+        WITH RECURSIVE sub(id) AS (
+            SELECT id FROM documents WHERE id = ?
+            UNION ALL
+            SELECT d.id FROM documents d JOIN sub ON d.parent_id = sub.id
+        )
+        SELECT 1 AS hit FROM sub WHERE id = ? LIMIT 1
+    `).get(rootId, candidateId);
+    return Boolean(hit);
+}
+
 // ─────────────────────────────────────────────────
 // 标签内部操作（事务中使用）
 // ─────────────────────────────────────────────────
@@ -149,11 +191,12 @@ function replaceDocumentTags(db, documentId, tagNames) {
  * @param {string} config.title - 标题（1-100 字符）
  * @param {string} [config.content_md=''] - Markdown 正文
  * @param {number|null} [config.category_id] - 分类 ID
+ * @param {number|null} [config.parent_id] - 父页面 ID（NULL = 顶层页面）
  * @param {string[]} [config.tags=[]] - 标签名数组（≤10）
- * @returns {{ id: number, version: number, created_at: string, updated_at: string }}
+ * @returns {{ id: number, version: number, parent_id: number|null, created_at: string, updated_at: string }}
  * @throws {{ code: 'invalid_input', message: string }}
  */
-export function createDocument({ connection: db, title, content_md = '', category_id, tags = [] }) {
+export function createDocument({ connection: db, title, content_md = '', category_id, parent_id, tags = [] }) {
     const vTitle = validateTitle(title);
     if (!vTitle.valid) throw errorMap(new Error(vTitle.message), '(store)', 'invalid_input');
 
@@ -162,6 +205,9 @@ export function createDocument({ connection: db, title, content_md = '', categor
 
     const vCategory = validateCategoryId(category_id);
     if (!vCategory.valid) throw errorMap(new Error(vCategory.message), '(store)', 'invalid_input');
+
+    const vParent = validateParentId(parent_id);
+    if (!vParent.valid) throw errorMap(new Error(vParent.message), '(store)', 'invalid_input');
 
     const vTags = validateTags(tags);
     if (!vTags.valid) throw errorMap(new Error(vTags.message), '(store)', 'invalid_input');
@@ -172,14 +218,20 @@ export function createDocument({ connection: db, title, content_md = '', categor
         if (!cat) throw errorMap(new Error('指定的分类不存在'), '(store)', 'invalid_input');
     }
 
+    // 验证父页面存在（如果提供了）
+    if (vParent.value !== null) {
+        const parent = db.prepare('SELECT id FROM documents WHERE id = ?').get(vParent.value);
+        if (!parent) throw errorMap(new Error('指定的父页面不存在'), '(store)', 'invalid_input');
+    }
+
     const now = new Date().toISOString();
     let docId;
 
     const tx = db.transaction(() => {
         const result = db.prepare(`
-            INSERT INTO documents (title, content_md, category_id, version, created_at, updated_at)
-            VALUES (?, ?, ?, 1, ?, ?)
-        `).run(vTitle.value, vContent.value, vCategory.value, now, now);
+            INSERT INTO documents (title, content_md, category_id, parent_id, version, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 1, ?, ?)
+        `).run(vTitle.value, vContent.value, vCategory.value, vParent.value, now, now);
         docId = result.lastInsertRowid;
 
         if (vTags.value.length > 0) {
@@ -197,18 +249,20 @@ export function createDocument({ connection: db, title, content_md = '', categor
     return {
         id: docId,
         version: 1,
+        parent_id: vParent.value,
         created_at: now,
         updated_at: now
     };
 }
 
 /**
- * 获取单个文档（含标签）。
+ * 获取单个文档（含标签、祖先路径、子页面数量）。
  *
  * @param {object} config
  * @param {import('better-sqlite3').Database} config.connection
  * @param {number} config.id
- * @returns {{ id, title, content_md, category_id, version, created_at, updated_at, tags: string[] }|null}
+ * @returns {{ id, title, content_md, category_id, parent_id, version, created_at, updated_at,
+ *             tags: string[], path: {id:number,title:string}[], child_count: number, descendant_count: number }|null}
  */
 export function getDocument({ connection: db, id }) {
     const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(id);
@@ -220,9 +274,33 @@ export function getDocument({ connection: db, id }) {
         WHERE dt.document_id = ?
     `).all(id);
 
+    // 祖先路径（根 → 父），用于面包屑
+    const path = db.prepare(`
+        WITH RECURSIVE up(id, title, parent_id, depth) AS (
+            SELECT id, title, parent_id, 0 FROM documents WHERE id = ?
+            UNION ALL
+            SELECT d.id, d.title, d.parent_id, up.depth + 1
+            FROM documents d JOIN up ON d.id = up.parent_id
+        )
+        SELECT id, title FROM up WHERE depth > 0 ORDER BY depth DESC
+    `).all(id);
+
+    const childCount = db.prepare('SELECT COUNT(*) AS n FROM documents WHERE parent_id = ?').get(id).n;
+    const descendantCount = db.prepare(`
+        WITH RECURSIVE sub(id) AS (
+            SELECT id FROM documents WHERE parent_id = ?
+            UNION ALL
+            SELECT d.id FROM documents d JOIN sub ON d.parent_id = sub.id
+        )
+        SELECT COUNT(*) AS n FROM sub
+    `).get(id).n;
+
     return {
         ...doc,
-        tags: tagRows.map(r => r.name)
+        tags: tagRows.map(r => r.name),
+        path,
+        child_count: childCount,
+        descendant_count: descendantCount
     };
 }
 
@@ -231,20 +309,30 @@ export function getDocument({ connection: db, id }) {
  *
  * @param {object} config
  * @param {import('better-sqlite3').Database} config.connection
- * @param {{ limit?: number, offset?: number, category_id?: number|null }} [config.filter]
+ * @param {{ limit?: number, offset?: number, category_id?: number|null,
+ *           parent_id?: number|null, root?: boolean }} [config.filter]
+ *   - parent_id：只看该页面的直接子页面
+ *   - root：只看顶层页面（parent_id IS NULL）
  * @returns {{ items: object[], total: number }}
  */
 export function listDocuments({ connection: db, filter = {} }) {
-    const { limit = 20, offset = 0, category_id } = filter;
+    const { limit = 20, offset = 0, category_id, parent_id, root } = filter;
 
-    let where = '';
+    const conds = [];
     const params = [];
     if (category_id !== undefined && category_id !== null) {
-        where = 'WHERE category_id = ?';
+        conds.push('d.category_id = ?');
         params.push(category_id);
     }
+    if (root === true) {
+        conds.push('d.parent_id IS NULL');
+    } else if (parent_id !== undefined && parent_id !== null) {
+        conds.push('d.parent_id = ?');
+        params.push(parent_id);
+    }
+    const where = conds.length > 0 ? 'WHERE ' + conds.join(' AND ') : '';
 
-    const total = db.prepare(`SELECT COUNT(*) as n FROM documents ${where}`).get(...params).n;
+    const total = db.prepare(`SELECT COUNT(*) as n FROM documents d ${where}`).get(...params).n;
 
     const items = db.prepare(`
         SELECT d.*, c.name as category_name,
@@ -269,6 +357,39 @@ export function listDocuments({ connection: db, filter = {} }) {
 }
 
 /**
+ * 页面树数据：只取渲染侧边栏所需字段，按创建顺序稳定排序。
+ * 由前端组装成嵌套结构（后端不递归 JSON，避免深层页面反复遍历）。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @returns {{ id:number, title:string, parent_id:number|null, updated_at:string, created_at:string }[]}
+ */
+export function listDocumentTree({ connection: db }) {
+    return db.prepare(`
+        SELECT id, title, parent_id, updated_at, created_at
+        FROM documents
+        ORDER BY created_at ASC, id ASC
+    `).all();
+}
+
+/**
+ * 列出某页面的直接子页面。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @param {number} config.id
+ * @returns {{ id:number, title:string, parent_id:number|null, updated_at:string }[]}
+ */
+export function listChildren({ connection: db, id }) {
+    return db.prepare(`
+        SELECT id, title, parent_id, updated_at
+        FROM documents
+        WHERE parent_id = ?
+        ORDER BY created_at ASC, id ASC
+    `).all(id);
+}
+
+/**
  * 更新文档（乐观锁）。
  *
  * @param {object} config
@@ -278,12 +399,13 @@ export function listDocuments({ connection: db, filter = {} }) {
  * @param {string} [config.title]
  * @param {string} [config.content_md]
  * @param {number|null} [config.category_id]
+ * @param {number|null} [config.parent_id] - 移动页面（NULL = 移到顶层）
  * @param {string[]} [config.tags]
  * @returns {{ version: number, updated_at: string }} - 新版本信息
  * @throws {{ code: 'not_found', message: string }} - 文档不存在
  * @throws {{ code: 'conflict', current: object }} - 版本冲突，返回当前服务端快照
  */
-export function updateDocument({ connection: db, id, version, title, content_md, category_id, tags }) {
+export function updateDocument({ connection: db, id, version, title, content_md, category_id, parent_id, tags }) {
     // 先查当前文档
     const current = db.prepare('SELECT * FROM documents WHERE id = ?').get(id);
     if (!current) {
@@ -328,6 +450,20 @@ export function updateDocument({ connection: db, id, version, title, content_md,
             if (!cat) throw errorMap(new Error('指定的分类不存在'), '(store)', 'invalid_input');
         }
         updates.push('category_id = ?');
+        params.push(v.value);
+    }
+    if (parent_id !== undefined) {
+        const v = validateParentId(parent_id);
+        if (!v.valid) throw errorMap(new Error(v.message), '(store)', 'invalid_input');
+        if (v.value !== null) {
+            const parent = db.prepare('SELECT id FROM documents WHERE id = ?').get(v.value);
+            if (!parent) throw errorMap(new Error('指定的父页面不存在'), '(store)', 'invalid_input');
+            // 防环：不能把页面移动到自身或自己的后代之下
+            if (isSelfOrDescendant(db, id, v.value)) {
+                throw errorMap(new Error('不能将页面移动到它自己或其子页面之下'), '(store)', 'invalid_input');
+            }
+        }
+        updates.push('parent_id = ?');
         params.push(v.value);
     }
 

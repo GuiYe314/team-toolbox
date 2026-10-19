@@ -4,6 +4,34 @@
 
 ## 2026-10-19
 
+### 知识库页面树改造（Notion 功能形态，待 Codex 验收）
+
+### Added
+- `backend/src/migrations/002_page_tree.sql`：文档层级化——`documents` 新增 `parent_id`（自引用外键，`NULL`=顶层，`ON DELETE CASCADE`），并加 `idx_documents_parent_id` 索引。
+- `backend/src/store.js`：新增 `validateParentId`（NULL/正整数校验）、`isSelfOrDescendant`（递归 CTE 防环）；`createDocument`/`updateDocument` 支持 `parent_id` 并在移动时防环；`getDocument` 返回 `path`/`child_count`/`descendant_count`；`listDocuments` 支持 `root`/`parent_id`；新增 `listDocumentTree`/`listChildren`。
+- `backend/src/api.js`：`GET /documents` 支持 `root=1`/`parent_id=`；新增 `GET /documents/tree`、`GET /documents/:id/children`；`POST`/`PUT /documents` 接受 `parent_id`。
+- `backend/src/store.test.js` / `backend/src/api.test.js`：新增页面树相关测试（共 +12 项断言）。
+- `frontend/src/components/PageTree.vue`：递归页面树组件（展开箭头、hover ＋/···、行内重命名、缩进、active 高亮）。
+- `frontend/src/components/DocIcon.vue`：单色描边 SVG 文件图标，替代 emoji。
+- `frontend/src/App.vue`：侧边栏「页面」区块（PageTree + 新建页面）；页面 ··· 菜单（新建子页面/重命名/复制链接/删除）、删除确认含 `descendant_count`；展开状态 `localStorage` 持久化；`kb-changed` 事件同步刷新；进入自动展开当前页及祖先。
+- `frontend/src/views/DocumentDetail.vue`：面包屑（知识库/祖先/当前页）+ 正文下方子页面列表 + ＋新建子页面入口 + 删除确认含 `descendant_count`。
+- `frontend/src/views/DocumentEdit.vue`：父页面 select（层级缩进、编辑时排除自身及后代防环）；`?parent=` 预选；保存后派发 `kb-changed`。
+- `frontend/src/api/client.js`：新增 `listDocumentTree`/`listChildren` 封装。
+
+### Fixed
+- `backend/src/migrate.js`：Windows 入口判断 `import.meta.url === file://${process.argv[1]}` 在反斜杠路径下恒 false 且 `runMigrations` 未 `await`，导致 002 迁移从未应用 → 改用 `pathToFileURL(process.argv[1]).href` 比较并 `await runMigrations`；`runMigrations` 报错设 `process.exitCode=1`。
+
+### Verified
+- `npm test` → 5 suites / **69 tests 全过 / 0 fail**。
+- `npm run migrate` 现输出 `applied=1 versions=[2]`；`documents` 表含 `parent_id` 列。
+- `npm run build`（frontend）→ 构建通过。
+- 真实 Edge 浏览器（puppeteer-core，脚本置于 `.workbuddy/ui-verify` 不入库）16 项交互断言全过（树渲染/缩进/高亮、自动展开、子页面列表、面包屑、··· 菜单、行内重命名同步、新建子页面带 parent 参数、删除确认取消/确认、侧边栏自动刷新）。
+- 演示数据：开发库灌入 10 篇文档（maxDepth=2）。
+
+### Notes
+- 应"按照 Notion 功能修改"（附 Notion 截图：侧边栏页面树 hover ＋/···、页面正文下方子页面列表）的要求；在前述 Notion 浅色外壳上改造为页面树 + 子页面形态。
+- 仍待 Codex 验收；浏览器交互式视觉验收需在浏览器手工确认。未提交 Git；WorkBuddy 使用模型：MiniMax-M3；积分未提供，无法确认。
+
 ### TASK-003 文档 CRUD API（实现 + 接口测试，待 Codex 验收）
 
 ### Added
@@ -21,6 +49,44 @@
 - 依用户 2026-10-19 "继续" 指令，在 TASK-002 自测通过基础上推进 TASK-003；**TASK-002 的 Codex 正式验收仍待补**，不宣称验收通过。
 - 范围边界：标签小写合并（F-KB-005）、按标签 AND 过滤、分类重命名、搜索（F-KB-006）、首页最近更新（F-KB-008）属 TASK-006/007/008，本次未做；前端接入 UI 属 TASK-005，接口尚未被 UI 消费。
 - 未提交 Git（与 TASK-002 修复一并待用户决定 push）；WorkBuddy 使用模型：MiniMax-M3；积分未提供，无法确认。
+
+### TASK-005 Markdown 编辑与文档页面（实现 + 构建/联调，待 Codex 验收）
+
+### Added
+- `frontend/src/api/client.js`：统一 API 客户端，封装 fetch、相对 `/api` 前缀、网络错误标记（`err.network`）、204 无体处理；导出 `api` 对象（文档/分类/标签/渲染接口）。
+- `frontend/src/views/KnowledgeBase.vue`：重写为真实数据列表——`GET /api/documents` 拉取（标题/分类/标签/更新时间）、启用「新建文档」入口、加载/错误/空状态、跳转详情与编辑。
+- `frontend/src/views/DocumentEdit.vue`：新建/编辑页——标题（必填）/分类下拉/标签（逗号分隔）/Markdown 正文输入；`POST /api/markdown/render` 实时预览（后端净化）；保存按新建 POST / 编辑 PUT（带 version）；空标题 400 字段提示；409 冲突展示「加载最新（丢弃本地修改）/ 基于最新覆盖保存（二次确认）」双选项；sessionStorage 草稿恢复（断网/刷新不丢）。
+- `frontend/src/views/DocumentDetail.vue`：详情页——拉取文档、`POST /api/markdown/render` 后端净化渲染（v-html 安全）、元数据展示、编辑入口、删除二次确认弹窗（显示标题，取消不删）。
+- `frontend/src/App.vue`：新增全局 `.markdown-body` 排版样式，供编辑预览与详情页共用。
+- `backend/src/api.js`：新增稳定的 `POST /api/markdown/render`（白名单净化，防存储型 XSS），从 `backend/src/index.js` 移除临时 `POST /api/_dev/render-markdown`（已合并）。
+
+### Verified
+- `npm run build`（frontend）→ 43 modules transformed，无报错。
+- `npm test`（backend）→ 5 suites / 57 tests，全过 / 0 fail。
+- 真实后端联调（curl）：渲染净化（`<script>`/`javascript:` 被剥离）；`_dev` 端点 404（已移除）；文档创建 201 / 读取 200 / 列表 `{total,items}`；错误版本更新 **409 + current 快照**；删除 204 后 GET 404。联调后清空开发库测试数据。
+
+### Notes
+- 覆盖 F-KB-001/002/003 的 UI 部分；浏览器交互式验收（冲突弹窗、草稿恢复、断网重试、双会话 409）属 FUNCTIONAL_SPEC 手工条目，需在浏览器执行，本会话仅完成构建与 API 契约层验证，不谎称交互验收已通过。
+- 未提交 Git（与 TASK-002/003 一并待用户决定 push）；WorkBuddy 使用模型：MiniMax-M3；积分未提供，无法确认。
+
+### 知识库 UI 风格改造（Notion 化，待 Codex 验收）
+
+### Changed
+- `frontend/src/App.vue`：外壳由深色改为 Notion 浅色风格（白色主区 + `#f7f7f5` 侧边栏 + `#37352f` 文本 + `#2383e2` 链接蓝）；侧边栏新增工作区头部与区块标签；全局 `markdown-body` 改为 Notion 阅读排版（浅色代码块、舒适行距、链接下划线）。
+- `frontend/src/views/KnowledgeBase.vue`：列表视图——页面图标 + 大标题 + 新建按钮；新增**左侧分类目录**（全部文档 + 各分类，点击按 `category_id` 过滤，复用 `/categories` 与 `GET /documents?category_id=`）；文档行 hover 显形「打开 / 编辑」。
+- `frontend/src/views/DocumentDetail.vue`：Notion 居中阅读列（max-width 760px），大标题 + 页面图标 + 标签 pill + 更新时间 + 版本；顶部 hover 显形「编辑 / 删除」。
+- `frontend/src/views/DocumentEdit.vue`：无边框大标题输入 + 居中写作列；新增「编写 / 分屏 / 预览」模式切换，保留实时预览、草稿、409 冲突、空标题 400 等全部逻辑。
+- `frontend/src/views/Home.vue` / `Tools.vue`：补上居中容器以匹配去 padding 的主区。
+
+### Verified
+- `npm run build`（frontend）→ 构建通过（各视图/客户端分块产物正常）。
+- 启动 `backend`（:3000）+ `frontend`（:5173，Vite 代理 /api）实时预览；为演示灌入 3 篇示例文档 + 2 个分类（开发库演示数据，可清空）。
+
+### Notes
+- 仅改动前端视觉与模板结构，**未改动任何业务逻辑**（API 调用、保存/冲突/草稿/校验），功能等价此前 TASK-005 实现。
+- 交互式视觉验收（列表视图、目录过滤、阅读/编辑页观感、模式切换）需在浏览器手工确认；本会话仅完成构建与本地联调启动。
+- 演示数据非功能必需；如不需可清空开发库 `data/team-toolbox.sqlite3`（或删除种子文档/分类）。
+- 仍未提交 Git；WorkBuddy 使用模型：MiniMax-M3；积分未提供，无法确认。
 
 ### TASK-002 修复：测试可运行 + 连接工厂支持 path 注入
 

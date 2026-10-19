@@ -286,3 +286,79 @@ test('DELETE /api/tags/:id 不存在 → 404', async () => {
     assert.equal(r.status, 404);
     assert.equal((await r.json()).error, 'not_found');
 });
+
+// ───────────────────────── 页面树（迁移 002） ─────────────────────────
+
+test('POST /api/documents 带 parent_id → 201 并回显 parent_id', async () => {
+    const parent = await postDoc({ title: 'API 父页' });
+    assert.equal(parent.status, 201);
+    const child = await postDoc({ title: 'API 子页', parent_id: parent.data.id });
+    assert.equal(child.status, 201);
+    assert.equal(child.data.parent_id, parent.data.id);
+});
+
+test('GET /api/documents/:id/children 返回直接子页面', async () => {
+    const parent = await postDoc({ title: '子页面父级' });
+    await postDoc({ title: '子页面一', parent_id: parent.data.id });
+    await postDoc({ title: '子页面二', parent_id: parent.data.id });
+
+    const r = await fetch(base + `/api/documents/${parent.data.id}/children`);
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.equal(data.items.length, 2);
+    assert.ok(data.items.every((d) => d.parent_id === parent.data.id));
+});
+
+test('GET /api/documents/:id/children 父页面不存在 → 404', async () => {
+    const r = await fetch(base + '/api/documents/999999/children');
+    assert.equal(r.status, 404);
+    assert.equal((await r.json()).error, 'not_found');
+});
+
+test('GET /api/documents/tree 返回带 parent_id 的扁平页面树', async () => {
+    const parent = await postDoc({ title: '树父页' });
+    await postDoc({ title: '树子页', parent_id: parent.data.id });
+
+    const r = await fetch(base + '/api/documents/tree');
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.ok(Array.isArray(data.items));
+    const node = data.items.find((n) => n.id === parent.data.id);
+    assert.ok(node, '树数据应包含父页');
+    assert.equal(node.parent_id, null);
+    assert.equal(node.content_md, undefined, '树数据不含正文');
+});
+
+test('GET /api/documents?root=1 只返回顶层页面', async () => {
+    const parent = await postDoc({ title: '顶层过滤父' });
+    await postDoc({ title: '顶层过滤子', parent_id: parent.data.id });
+
+    const r = await fetch(base + '/api/documents?root=1&limit=100');
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.ok(data.items.every((d) => d.parent_id === null));
+});
+
+test('PUT /api/documents/:id 移动到自身后代 → 400 invalid_input', async () => {
+    const a = await postDoc({ title: '环路 A' });
+    const b = await postDoc({ title: '环路 B', parent_id: a.data.id });
+
+    const r = await fetch(base + `/api/documents/${a.data.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ version: 1, parent_id: b.data.id })
+    });
+    assert.equal(r.status, 400);
+    assert.equal((await r.json()).error, 'invalid_input');
+});
+
+test('DELETE /api/documents/:id 级联删除子页面', async () => {
+    const parent = await postDoc({ title: '级联父页' });
+    const child = await postDoc({ title: '级联子页', parent_id: parent.data.id });
+
+    const del = await fetch(base + `/api/documents/${parent.data.id}`, { method: 'DELETE' });
+    assert.equal(del.status, 204);
+
+    const gone = await fetch(base + `/api/documents/${child.data.id}`);
+    assert.equal(gone.status, 404);
+});

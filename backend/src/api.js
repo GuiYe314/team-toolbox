@@ -17,6 +17,7 @@
 
 import express from 'express';
 import * as store from './store.js';
+import { renderMarkdown } from './markdown.js';
 
 // 业务错误码 → HTTP 状态码
 const STATUS_MAP = {
@@ -88,7 +89,7 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
 
     // ───────────────────────── 文档 ─────────────────────────
 
-    // 列表（分页 + 可选分类过滤）
+    // 列表（分页 + 可选分类 / 父页面过滤）
     router.get('/documents', wrap((req, res) => {
         const filter = {
             limit: clampInt(req.query.limit, 20, 1, 100),
@@ -101,7 +102,22 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
             }
             filter.category_id = cid;
         }
+        // root=1 → 只看顶层页面；parent_id=<id> → 只看该页面的直接子页面
+        if (req.query.root === '1' || req.query.root === 'true') {
+            filter.root = true;
+        } else if (req.query.parent_id !== undefined && req.query.parent_id !== '') {
+            const pid = parseId(req.query.parent_id);
+            if (pid === null) {
+                return res.status(400).json({ error: 'invalid_input', message: '父页面 ID 无效' });
+            }
+            filter.parent_id = pid;
+        }
         res.json(store.listDocuments({ connection: getDb(), filter }));
+    }));
+
+    // 页面树（侧边栏用；必须在 /documents/:id 之前注册，避免被当成 ID）
+    router.get('/documents/tree', wrap((_req, res) => {
+        res.json({ items: store.listDocumentTree({ connection: getDb() }) });
     }));
 
     // 新建
@@ -112,9 +128,23 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
             title: body.title,
             content_md: body.content_md,
             category_id: body.category_id,
+            parent_id: body.parent_id,
             tags: body.tags
         });
         res.status(201).json(created);
+    }));
+
+    // 子页面列表
+    router.get('/documents/:id/children', wrap((req, res) => {
+        const id = parseId(req.params.id);
+        if (id === null) {
+            return res.status(400).json({ error: 'invalid_input', message: '文档 ID 无效' });
+        }
+        const doc = store.getDocument({ connection: getDb(), id });
+        if (!doc) {
+            return res.status(404).json({ error: 'not_found', message: '文档不存在' });
+        }
+        res.json({ items: store.listChildren({ connection: getDb(), id }) });
     }));
 
     // 读取单个
@@ -147,6 +177,7 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
             title: body.title,
             content_md: body.content_md,
             category_id: body.category_id,
+            parent_id: body.parent_id,
             tags: body.tags
         });
         res.json(updated);
@@ -196,6 +227,15 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
         }
         store.deleteTag({ connection: getDb(), id });
         res.status(204).end();
+    }));
+
+    // ───────────────────── Markdown 安全渲染 ─────────────────────
+    // 供前端编辑预览与详情页渲染使用：marked 解析 + sanitize-html 白名单净化，
+    // 防存储型 XSS（见 ARCHITECTURE 第 7 节）。原 _dev 端点已合并至此稳定路由。
+    router.post('/markdown/render', wrap((req, res) => {
+        const md = String((req.body && req.body.md) || '');
+        const html = renderMarkdown(md);
+        res.json({ html });
     }));
 
     app.use(basePath, router);

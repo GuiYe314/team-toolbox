@@ -6,7 +6,7 @@
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, resolve as resolvePath } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { errorMap } from './errors.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -177,16 +177,19 @@ export async function runMigrations(config = {}) {
 }
 
 // 命令行入口：npm run migrate
-if (import.meta.url === `file://${process.argv[1]}`) {
+// 注意：Windows 下 process.argv[1] 是反斜杠路径，必须用 pathToFileURL 比较；
+// 之前用 `file://${process.argv[1]}` 判断，在 Windows 上恒为 false，导致迁移被静默跳过。
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
     // 被直接 node src/migrate.js 执行
     (async () => {
         const { createDatabase } = await import('./db.js');
         const DB_PATH_RAW = process.env.DB_PATH || 'data/team-toolbox.sqlite3';
         const db = createDatabase({ path: DB_PATH_RAW });
-        const result = runMigrations({ connection: db });
+        const result = await runMigrations({ connection: db });
         console.log(`[migrate] db=${db.name} applied=${result.applied} versions=[${result.versions.join(', ')}]`);
         if (result.errors.length > 0) {
             result.errors.forEach(e => console.error(`[migrate] ERROR: ${e}`));
+            process.exitCode = 1;
         }
         db.close();
     })();

@@ -55,14 +55,17 @@ CREATE TABLE IF NOT EXISTS documents (
     title        TEXT    NOT NULL,
     content_md   TEXT    NOT NULL DEFAULT '',
     category_id  INTEGER,
+    parent_id    INTEGER,
     version      INTEGER NOT NULL DEFAULT 1,
     created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at   TEXT    NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+    FOREIGN KEY (parent_id)   REFERENCES documents(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_documents_updated_at ON documents(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_documents_category_id ON documents(category_id);
+CREATE INDEX IF NOT EXISTS idx_documents_parent_id ON documents(parent_id);
 
 CREATE TABLE IF NOT EXISTS document_tags (
     document_id  INTEGER NOT NULL,
@@ -492,6 +495,89 @@ describe('文档存储层', () => {
 
         const filtered = store.listDocuments({ connection: db, filter: { category_id: cat.id } });
         assert.ok(filtered.items.every(d => d.category_id === cat.id), '应只返回指定分类的文档');
+    });
+
+    // ── 页面树（迁移 002） ──
+
+    it('createDocument 支持 parent_id，getDocument 返回祖先路径与子页面数量', () => {
+        const root = store.createDocument({ connection: db, title: '树根' });
+        const mid = store.createDocument({ connection: db, title: '中间页', parent_id: root.id });
+        const leaf = store.createDocument({ connection: db, title: '叶子页', parent_id: mid.id });
+
+        const rootDoc = store.getDocument({ connection: db, id: root.id });
+        assert.strictEqual(rootDoc.parent_id, null, '顶层页面 parent_id 应为 null');
+        assert.strictEqual(rootDoc.child_count, 1);
+        assert.strictEqual(rootDoc.descendant_count, 2, '应统计全部后代');
+
+        const leafDoc = store.getDocument({ connection: db, id: leaf.id });
+        assert.deepStrictEqual(leafDoc.path.map(p => p.id), [root.id, mid.id], '路径应为 根→父');
+        assert.strictEqual(leafDoc.parent_id, mid.id);
+    });
+
+    it('parent_id 指向不存在的页面 → invalid_input', () => {
+        try {
+            store.createDocument({ connection: db, title: '孤儿页', parent_id: 999999 });
+            assert.fail('应抛出错误');
+        } catch (err) {
+            assert.strictEqual(err.code, 'invalid_input');
+        }
+    });
+
+    it('listChildren / listDocumentTree / root 过滤', () => {
+        const root = store.createDocument({ connection: db, title: '目录页' });
+        store.createDocument({ connection: db, title: '子页 A', parent_id: root.id });
+        store.createDocument({ connection: db, title: '子页 B', parent_id: root.id });
+
+        const children = store.listChildren({ connection: db, id: root.id });
+        assert.strictEqual(children.length, 2);
+        assert.ok(children.every(c => c.parent_id === root.id));
+
+        const tree = store.listDocumentTree({ connection: db });
+        assert.ok(tree.some(n => n.id === root.id && n.parent_id === null));
+        assert.strictEqual(tree.find(n => n.id === root.id).content_md, undefined, '树数据不应带正文');
+
+        const roots = store.listDocuments({ connection: db, filter: { root: true, limit: 100 } });
+        assert.ok(roots.items.every(d => d.parent_id === null), 'root 过滤只应返回顶层页面');
+
+        const byParent = store.listDocuments({ connection: db, filter: { parent_id: root.id } });
+        assert.strictEqual(byParent.total, 2);
+    });
+
+    it('updateDocument 可移动页面，且拒绝移动到自身或后代之下', () => {
+        const a = store.createDocument({ connection: db, title: '移动 A' });
+        const b = store.createDocument({ connection: db, title: '移动 B', parent_id: a.id });
+        const c = store.createDocument({ connection: db, title: '移动 C', parent_id: b.id });
+
+        // 正常移动：C 移到 A 下
+        const moved = store.updateDocument({ connection: db, id: c.id, version: 1, parent_id: a.id });
+        assert.strictEqual(moved.version, 2);
+        assert.strictEqual(store.getDocument({ connection: db, id: c.id }).parent_id, a.id);
+
+        // 成环：A 移到自己的后代 B 下
+        try {
+            store.updateDocument({ connection: db, id: a.id, version: 1, parent_id: b.id });
+            assert.fail('应拒绝成环');
+        } catch (err) {
+            assert.strictEqual(err.code, 'invalid_input');
+        }
+
+        // 成环：A 移到自身
+        try {
+            store.updateDocument({ connection: db, id: a.id, version: 1, parent_id: a.id });
+            assert.fail('应拒绝自引用');
+        } catch (err) {
+            assert.strictEqual(err.code, 'invalid_input');
+        }
+    });
+
+    it('删除父页面级联删除子页面', () => {
+        const parent = store.createDocument({ connection: db, title: '待删父页' });
+        const child = store.createDocument({ connection: db, title: '待删子页', parent_id: parent.id });
+        const grandchild = store.createDocument({ connection: db, title: '待删孙页', parent_id: child.id });
+
+        store.deleteDocument({ connection: db, id: parent.id });
+        assert.strictEqual(store.getDocument({ connection: db, id: child.id }), null, '子页面应被级联删除');
+        assert.strictEqual(store.getDocument({ connection: db, id: grandchild.id }), null, '孙页面应被级联删除');
     });
 
     // ── 非法输入 ──

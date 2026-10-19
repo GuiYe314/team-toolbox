@@ -9,7 +9,6 @@ import express from 'express';
 import { existsSync, statSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
 import { getDefaultDatabase, closeDefaultDatabase, DB_PATH, PROJECT_ROOT } from './db.js';
-import { renderMarkdown } from './markdown.js';
 import { registerApi } from './api.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -45,17 +44,6 @@ app.get('/api/health', (_req, res) => {
         version: '0.1.0',
         db: { path: DB_PATH, ok: dbOk, size_bytes: dbSize }
     });
-});
-
-// Markdown 渲染验证（仅供 TASK-001 冒烟；后续会移除或合并）
-app.post('/api/_dev/render-markdown', (req, res) => {
-    const md = String(req.body?.md || '');
-    try {
-        const html = renderMarkdown(md);
-        res.json({ html });
-    } catch (err) {
-        res.status(500).json({ error: 'render_failed', message: String(err && err.message || err) });
-    }
 });
 
 // 静态资源：阶段二开始提供前端构建产物；TASK-001 暂不挂载。
