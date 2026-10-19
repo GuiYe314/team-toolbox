@@ -2,6 +2,28 @@
 
 格式：日期 + 类型 + 条目。**只追加，不改写历史。**当前进度以 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) 为唯一来源，本文件不承载状态。
 
+## 2026-10-19
+
+### TASK-002 修复：测试可运行 + 连接工厂支持 path 注入
+
+### Fixed
+- `backend/src/migrate.js`：`runMigrations` 改为 `async`（函数体内有 `await import('./db.js')`，原签名未声明 async，导致 SyntaxError: Unexpected reserved word）。
+- `backend/src/errors.js`：`errorMap` 改为返回 `Error` 实例（携带 `code` / `detail` 属性）而不是普通对象；新增识别 `code === 'conflict'` / `context === 'conflict'`、`code.startsWith('SQLITE_CONSTRAINT_')`、`context === 'constraint_failed'`、`context === 'cannot_open'`、保留传入消息；不再让 `assert.throws(fn, /regex/)` 收到 `[object Object]`。
+- `backend/src/db.js`：`createDatabase` 中 `mkdirSync` 失败映射为 `cannot_open`；`createTestingDatabase` 新增 `path` 注入参数，允许测试复用同一文件触发 busy lock；补回 `DB_PATH` 导出（`backend/src/index.js` 仍按文档预期使用）。
+- `backend/src/store.js`：`createCategory` 中约束码识别改为 `SQLITE_CONSTRAINT` 或 `SQLITE_CONSTRAINT_*` 子码（better-sqlite3 抛 `SQLITE_CONSTRAINT_UNIQUE`），确保唯一约束违反被识别为重名。
+- `backend/src/store.test.js`：把 `runMigrations` 调用统一改为 `await runMigrations`（配合 async 化）；`createTestingDatabase` 复用 `path` 参数，使"重开可读""独立连接忙锁""createDocument 持久化"用例可命中；`WAL` 用例改用文件 db（`journal_mode = WAL` 不适用于 `:memory:`）；`cannot_open` 用例改用 Windows 上明确不可写的盘符路径。
+
+### Verified
+- `npm run rebuild better-sqlite3` 成功（之前是为 Node 24 ABI 编译的 NODE_MODULE_VERSION 137，本机 Node 22 需 127）。
+- `npm test` → 5 suites / 34 tests，**全部 pass / 0 fail / 0 cancelled**。
+- `node src/index.js` 启动监听 127.0.0.1:3000；`GET /api/health` 返回 200，`db.ok=true`。
+- `npm run migrate` 命令行入口仍可用。
+
+### Notes
+- 本次为修复 + 自测，**不代替 Codex 验收**。TASK-002 仍为"已实现（待 Codex 验收）"。
+- 未启动：TASK-003 及之后任务；未动 frontend/*（属于阶段二 Codex 已验收范围，不在本修复 commit 中）。
+- WorkBuddy 使用模型：MiniMax-M3；积分未提供，无法确认。
+
 ## 2026-10-16
 
 ### TASK-001 技术栈与脚手架（待 Codex 验收）

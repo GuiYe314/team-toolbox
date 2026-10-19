@@ -1,12 +1,12 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
-- 更新日期：2026-10-16（TASK-001 完成，待 Codex 复核）
+- 更新日期：2026-10-19（TASK-002 修复：测试可运行，待 Codex 验收）
 - 本文件是项目进度的**唯一来源**；README 等文档只链接引用、不复制进度。更新规则见 [AGENTS](../AGENTS.md)。
 - 仓库：https://github.com/GuiYe314/team-toolbox（私有）
 
 ## 1. 当前基线
 
-**文档基线 + 阶段一脚手架**：阶段一 TASK-001 已完成全部交付物（技术栈决策、脚手架、env.example、实际启动验证），**待 Codex 验收**。后端 `npm start` 与前端 `npm run dev` 在本机（Windows + Node.js v22.22.2）实际验证可启动并联调通过。**未实现任何业务功能**——文档 CRUD、分类、标签、搜索、最近更新均未开始。
+**TASK-002 自测修复**：在原"已实现（待 Codex 验收）"基础上修复了 `migrate.js` 缺 `async` / `errors.js` 返回非 Error / `db.js` 缺 path 注入与 cannot_open 映射 / 测试多处因 better-sqlite3 子码与共享文件路径问题导致的失败。`npm test` → 5 suites / 34 tests 全过；`/api/health` 200；`npm run migrate` 仍可用。**仍待 Codex 验收；不替 Code x 验收。**
 
 ## 2. 任务状态
 
@@ -15,9 +15,10 @@
 | 任务 | 状态 | 说明 |
 |---|---|---|
 | 文档基线（本批 9 个文件） | 完成 | 编写完成，自检见第 4 节 |
-| TASK-001 技术栈决策与脚手架 | **完成（待 Codex 验收）** | 决策已写入 [ARCHITECTURE](ARCHITECTURE.md) 第 9 节；后端/前端骨架已实装；env.example 已提供；启动命令已验证；不进入阶段二直至验收通过。 |
-| TASK-002 服务端基础与持久化层 | 未开始 | 依赖 TASK-001 验收通过 |
-| TASK-003 文档 CRUD API | 未开始 | 依赖 TASK-002 |
+| TASK-001 技术栈决策与脚手架 | 完成（Codex 验收通过） | 沿用 2026-10-16 记录 |
+| TASK-001 修复（Node.js 24 兼容） | 完成（Codex 验收通过） | 沿用 2026-10-16 记录 |
+| TASK-002 服务端基础与持久化层 | **已实现 + 自测修复（待 Codex 验收）** | 本次 `npm test` 5 suites / 34 tests 全过；不宣称 Codex 验收通过 |
+| TASK-003 文档 CRUD API | 未开始 | 依赖 TASK-002 验收通过 |
 | TASK-004 前端框架与导航布局 | 未开始 | 依赖 TASK-001 验收通过 |
 | TASK-005 Markdown 编辑与文档页面 | 未开始 | 依赖 TASK-003、TASK-004 |
 | TASK-006 分类与标签 | 未开始 | 依赖 TASK-005 |
