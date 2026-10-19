@@ -21,28 +21,6 @@
                     <span class="nav-label">知识库</span>
                 </router-link>
 
-                <!-- 页面树：紧贴「知识库」下方的二级列表，仅在知识库区块（/kb/*）激活时显示 -->
-                <div v-if="onKbSection" class="sidebar-tree kb-subtree">
-                    <p v-if="treeLoading" class="tree-hint">加载中…</p>
-                    <p v-else-if="treeError" class="tree-hint tree-hint-error">{{ treeError }}</p>
-                    <p v-else-if="pageTree.length === 0" class="tree-hint">还没有页面，点击下方新建</p>
-
-                    <PageTree
-                        v-if="pageTree.length"
-                        :nodes="pageTree"
-                        :depth="0"
-                        :active-id="activeId"
-                        :renaming-id="renamingId"
-                        @open="openNode"
-                        @create-child="createChild"
-                        @menu="openMenu"
-                        @rename-submit="submitRename"
-                        @rename-cancel="cancelRename"
-                    />
-
-                    <button class="tree-add" type="button" @click="createPage">＋ 新建页面</button>
-                </div>
-
                 <router-link to="/tools" class="nav-link" :class="{ 'is-active': $route.path.startsWith('/tools') }" @click="closeSidebar">
                     <span class="nav-icon">🧰</span>
                     <span class="nav-label">工具箱</span>
@@ -57,9 +35,34 @@
         <!-- 移动端菜单按钮 -->
         <button v-if="isMobile && !sidebarOpen" class="mobile-menu-btn" @click="openSidebar" aria-label="打开导航" ref="menuBtnRef">☰</button>
 
-        <!-- 主内容区 -->
+        <!-- 主内容区：左侧为二级页面菜单（仅知识库区块），右侧为页面内容 -->
         <main class="main-content" role="main" tabindex="-1" ref="mainContentRef">
-            <router-view />
+            <aside v-if="onKbSection" class="sub-menu" aria-label="页面菜单">
+                <h2 class="sub-menu-title">页面</h2>
+
+                <p v-if="treeLoading" class="tree-hint">加载中…</p>
+                <p v-else-if="treeError" class="tree-hint tree-hint-error">{{ treeError }}</p>
+                <p v-else-if="pageTree.length === 0" class="tree-hint">还没有页面，点击下方新建</p>
+
+                <PageTree
+                    v-if="pageTree.length"
+                    :nodes="pageTree"
+                    :depth="0"
+                    :active-id="activeId"
+                    :renaming-id="renamingId"
+                    @open="openNode"
+                    @create-child="createChild"
+                    @menu="openMenu"
+                    @rename-submit="submitRename"
+                    @rename-cancel="cancelRename"
+                />
+
+                <button class="tree-add" type="button" @click="createPage">＋ 新建页面</button>
+            </aside>
+
+            <div class="content-body">
+                <router-view />
+            </div>
         </main>
 
         <!-- 页面「···」菜单 -->
@@ -468,17 +471,12 @@ button { font-family: inherit; }
     white-space: nowrap;
 }
 
-/* === 页面树容器（知识库的二级缩进列表） === */
+/* === 页面树容器（内容区二级菜单内） === */
 .sidebar-tree {
-    padding: 0 8px;
+    padding: 0;
     display: flex;
     flex-direction: column;
     gap: 1px;
-}
-.kb-subtree {
-    margin: 2px 8px 6px 20px;
-    padding: 0 0 0 8px;
-    border-left: 1px solid var(--color-border);
 }
 .tree-hint {
     margin: 2px 0;
@@ -648,16 +646,44 @@ button { font-family: inherit; }
     color: var(--color-text-faint);
 }
 
-/* === 主内容 === */
+/* === 主内容区（含二级页面菜单） === */
 .main-content {
     flex: 1;
     margin-left: var(--sidebar-width);
     padding: 0;
     background: var(--color-bg);
     min-height: 100vh;
+    display: flex;
+    align-items: stretch;
 }
 .main-content:focus {
     outline: none;
+}
+
+/* 二级页面菜单：位于主内容区左侧，点击「知识库」后出现 */
+.sub-menu {
+    flex-shrink: 0;
+    align-self: flex-start;
+    position: sticky;
+    top: 0;
+    width: 232px;
+    max-height: 100vh;
+    overflow-y: auto;
+    padding: 24px 10px 40px 16px;
+    border-right: 1px solid var(--color-border);
+}
+.sub-menu-title {
+    margin: 0 0 8px;
+    padding-left: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+}
+.content-body {
+    flex: 1;
+    min-width: 0;
 }
 
 /* === 移动端按钮 === */
@@ -706,6 +732,16 @@ button { font-family: inherit; }
     .main-content {
         margin-left: 0;
         padding-top: 56px;
+        flex-direction: column;
+    }
+    /* 窄屏下二级页面菜单移到内容顶部 */
+    .sub-menu {
+        position: static;
+        width: auto;
+        max-height: 42vh;
+        padding: 16px 16px 12px;
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
     }
     .app-layout:not(.sidebar-open) .sidebar {
         display: none;
