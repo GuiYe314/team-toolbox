@@ -1,5 +1,5 @@
 // UI 重构验收脚本（CDP 直连，无第三方依赖）
-// 验证：四栏布局 / 主题切换 / 分类联动 / 响应式折叠 / 无横向溢出
+// 验证：三栏布局 / 主题切换 / 分类数据保留 / 响应式折叠 / 无横向溢出
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -64,7 +64,7 @@ await send('Page.enable');
 const results = [];
 const check = (name, pass, detail = '') => { results.push({ name, pass, detail }); console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  → ' + detail : ''}`); };
 
-// ── 1. Light 主题四栏布局 ──
+// ── 1. Light 主题三栏布局 ──
 // 显式写死 light，避免跟随宿主系统偏好导致断言不稳定
 await goto(`${URL_BASE}/kb`);
 await evalJs(`localStorage.setItem('tt-theme','light'); location.reload();`).catch(() => {});
@@ -74,20 +74,20 @@ let r = await evalJs(`(() => {
   const box = s => { const e = q(s); return e ? Math.round(e.getBoundingClientRect().width) : null; };
   return {
     theme: document.documentElement.getAttribute('data-theme'),
-    main: box('.main-sidebar'), page: box('.page-sidebar'), cat: box('.category-sidebar'), content: box('.main-content'),
-    gridCols: getComputedStyle(q('.app-layout')).gridTemplateColumns,
+    main: box('.main-sidebar'), page: box('.page-sidebar'), content: box('.main-content'),
     docRows: document.querySelectorAll('.doc-row').length,
+    hasCategory: !!q('.category-sidebar'),
     hasCatalogInside: !!q('.kb-catalog'),
     bodyOverflowX: document.documentElement.scrollWidth > window.innerWidth + 1,
     blur: getComputedStyle(q('.main-content')).backdropFilter
   };
 })()`);
 check('主题初始化为 light', r.theme === 'light', r.theme);
-check('四栏均渲染', r.main > 150 && r.page > 150 && r.cat > 150 && r.content > 500, JSON.stringify({ main: r.main, page: r.page, cat: r.cat, content: r.content }));
-check('侧栏宽度符合 200-250 规范', r.main >= 190 && r.main <= 220 && r.page >= 200 && r.page <= 250 && r.cat >= 190 && r.cat <= 230, JSON.stringify({ main: r.main, page: r.page, cat: r.cat }));
+check('三栏均渲染（主导航/页面树/内容）', r.main > 150 && r.page > 150 && r.content > 600, JSON.stringify({ main: r.main, page: r.page, content: r.content }));
+check('侧栏宽度符合 190-250 规范', r.main >= 190 && r.main <= 220 && r.page >= 190 && r.page <= 250, JSON.stringify({ main: r.main, page: r.page }));
 check('内容区最小宽度 ≥600', r.content >= 600, String(r.content));
 check('文档行已渲染', r.docRows > 0, r.docRows + ' 行');
-check('内容区内不再有分类栏', r.hasCatalogInside === false);
+check('分类侧栏已移除', r.hasCategory === false && r.hasCatalogInside === false);
 check('无横向溢出', r.bodyOverflowX === false);
 check('主内容使用 backdrop-filter', String(r.blur).includes('blur'), String(r.blur));
 await shot('shot-light-kb.png');
@@ -134,21 +134,21 @@ check('dark 文字为浅色', r.tr > 180, `rgb=${r.text}`);
 check('主题已持久化', r.saved === 'dark', String(r.saved));
 await shot('shot-dark-kb.png');
 
-// ── 5. 分类联动（第三栏 → 第四栏列表）──
+// ── 5. 分类数据保留（侧栏已移除，但数据与文档标签仍可用）──
+// 用户选择「只移除侧栏 UI」：分类表、文档 category_name、导入导出全部保留。
 r = await evalJs(`(async () => {
-  const rows = [...document.querySelectorAll('.category-sidebar .cat-item')];
-  if (rows.length < 2) return { skip: true, count: rows.length };
-  const before = document.querySelectorAll('.doc-row').length;
-  rows[1].click();
-  await new Promise(r => setTimeout(r, 900));
-  return { before, after: document.querySelectorAll('.doc-row').length,
-           active: document.querySelector('.category-sidebar .cat-item.is-active .nav-label')?.innerText || '' };
+  const cats = await (await fetch('/api/categories')).json();
+  const docs = await (await fetch('/api/documents?limit=200')).json();
+  const withCat = (docs.items || []).filter(d => d.category_name);
+  const rowTags = document.querySelectorAll('.doc-row .tag-static').length;
+  return { cats: (cats || []).length, withCat: withCat.length, rowTags };
 })()`);
-check('点击分类后列表刷新', !r.skip && r.after !== r.before || r.skip, JSON.stringify(r));
-await goto(`${URL_BASE}/kb`);
+check('分类数据仍在（API 可读）', r.cats > 0, `${r.cats} 个分类`);
+check('文档仍带分类标签且列表中可见', r.withCat > 0 && r.rowTags > 0,
+    `${r.withCat} 篇有分类，列表显示 ${r.rowTags} 个标签`);
 
 // ── 6. 响应式折叠 ──
-// 设计约定：≥1600 四栏全开；≤1440 收起分类栏；≤1320 再收起页面栏。
+// 设计约定：≥1320 三栏（主导航/页面树/内容）；≤1320 折叠页面树变两栏。
 // 折叠是「移出网格流」，因此列数应真的变少，而不是宽度变0。
 const resp = [];
 for (const w of [1920, 1600, 1440, 1320]) {
@@ -157,8 +157,7 @@ for (const w of [1920, 1600, 1440, 1320]) {
       const q = s => document.querySelector(s);
       const vis = s => { const e = q(s); if(!e) return false; return e.getBoundingClientRect().width > 1; };
       const cols = getComputedStyle(q('.app-layout')).gridTemplateColumns.split(' ').length;
-      return { cols, page: vis('.page-sidebar'), cat: vis('.category-sidebar'),
-               main: vis('.main-sidebar'),
+      return { cols, page: vis('.page-sidebar'), main: vis('.main-sidebar'),
                overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
                content: Math.round(q('.main-content').getBoundingClientRect().width) };
     })()`);
@@ -166,21 +165,34 @@ for (const w of [1920, 1600, 1440, 1320]) {
     await shot(`shot-kb-${w}.png`);
 }
 const by = Object.fromEntries(resp.map(r => [r.w, r]));
-check('1920 四栏全开', by[1920].cols === 4 && by[1920].page && by[1920].cat, JSON.stringify(by[1920]));
-check('1600 四栏全开', by[1600].cols === 4 && by[1600].page && by[1600].cat, JSON.stringify(by[1600]));
-check('1440 收起分类栏（列数 4→3）', by[1440].cols === 3 && !by[1440].cat && by[1440].page, JSON.stringify(by[1440]));
-check('1320 再收页面栏（列数 3→2）', by[1320].cols === 2 && !by[1320].page && !by[1320].cat, JSON.stringify(by[1320]));
-check('各级均无横向溢出', resp.every(r => !r.overflow), resp.map(r => r.w + ':' + r.overflow).join(' '));
-check('折叠后内容区显著变大', by[1320].content > by[1600].content, `${by[1600].content} → ${by[1320].content}`);
-// 折叠后可手动唤回
-await evalJs(`document.querySelectorAll('.col-toggles .mini-btn')[0].click()`);
+check('1920 三栏全开', by[1920].cols === 3 && by[1920].page, JSON.stringify(by[1920]));
+check('1600 三栏全开', by[1600].cols === 3 && by[1600].page, JSON.stringify(by[1600]));
+check('1440 三栏全开', by[1440].cols === 3 && by[1440].page, JSON.stringify(by[1440]));
+check('1320 折叠页面树（3→2 列）', by[1320].cols === 2 && !by[1320].page, JSON.stringify(by[1320]));
+// 设计规范规定最小宽度 1280px，低于此宽度允许出现横向滚动
+check('1280 及以上无横向溢出', resp.every(r => !r.overflow), resp.map(r => r.w + ':' + r.overflow).join(' '));
+// 折叠收益应在同一视口下比较（跨视口会被视口宽度本身干扰）。
+// 1320 下默认已折叠，点一下是「展开」——宽度应变小。
+const foldedW = by[1320].content;
+await evalJs(`document.querySelector('.col-toggles .mini-btn').click()`);
 await sleep(400);
-const back = await evalJs(`(() => {
+const expanded = await evalJs(`(() => {
   const e = document.querySelector('.page-sidebar');
-  return { visible: e ? e.getBoundingClientRect().width > 1 : false,
+  return { w: Math.round(document.querySelector('.main-content').getBoundingClientRect().width),
+           visible: e ? e.getBoundingClientRect().width > 1 : false,
            cols: getComputedStyle(document.querySelector('.app-layout')).gridTemplateColumns.split(' ').length };
 })()`);
-check('手动可唤回页面栏', back.visible && back.cols === 3, JSON.stringify(back));
+check('手动展开页面树后内容区让出宽度', expanded.visible && expanded.cols === 3 && expanded.w < foldedW,
+    `${foldedW} → ${expanded.w}, cols=${expanded.cols}`);
+// 再点收起，恢复折叠态
+await evalJs(`document.querySelector('.col-toggles .mini-btn').click()`);
+await sleep(400);
+const refolded = await evalJs(`(() => {
+  const e = document.querySelector('.page-sidebar');
+  return { w: Math.round(document.querySelector('.main-content').getBoundingClientRect().width),
+           visible: e ? e.getBoundingClientRect().width > 1 : false };
+})()`);
+check('可再次收起页面树', !refolded.visible && refolded.w === foldedW, `${refolded.w}px`);
 console.log('\n响应式汇总：', JSON.stringify(resp));
 await goto(`${URL_BASE}/kb`, 1600, 1000);
 
@@ -246,8 +258,8 @@ for (const [name, path] of ROUTES) {
     check(`${name}：${kbStyle ? '使用列表内滚动区' : '根元素挂 view-page 且可纵向滚动'}`,
         scrollOK, `${x.cls} overflow-y=${x.viewOverflowY}`);
     check(`${name}：无横向裁切`, x.clippedRight <= 1 && !x.docOverflowX, `右溢出 ${x.clippedRight}px, pad=${x.padX}`);
-    // 非知识库区块必须退化为两栏。否则不渲染的第二/三栏会把主内容挤窄
-    // （曾出现首页主内容仅 145px：沿用四栏模板但空着一列 220px 的分类栏）
+    // 非知识库区块必须退化为两栏。否则不渲染的第二栏会把主内容挤窄
+    // （曾出现首页主内容仅 145px：沿用四栏模板但空着一列侧栏）
     if (!['知识库', '新建文档', '文档详情', '文档编辑'].includes(name)) {
         check(`${name}：两栏布局且内容区宽裕`, x.cols === 2 && x.content > 700,
             `cols=${x.cols}, content=${x.content}px`);

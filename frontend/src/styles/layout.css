@@ -41,7 +41,6 @@ body {
     grid-template-columns:
         var(--w-main-sidebar)
         var(--w-page-sidebar)
-        var(--w-category-sidebar)
         minmax(var(--w-min-content), 1fr);
     gap: var(--gap-column);
     padding: var(--page-padding);
@@ -93,7 +92,6 @@ body {
     :root {
         --w-main-sidebar: 196px;
         --w-page-sidebar: 222px;
-        --w-category-sidebar: 200px;
         --gap-column: 12px;
         --page-padding: 18px;
     }
@@ -105,31 +103,12 @@ body {
     }
 }
 
-/* 折叠：移出网格流。对应列由 .app-layout.col-* 变体从模板中一并删掉，
-   不会出现「宽 0 但留gap」的空洞。*/
+/* 折叠：移出网格流。对应列由 .app-layout.col-single 从模板中一并删掉，
+   不会出现「宽 0 但留 gap」的空洞。*/
 .sidebar.is-collapsed { display: none; }
 
-/* 折叠策略：侧栏 display:none 从网格流中移除，
-   因此这里改为「减少列数」而不是「列宽置0」——
-   后者会留下一个 gap 的空洞，且元素仍在占位。*/
-.app-layout.col-page-hidden {
-    grid-template-columns:
-        var(--w-main-sidebar)
-        var(--w-category-sidebar)
-        minmax(var(--w-min-content), 1fr);
-}
-.app-layout.col-category-hidden {
-    grid-template-columns:
-        var(--w-main-sidebar)
-        var(--w-page-sidebar)
-        minmax(var(--w-min-content), 1fr);
-}
-.app-layout.col-both-hidden {
-    grid-template-columns:
-        var(--w-main-sidebar)
-        minmax(var(--w-min-content), 1fr);
-}
-/* 非知识库区块：页面树与分类栏都不渲染，只留两栏 */
+/* 两栏：主导航 + 主内容。非知识库区块没有页面树，
+   窄屏折叠页面树后也退化为这个形态。*/
 .app-layout.col-single {
     grid-template-columns:
         var(--w-main-sidebar)

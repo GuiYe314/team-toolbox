@@ -182,11 +182,6 @@ async function gunzip(buf) {
 export default {
     name: 'KnowledgeBase',
     components: { DocIcon },
-    props: {
-        // 分类筛选由App.vue 第三栏（CategorySidebar）持有并下发。
-        // 本视图只负责按它拉取列表，不再自己维护分类 CRUD。
-        category: { type: [String, Number], default: null }
-    },
     data() {
         return {
             items: [],
@@ -207,13 +202,6 @@ export default {
             ioError: false,
             exportMenu: false
         };
-    },
-    watch: {
-        // 第三栏切换分类 → 退出搜索态并重新拉取
-        category() {
-            this.exitSearch();
-            this.load();
-        }
     },
     async mounted() {
         this._onExternalChange = () => {
@@ -251,9 +239,6 @@ export default {
             try {
                 const params = new URLSearchParams();
                 params.set('limit', '200');
-                if (this.category !== null && this.category !== undefined) {
-                    params.set('category_id', String(this.category));
-                }
                 if (this.selectedTags.length) {
                     params.set('tags', this.selectedTags.join(','));
                 }
