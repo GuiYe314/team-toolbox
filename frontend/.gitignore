@@ -12,3 +12,6 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# 验证脚本产出的截图（脚本本身入库，截图不入库）
+shot-*.png

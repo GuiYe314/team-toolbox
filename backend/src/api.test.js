@@ -492,6 +492,124 @@ test('DELETE /api/documents/:id 级联删除子页面', async () => {
     assert.equal(gone.status, 404);
 });
 
+// ───────────────────── 文档：批量删除 ─────────────────────
+
+/** 调用批量删除接口。 */
+async function postBatchDelete(ids) {
+    const res = await fetch(base + '/api/documents/batch-delete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids })
+    });
+    const data = await res.json().catch(() => null);
+    return { status: res.status, data };
+}
+
+test('POST /api/documents/batch-delete 多个文档 → 全部删除且计数正确', async () => {
+    const a = await postDoc({ title: '批删A' });
+    const b = await postDoc({ title: '批删B' });
+    const c = await postDoc({ title: '批删C' });
+
+    const r = await postBatchDelete([a.data.id, b.data.id, c.data.id]);
+    assert.equal(r.status, 200);
+    assert.equal(r.data.deleted, 3);
+    assert.equal(r.data.cascaded, 0);
+    assert.deepEqual(r.data.missing, []);
+
+    for (const id of [a.data.id, b.data.id, c.data.id]) {
+        assert.equal((await fetch(base + `/api/documents/${id}`)).status, 404);
+    }
+});
+
+test('POST /api/documents/batch-delete 级联：父页连带子页，cascaded 报告孙页数', async () => {
+    const parent = await postDoc({ title: '批删父' });
+    const child = await postDoc({ title: '批删子', parent_id: parent.data.id });
+    const grand = await postDoc({ title: '批删孙', parent_id: child.data.id });
+
+    const r = await postBatchDelete([parent.data.id]);
+    assert.equal(r.status, 200);
+    // 只请求了父页一个，但父+子+孙共 3 行被删除 → cascaded 应为 2
+    assert.equal(r.data.deleted, 1);
+    assert.equal(r.data.cascaded, 2);
+
+    assert.equal((await fetch(base + `/api/documents/${child.data.id}`)).status, 404);
+    assert.equal((await fetch(base + `/api/documents/${grand.data.id}`)).status, 404);
+});
+
+test('POST /api/documents/batch-delete 部分 id 不存在 → 跳过并记入 missing，不整批失败', async () => {
+    const a = await postDoc({ title: '混合A' });
+    const r = await postBatchDelete([a.data.id, 999999]);
+    assert.equal(r.status, 200);
+    assert.equal(r.data.deleted, 1);
+    assert.deepEqual(r.data.missing, [999999]);
+    assert.equal((await fetch(base + `/api/documents/${a.data.id}`)).status, 404);
+});
+
+test('POST /api/documents/batch-delete id 重复 → 只删一次', async () => {
+    const a = await postDoc({ title: '重复A' });
+    const r = await postBatchDelete([a.data.id, a.data.id, a.data.id]);
+    assert.equal(r.status, 200);
+    assert.equal(r.data.deleted, 1);
+});
+
+test('POST /api/documents/batch-delete 空数组 / 缺字段 → 400 invalid_input', async () => {
+    const empty = await postBatchDelete([]);
+    assert.equal(empty.status, 400);
+    assert.equal(empty.data.error, 'invalid_input');
+
+    const none = await postBatchDelete(undefined);
+    assert.equal(none.status, 400);
+    assert.equal(none.data.error, 'invalid_input');
+});
+
+test('POST /api/documents/batch-delete 非法 id（非正整数）→ 400 且不删除任何文档', async () => {
+    const a = await postDoc({ title: '不被删A' });
+    const r = await postBatchDelete([a.data.id, 0]);
+    assert.equal(r.status, 400);
+    assert.equal(r.data.error, 'invalid_input');
+    // 校验先于删除：同批次的合法文档必须还在
+    assert.equal((await fetch(base + `/api/documents/${a.data.id}`)).status, 200);
+});
+
+test('POST /api/documents/batch-delete 超过 500 条 → 400', async () => {
+    const many = Array.from({ length: 501 }, (_, i) => i + 1);
+    const r = await postBatchDelete(many);
+    assert.equal(r.status, 400);
+    assert.equal(r.data.error, 'invalid_input');
+});
+
+test('POST /api/documents/batch-delete 原子性：任一 id 非法则整批不生效', async () => {
+    const a = await postDoc({ title: '原子A' });
+    const b = await postDoc({ title: '原子B' });
+    const r = await postBatchDelete([a.data.id, b.data.id, 'abc']);
+    assert.equal(r.status, 400);
+    // 事务未开启，两篇都应保留
+    assert.equal((await fetch(base + `/api/documents/${a.data.id}`)).status, 200);
+    assert.equal((await fetch(base + `/api/documents/${b.data.id}`)).status, 200);
+});
+
+test('POST /api/documents/batch-delete 清理标签关联', async () => {
+    const a = await postDoc({ title: '标签批删', tags: ['待删标签'] });
+    // 断言 document_tags 关联行被 CASCADE 清理。
+    // 注意：tags 表中的标签名本身保留（与单条删除行为一致），
+    //孤立标签的清理是 TASK 里尚未实现的 GC，不在本次范围内。
+    const linkedBefore = db.prepare(`
+        SELECT COUNT(*) AS n FROM document_tags dt
+        JOIN tags t ON t.id = dt.tag_id
+        WHERE dt.document_id = ? AND t.name = ?
+    `).get(a.data.id, '待删标签').n;
+    assert.equal(linkedBefore, 1, '删除前应存在标签关联');
+
+    await postBatchDelete([a.data.id]);
+
+    const linkedAfter = db.prepare(`
+        SELECT COUNT(*) AS n FROM document_tags dt
+        JOIN tags t ON t.id = dt.tag_id
+        WHERE dt.document_id = ? AND t.name = ?
+    `).get(a.data.id, '待删标签').n;
+    assert.equal(linkedAfter, 0, '标签关联应被级联清理');
+});
+
 // ───────────────────────── 备份导入 / 导出 ─────────────────────────
 
 test('GET /api/backup/export 返回可移植快照（名称 + ref 相对引用）', async () => {

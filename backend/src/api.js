@@ -234,6 +234,14 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
         res.status(204).end();
     }));
 
+    // 批量删除：单事务原子操作。不存在的 id 跳过并记入 missing，不整批失败。
+    // 放在 /documents/:id 之后但用独立路径，避免与单条删除的语义混淆。
+    router.post('/documents/batch-delete', wrap((req, res) => {
+        const ids = req.body && req.body.ids;
+        const result = store.deleteDocuments({ connection: getDb(), ids });
+        res.json(result);
+    }));
+
     // ───────────────────────── 分类 ─────────────────────────
 
     router.get('/categories', wrap((_req, res) => {

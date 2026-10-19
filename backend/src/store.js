@@ -614,6 +614,82 @@ export function deleteDocument({ connection: db, id }) {
     db.prepare('DELETE FROM documents WHERE id = ?').run(id);
 }
 
+/**
+ * 批量删除文档（单个事务，全成功或全回滚）。
+ *
+ * 与逐条调用 deleteDocument 的区别有两点：
+ *   1. 原子性：整个批次在一个事务里，中途失败不会留下「删了一半」的库。
+ *   2. 不因个别 id 不存在而整批失败——不存在的 id 记入 missing 后跳过，
+ *      因为并发场景下另一个客户端可能已删掉其中一项。
+ *
+ * 子页面（parent_id）与标签关联都由 ON DELETE CASCADE 自动清理；
+ * cascaded 字段返回被连带删除的子孙页数，供前端二次确认展示。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @param {number[]} config.ids - 待删除的文档 id 数组（1-500 个）
+ * @returns {{ deleted: number, cascaded: number, missing: number[] }}
+ * @throws {{ code: 'invalid_input', message: string }}
+ */
+export function deleteDocuments({ connection: db, ids }) {
+    // ── 入参校验 ──
+    if (!Array.isArray(ids) || ids.length === 0) {
+        throw errorMap(new Error('请至少选择一个文档'), '(store)', 'invalid_input');
+    }
+    if (ids.length > 500) {
+        throw errorMap(new Error('单次最多删除 500 个文档'), '(store)', 'invalid_input');
+    }
+    // 去重并只保留正整数，避免同一 id 重复计入 deleted
+    const uniq = [...new Set(ids)];
+    for (const id of uniq) {
+        if (!Number.isInteger(id) || id <= 0) {
+            throw errorMap(new Error('文档 ID 无效'), '(store)', 'invalid_input');
+        }
+    }
+
+    const selectStmt = db.prepare('SELECT id FROM documents WHERE id = ?');
+    const deleteStmt = db.prepare('DELETE FROM documents WHERE id = ?');
+
+    const tx = db.transaction(() => {
+        const missing = [];
+        const alive = [];
+        for (const id of uniq) {
+            if (selectStmt.get(id)) alive.push(id);
+            else missing.push(id);
+        }
+        if (alive.length === 0) {
+            // 全部都不存在：不算错误（幂等），返回空结果
+            return { deleted: 0, cascaded: 0, missing };
+        }
+
+        // 连带删除的子孙页数：递归 CTE 求 alive 集合的完整后代
+        const placeholders = alive.map(() => '?').join(',');
+        const cascadeCount = db.prepare(`
+            WITH RECURSIVE sub(id) AS (
+                SELECT id FROM documents WHERE id IN (${placeholders})
+                UNION ALL
+                SELECT d.id FROM documents d JOIN sub ON d.parent_id = sub.id
+            )
+            SELECT COUNT(*) AS n FROM sub
+        `).get(...alive).n;
+
+        for (const id of alive) deleteStmt.run(id);
+
+        return {
+            deleted: alive.length,
+            cascaded: cascadeCount - alive.length,
+            missing
+        };
+    });
+
+    try {
+        return tx();
+    } catch (err) {
+        if (err.code === 'invalid_input') throw err;
+        throw errorMap(err, '(store)', 'write');
+    }
+}
+
 // ─────────────────────────────────────────────────
 // 分类和标签的存储层支持（供 TASK-003 最小使用）
 // ─────────────────────────────────────────────────

@@ -60,6 +60,10 @@ export const api = {
     createDocument: (payload) => request('POST', '/documents', payload),
     updateDocument: (id, payload) => request('PUT', '/documents/' + id, payload),
     deleteDocument: (id) => request('DELETE', '/documents/' + id),
+    // batchDeleteDocuments 传 id 数组；服务端单事务原子删除。
+    // 返回 { deleted, cascaded, missing }：deleted 为直接删除数，
+    // cascaded 为被连带删除的子孙页数，missing 为已不存在的 id。
+    batchDeleteDocuments: (ids) => request('POST', '/documents/batch-delete', { ids }),
     listCategories: () => request('GET', '/categories'),
     createCategory: (name) => request('POST', '/categories', { name }),
     updateCategory: (id, name) => request('PUT', '/categories/' + id, { name }),

@@ -42,6 +42,21 @@
             </div>
 
             <div class="kb-io">
+                <!-- 批量删除：先进入选择模式，选中后再确认，避免误删 -->
+                <button
+                    class="btn btn-sm"
+                    :class="{ 'is-on': selectMode }"
+                    type="button"
+                    :disabled="items.length === 0"
+                    :aria-pressed="selectMode"
+                    @click="toggleSelectMode"
+                >
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M9 4.5h6M5.5 7.5h13l-1 12a1.6 1.6 0 0 1-1.6 1.5H8.1a1.6 1.6 0 0 1-1.6-1.5z" />
+                        <path d="M10 11.5v5M14 11.5v5" />
+                    </svg>
+                    {{ selectMode ? '退出选择' : '批量删除' }}
+                </button>
                 <!-- 导出下拉：json 体积小易读；gz 压缩后约为 1%，适合大库与归档 -->
                 <div class="kb-io-menu" @mouseleave="exportMenu = false">
                     <button class="btn btn-sm" type="button" :disabled="ioBusy !== ''" @click="exportMenu = !exportMenu">
@@ -102,6 +117,35 @@
             {{ ioMessage }}
         </div>
 
+        <!-- ═══ 选择模式操作条：仅在选择模式且有选中项时出现 ═══ -->
+        <div v-if="selectMode" class="kb-selbar" role="toolbar" aria-label="批量操作">
+            <label class="kb-sel-all">
+                <input
+                    class="kb-check"
+                    type="checkbox"
+                    :checked="allSelected"
+                    :indeterminate.prop="someSelected && !allSelected"
+                    @change="toggleSelectAll"
+                />
+                <span>{{ allSelected ? '取消全选' : '全选本页' }}</span>
+            </label>
+            <span class="kb-sel-count">已选 {{ selectedIds.length }} 项</span>
+            <span class="kb-sel-spacer"></span>
+            <button class="btn btn-sm btn-ghost" type="button" @click="clearSelection">清空选择</button>
+            <button
+                class="btn btn-sm btn-danger-solid"
+                type="button"
+                :disabled="selectedIds.length === 0 || deleting"
+                @click="openDeleteConfirm"
+            >
+                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4.5 6.5h15M9.5 6.5V4.8A1.3 1.3 0 0 1 10.8 3.5h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7" />
+                    <path d="M6.5 6.5l.8 12.2A1.6 1.6 0 0 0 8.9 20.2h6.2a1.6 1.6 0 0 0 1.6-1.5l.8-12.2" />
+                </svg>
+                {{ deleting ? '删除中…' : '删除所选' }}
+            </button>
+        </div>
+
         <div class="scroll-area kb-scroll">
         <p v-if="loading" class="empty-hint">加载中…</p>
         <p v-else-if="error" class="empty-hint kb-error">{{ error }}</p>
@@ -114,15 +158,25 @@
             <p v-else>这里还没有文档。点击右上角「新建」开始记录团队知识。</p>
         </div>
 
-        <ul v-else class="doc-list">
+        <ul v-else class="doc-list" :class="{ 'is-selecting': selectMode }">
             <li
                 v-for="doc in items"
                 :key="doc.id"
                 class="doc-row"
-                tabindex="0"
-                @click="goDetail(doc.id)"
-                @keyup.enter="goDetail(doc.id)"
+                :class="{ 'is-selected': selectedIds.includes(doc.id) }"
+                :tabindex="selectMode ? -1 : 0"
+                @click="onRowClick(doc)"
+                @keyup.enter="onRowClick(doc)"
             >
+                <label v-if="selectMode" class="kb-check-cell" @click.stop>
+                    <input
+                        class="kb-check"
+                        type="checkbox"
+                        :checked="selectedIds.includes(doc.id)"
+                        :aria-label="'选择文档 ' + doc.title"
+                        @change="toggleSelect(doc.id)"
+                    />
+                </label>
                 <span class="doc-icon-wrap">
                     <DocIcon :size="18" />
                 </span>
@@ -149,6 +203,32 @@
         <div v-if="searchMode && searchTotal > items.length" class="kb-more">
             <button class="btn" type="button" @click="loadMoreSearch" :disabled="loading">加载更多</button>
         </div>
+        </div>
+
+        <!-- ═══ 批量删除二次确认 ═══ -->
+        <div v-if="showDeleteConfirm" class="overlay" @click.self="closeDeleteConfirm">
+            <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="kb-del-title">
+                <h2 class="dialog-title" id="kb-del-title">确认批量删除</h2>
+                <p class="dialog-text">
+                    即将删除 <strong>{{ selectedIds.length }}</strong> 个文档，此操作不可撤销。
+                </p>
+                <p v-if="cascadeWarnCount > 0" class="dialog-warn">
+                    其中包含页面树中的父页面，其下共 {{ cascadeWarnCount }} 个子页面也会一并删除。
+                </p>
+                <ul v-if="selectedTitles.length" class="kb-del-list">
+                    <li v-for="t in selectedTitles" :key="t" class="kb-del-item">{{ t }}</li>
+                    <li v-if="selectedIds.length > selectedTitles.length" class="kb-del-more">
+                        等 {{ selectedIds.length }} 个文档
+                    </li>
+                </ul>
+                <p v-if="deleteError" class="notice notice-error kb-del-error">{{ deleteError }}</p>
+                <div class="dialog-actions">
+                    <button class="btn" type="button" :disabled="deleting" @click="closeDeleteConfirm">取消</button>
+                    <button class="btn btn-danger-solid" type="button" :disabled="deleting" @click="doBatchDelete">
+                        {{ deleting ? '删除中…' : '确认删除' }}
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -200,8 +280,53 @@ export default {
             ioBusy: '',
             ioMessage: '',
             ioError: false,
-            exportMenu: false
+            exportMenu: false,
+            // 批量删除（F-KB-003 扩展）
+            selectMode: false,
+            selectedIds: [],
+            showDeleteConfirm: false,
+            deleting: false,
+            deleteError: ''
         };
+    },
+    computed: {
+        allSelected() {
+            return this.items.length > 0 && this.selectedIds.length === this.items.length;
+        },
+        someSelected() {
+            return this.selectedIds.length > 0 && !this.allSelected;
+        },
+        // 确认弹窗里最多列 8 个标题，避免长列表把弹窗撑爆
+        selectedTitles() {
+            return this.items
+                .filter((d) => this.selectedIds.includes(d.id))
+                .slice(0, 8)
+                .map((d) => d.title);
+        },
+        // 选中项里若含父页面，提示其子页面也会被级联删除。
+        // 页面树 this.pages 是扁平表（id + parent_id），据此递归估算后代数。
+        cascadeWarnCount() {
+            if (this.pages.length === 0) return 0;
+            const childOf = new Map();
+            for (const p of this.pages) {
+                if (p.parent_id == null) continue;
+                if (!childOf.has(p.parent_id)) childOf.set(p.parent_id, []);
+                childOf.get(p.parent_id).push(p.id);
+            }
+            // 从未选中的页面出发统计：选中的子页面本身已在删除清单里，不重复计数
+            const selected = new Set(this.selectedIds);
+            let count = 0;
+            const walk = (id) => {
+                for (const child of childOf.get(id) || []) {
+                    if (selected.has(child)) continue;
+                    selected.add(child);
+                    count += 1;
+                    walk(child);
+                }
+            };
+            for (const id of this.selectedIds) walk(id);
+            return count;
+        }
     },
     async mounted() {
         this._onExternalChange = () => {
@@ -209,12 +334,18 @@ export default {
             this.load();
         };
         window.addEventListener('kb-changed', this._onExternalChange);
+        // Esc 关闭删除确认框（与全局层级一致）
+        this._onEsc = (e) => {
+            if (e.key === 'Escape' && this.showDeleteConfirm && !this.deleting) this.closeDeleteConfirm();
+        };
+        window.addEventListener('keydown', this._onEsc);
         await this.loadTags();
         await this.loadPageMap();
         await this.load();
     },
     beforeUnmount() {
         window.removeEventListener('kb-changed', this._onExternalChange);
+        if (this._onEsc) window.removeEventListener('keydown', this._onEsc);
     },
     methods: {
         async loadPageMap() {
@@ -246,6 +377,7 @@ export default {
                 if (!res.ok) throw new Error(body?.message || '加载失败');
                 this.items = (body && body.items) || [];
                 this.total = (body && typeof body.total === 'number') ? body.total : this.items.length;
+                this.pruneSelection();
             } catch (e) {
                 this.error = e.network ? e.message : (e.message || '加载失败');
             } finally {
@@ -291,6 +423,7 @@ export default {
                 this.searchTotal = (body && typeof body.total === 'number') ? body.total : list.length;
                 if (offset > 0) this.items = this.items.concat(list);
                 else this.items = list;
+                this.pruneSelection();
             } catch (e) {
                 this.error = e.network ? e.message : (e.message || '搜索失败');
             } finally {
@@ -415,6 +548,80 @@ export default {
                 this.ioMessage = e.network ? e.message : (e.message || '导入失败，请稍后重试');
             } finally {
                 this.ioBusy = '';
+            }
+        },
+        // ── 批量删除 ──
+        toggleSelectMode() {
+            this.selectMode = !this.selectMode;
+            // 退出时一并清空，避免下次进入残留上次的勾选
+            if (!this.selectMode) this.clearSelection();
+        },
+        toggleSelect(id) {
+            const i = this.selectedIds.indexOf(id);
+            if (i >= 0) this.selectedIds.splice(i, 1);
+            else this.selectedIds.push(id);
+        },
+        toggleSelectAll() {
+            this.selectedIds = this.allSelected ? [] : this.items.map((d) => d.id);
+        },
+        clearSelection() {
+            this.selectedIds = [];
+            this.deleteError = '';
+        },
+        // 列表刷新（搜索/筛选）后，把已不在当前结果集中的勾选剔除，
+        // 否则「全选」判定会失真、删除清单也会含不可见项
+        pruneSelection() {
+            if (this.selectedIds.length === 0) return;
+            const visible = new Set(this.items.map((d) => d.id));
+            this.selectedIds = this.selectedIds.filter((id) => visible.has(id));
+        },
+        // 选择模式下点击行不再跳转详情，避免误触
+        onRowClick(doc) {
+            if (this.selectMode) {
+                this.toggleSelect(doc.id);
+                return;
+            }
+            this.goDetail(doc.id);
+        },
+        openDeleteConfirm() {
+            if (this.selectedIds.length === 0) return;
+            this.deleteError = '';
+            this.showDeleteConfirm = true;
+        },
+        closeDeleteConfirm() {
+            if (this.deleting) return;
+            this.showDeleteConfirm = false;
+            this.deleteError = '';
+        },
+        async doBatchDelete() {
+            if (this.deleting || this.selectedIds.length === 0) return;
+            const ids = this.selectedIds.slice();
+            this.deleting = true;
+            this.deleteError = '';
+            try {
+                const { res, body } = await api.batchDeleteDocuments(ids);
+                if (!res.ok) throw new Error((body && body.message) || '删除失败');
+                const deleted = (body && body.deleted) || 0;
+                const cascaded = (body && body.cascaded) || 0;
+                const missing = (body && body.missing) || [];
+
+                let msg = `已删除 ${deleted} 个文档`;
+                if (cascaded > 0) msg += `，连带 ${cascaded} 个子页面`;
+                if (missing.length > 0) msg += `；${missing.length} 个已不存在`;
+                msg += '。';
+                this.ioError = false;
+                this.ioMessage = msg;
+
+                this.showDeleteConfirm = false;
+                this.selectedIds = [];
+                // 页面树也变了，通知侧栏刷新
+                await this.loadPageMap();
+                await this.load();
+                window.dispatchEvent(new Event('kb-changed'));
+            } catch (e) {
+                this.deleteError = e.network ? e.message : (e.message || '删除失败，请稍后重试');
+            } finally {
+                this.deleting = false;
             }
         },
         goNew() {
@@ -546,6 +753,102 @@ export default {
 
 .kb-io-msg { flex: none; }
 
+/* ── 选择模式操作条 ────────────────────────────────────────────── */
+/* 贴在工具栏下方、列表之上。选中 0 项时按钮仍显示但置灰，
+   让用户始终知道「批量删除」在哪里，不会以为功能消失。 */
+.kb-selbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--accent-border);
+    background: var(--accent-soft);
+    animation: selbar-in var(--dur-base) var(--ease-out);
+}
+/* 只做淡入 + 2px 上移，不做缩放，避免列表整体跳动 */
+@keyframes selbar-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.kb-sel-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: var(--text-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+.kb-sel-count {
+    font-size: var(--text-secondary);
+    color: var(--text-primary);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+.kb-sel-spacer { flex: 1; }
+
+/* 复选框：尺寸 15px，用 accent-color 跟随主题，
+   避免为原生控件硬编码颜色（深浅色下都由浏览器 + accent 决定） */
+.kb-check {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.kb-check:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+    border-radius: 3px;
+}
+.kb-check-cell {
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+
+/* 「批量删除」处于激活态时给出 accent 底色，与工具栏其他按钮区分 */
+.btn.is-on {
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+.btn-danger-solid {
+    background: var(--danger);
+    border-color: transparent;
+    color: var(--text-inverse);
+}
+.btn-danger-solid:hover:not(:disabled) {
+    background: var(--danger);
+    filter: brightness(1.08);
+}
+.btn-danger-solid:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 确认弹窗里的标题清单：最多 8 条，超出用「等 N 个文档」收尾 */
+.kb-del-list {
+    margin: 10px 0 0;
+    padding: 9px 11px;
+    list-style: none;
+    max-height: 168px;
+    overflow-y: auto;
+    border-radius: var(--radius-sm);
+    background: var(--panel-background-hover);
+    border: 1px solid var(--panel-border);
+}
+.kb-del-item,
+.kb-del-more {
+    font-size: var(--text-secondary);
+    color: var(--text-secondary);
+    line-height: var(--line-relaxed);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.kb-del-more { color: var(--text-tertiary); font-style: italic; }
+.kb-del-error { margin-top: 10px; }
+
 /* ── 标签筛选 ────────────────────────────────────────────────────── */
 .kb-tag-filter {
     display: flex;
@@ -592,12 +895,17 @@ export default {
 .nt-link:hover { text-decoration: underline; }
 
 /* ── 文档行 ──────────────────────────────────────────────────────── */
-/* 五列 Grid：图标 / 标题+摘要 / 分类标签 / 时间 / 操作。
-   用 Grid 而非 Flex，保证时间戳右对齐成一条竖线，扫读更稳。*/
+/* 文档行用 Grid 而非 Flex，保证时间戳右对齐成一条竖线，扫读更稳。
+   默认五列：图标 / 标题+摘要 / 分类标签 / 时间 / 操作。*/
 .doc-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
+}
+/* 选择模式多出勾选列 → 六列。列宽定义放在这里而不是 .doc-row：
+   非选择模式不渲染勾选格，无需为它预留位置。*/
+.doc-list.is-selecting .doc-row {
+    grid-template-columns: 22px 28px minmax(180px, 1fr) auto 104px 30px;
 }
 .doc-row {
     display: grid;
@@ -614,6 +922,13 @@ export default {
                 border-color var(--dur-base) var(--ease-out),
                 transform var(--dur-base) var(--ease-out);
 }
+/* 选中态用 accent 描边 + 极淡底色，与 hover 的中性灰明确区分 */
+.doc-row.is-selected {
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+}
+/* 选中态不做上浮：勾选时行还在原位，位置感稳定 */
+.doc-row.is-selected:hover { transform: none; }
 .doc-row:hover {
     background: var(--panel-background-hover);
     border-color: var(--panel-border);
@@ -706,10 +1021,12 @@ export default {
 /* ── 响应式：窄屏优先牺牲标签区，再牺牲时间列 ────────────────────── */
 @media (max-width: 1500px) {
     .doc-row { grid-template-columns: 28px minmax(160px, 1fr) auto 30px; }
+    .doc-list.is-selecting .doc-row { grid-template-columns: 22px 28px minmax(140px, 1fr) auto 30px; }
     .doc-time { display: none; }
 }
 @media (max-width: 1340px) {
     .doc-row { grid-template-columns: 28px minmax(140px, 1fr) 30px; }
+    .doc-list.is-selecting .doc-row { grid-template-columns: 22px 28px minmax(120px, 1fr) 30px; }
     .doc-meta { display: none; }
     .kb-page { padding: 22px 20px 18px; }
 }
