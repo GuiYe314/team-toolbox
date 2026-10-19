@@ -136,16 +136,45 @@ await shot('shot-dark-kb.png');
 
 // ── 5. 分类数据保留（侧栏已移除，但数据与文档标签仍可用）──
 // 用户选择「只移除侧栏 UI」：分类表、文档 category_name、导入导出全部保留。
+//
+// 注意：这里**不能**断言「现有文档里有几篇带分类」——那是数据状态而非能力，
+// 演示数据被清理后就会假性失败（曾踩过：文档数变化导致断言误报）。
+// 改为自证式：现建一篇带分类的文档 → 断言列表可见 → 删除还原。
 r = await evalJs(`(async () => {
   const cats = await (await fetch('/api/categories')).json();
-  const docs = await (await fetch('/api/documents?limit=200')).json();
-  const withCat = (docs.items || []).filter(d => d.category_name);
-  const rowTags = document.querySelectorAll('.doc-row .tag-static').length;
-  return { cats: (cats || []).length, withCat: withCat.length, rowTags };
+  if (!Array.isArray(cats) || cats.length === 0) return { cats: 0, skipped: true };
+
+  const catId = cats[0].id;
+  const title = '__ui-verify-cat-probe__';
+  const created = await fetch('/api/documents', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title, content_md: '分类链路探针', category_id: catId })
+  });
+  const doc = await created.json();
+  if (!doc.id) return { cats: cats.length, createFailed: true };
+
+  // 列表不会因外部 API 写入自动刷新，必须重新拉取（直接调组件的 load逻辑不可靠，
+  // 这里触发一次搜索框输入即可走 load()，同时顺带验证筛选链路）
+  const input = document.querySelector('.kb-search-input');
+  input.value = '__ui-verify-cat-probe__';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise(r => setTimeout(r, 1200));
+
+  const row = [...document.querySelectorAll('.doc-row')]
+    .find(el => el.querySelector('.doc-title')?.textContent.includes(title));
+  const shown = row ? row.querySelector('.tag-static')?.textContent.trim() : null;
+
+  // 还原：清空搜索 + 删除探针文档
+  document.querySelector('.kb-search-clear')?.click();
+  await fetch('/api/documents/' + doc.id, { method: 'DELETE' });
+  await new Promise(r => setTimeout(r, 900));
+
+  return { cats: cats.length, expected: cats[0].name, shown };
 })()`);
 check('分类数据仍在（API 可读）', r.cats > 0, `${r.cats} 个分类`);
-check('文档仍带分类标签且列表中可见', r.withCat > 0 && r.rowTags > 0,
-    `${r.withCat} 篇有分类，列表显示 ${r.rowTags} 个标签`);
+check('新建文档的分类在列表中正确显示', r.shown === r.expected,
+    `期望「${r.expected}」，实际「${r.shown}」`);
 
 // ── 6. 响应式折叠 ──
 // 设计约定：≥1320 三栏（主导航/页面树/内容）；≤1320 折叠页面树变两栏。

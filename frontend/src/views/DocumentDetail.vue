@@ -15,6 +15,7 @@
                     </template>
                 </div>
                 <div class="topbar-actions" v-if="doc">
+                    <MarkdownHelp />
                     <button class="nt-ghost" type="button" @click="goEdit">编辑</button>
                     <button class="nt-ghost nt-ghost-danger" type="button" @click="askDelete">删除</button>
                 </div>
@@ -86,10 +87,11 @@
 <script>
 import { api } from '../api/client.js';
 import DocIcon from '../components/DocIcon.vue';
+import MarkdownHelp from '../components/MarkdownHelp.vue';
 
 export default {
     name: 'DocumentDetail',
-    components: { DocIcon },
+    components: { DocIcon, MarkdownHelp },
     data() {
         return {
             doc: null,

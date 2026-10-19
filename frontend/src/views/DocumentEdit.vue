@@ -74,6 +74,8 @@
                     :title="uploading ? '正在上传图片…' : '插入图片（也可直接粘贴截图或拖入图片）'"
                     @click="pickImage"
                 >{{ uploading ? '上传中…' : '🖼 插入图片' }}</button>
+                <!-- 语法速查：写正文时随手可查 -->
+                <MarkdownHelp compact />
                 <input
                     ref="imageInput"
                     class="image-input-hidden"
@@ -129,9 +131,11 @@
 
 <script>
 import { api } from '../api/client.js';
+import MarkdownHelp from '../components/MarkdownHelp.vue';
 
 export default {
     name: 'DocumentEdit',
+    components: { MarkdownHelp },
     data() {
         return {
             form: { title: '', content_md: '', category_id: null, parent_id: null, tagsText: '' },
