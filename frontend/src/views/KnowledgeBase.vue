@@ -96,7 +96,24 @@
                         />
                         <button v-if="searchQuery" class="kb-search-clear" type="button" @click="clearSearch">清除</button>
                     </div>
+                    <div class="kb-io">
+                        <button class="kb-io-btn" type="button" :disabled="ioBusy !== ''" @click="doExport">
+                            {{ ioBusy === 'export' ? '导出中…' : '导出' }}
+                        </button>
+                        <button class="kb-io-btn" type="button" :disabled="ioBusy !== ''" @click="pickImportFile">
+                            {{ ioBusy === 'import' ? '导入中…' : '导入' }}
+                        </button>
+                        <input
+                            ref="fileInput"
+                            class="kb-io-file"
+                            type="file"
+                            accept="application/json,.json"
+                            @change="onImportFile"
+                        />
+                    </div>
                 </div>
+
+                <p v-if="ioMessage" class="kb-io-msg" :class="{ 'kb-io-msg-error': ioError }">{{ ioMessage }}</p>
 
                 <p v-if="loading" class="nt-state">加载中…</p>
                 <p v-else-if="error" class="nt-state nt-state-error">{{ error }}</p>
@@ -166,7 +183,11 @@ export default {
                 searchQuery: '',
                 searchMode: false,
                 searchTotal: 0,
-                searchTimer: null
+                searchTimer: null,
+                // 备份导入 / 导出（F-KB-007、F-OPS-002）
+                ioBusy: '',
+                ioMessage: '',
+                ioError: false
             };
         },
         async mounted() {
@@ -307,6 +328,88 @@ export default {
         exitSearch() {
             this.searchMode = false;
             this.searchTotal = 0;
+        },
+        // ── 备份导入 / 导出（F-KB-007、F-OPS-002）──
+        // 注意：ioBusy 用空字符串表示“空闲”，绑定 :disabled 时必须显式比较，
+        // 不能直接写 :disabled="ioBusy"——Vue 3 中空字符串为真，会让按钮永久禁用。
+        // 导出：拉取全量快照 → 转 Blob → 触发本地下载，不经过服务端文件落盘
+        async doExport() {
+            if (this.ioBusy !== '') return;
+            this.ioBusy = 'export';
+            this.ioMessage = '';
+            try {
+                const { res, body } = await api.exportBackup();
+                if (!res.ok) throw new Error((body && body.message) || '导出失败');
+                const counts = (body && body.counts) || {};
+                const text = JSON.stringify(body, null, 2);
+                const blob = new Blob([text], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `team-toolbox-backup-${stamp}.json`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                // 立即 revoke 会让部分浏览器下载中断，延后释放
+                setTimeout(() => URL.revokeObjectURL(url), 10000);
+                this.ioError = false;
+                this.ioMessage = `已导出 ${counts.documents || 0} 个文档、${counts.categories || 0} 个分类。`;
+            } catch (e) {
+                this.ioError = true;
+                this.ioMessage = e.network ? e.message : (e.message || '导出失败，请稍后重试');
+            } finally {
+                this.ioBusy = '';
+            }
+        },
+        // 导入：选择本地备份文件
+        pickImportFile() {
+            if (this.ioBusy !== '') return;
+            if (this.$refs.fileInput) this.$refs.fileInput.click();
+        },
+        async onImportFile(e) {
+            const file = e.target && e.target.files && e.target.files[0];
+            // 每次处理完都清空 value，保证同一个文件可再次选择
+            if (e.target) e.target.value = '';
+            if (!file) return;
+
+            let snapshot;
+            try {
+                snapshot = JSON.parse(await file.text());
+            } catch {
+                this.ioError = true;
+                this.ioMessage = '备份文件不是合法的 JSON，请选择由本页导出的 .json 文件。';
+                return;
+            }
+            if (!snapshot || !Array.isArray(snapshot.documents)) {
+                this.ioError = true;
+                this.ioMessage = '备份文件缺少 documents 字段，可能不是本工具导出的备份。';
+                return;
+            }
+            const n = snapshot.documents.length;
+            if (!window.confirm(`即将导入 ${n} 个页面（合并模式，不会删除现有数据）。\n同父级下同名页面会自动跳过。是否继续？`)) {
+                return;
+            }
+
+            this.ioBusy = 'import';
+            this.ioMessage = '';
+            try {
+                const { res, body } = await api.importBackup(snapshot);
+                if (!res.ok) throw new Error((body && body.message) || '导入失败');
+                this.ioError = false;
+                this.ioMessage = `导入完成：新增 ${body.imported || 0} 个页面，跳过 ${body.skipped || 0} 个已存在页面，新建 ${body.categories_created || 0} 个分类。`;
+                // 通知页面树、分类、标签与详情页刷新
+                await this.loadCategories();
+                await this.loadTags();
+                await this.loadPageMap();
+                this.load();
+                window.dispatchEvent(new Event('kb-changed'));
+            } catch (e) {
+                this.ioError = true;
+                this.ioMessage = e.network ? e.message : (e.message || '导入失败，请稍后重试');
+            } finally {
+                this.ioBusy = '';
+            }
         },
         // ── 分类管理（F-KB-004）──
         startAddCategory() {
@@ -630,6 +733,47 @@ export default {
     display: flex;
     align-items: center;
     gap: 6px;
+}
+/* 备份导入 / 导出按钮组 */
+.kb-io {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 4px;
+}
+.kb-io-btn {
+    padding: 5px 12px;
+    font-size: 13px;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 7px;
+    cursor: pointer;
+}
+.kb-io-btn:hover:not(:disabled) {
+    border-color: var(--color-focus);
+    color: var(--color-focus);
+}
+.kb-io-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.kb-io-file {
+    display: none;
+}
+.kb-io-msg {
+    margin: 0 0 8px;
+    padding: 7px 10px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--color-success, #1a7f4b);
+    background: var(--color-surface-muted, #f2faf5);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+.kb-io-msg-error {
+    color: var(--color-danger, #c0392b);
+    background: var(--color-surface-muted, #fdf3f2);
 }
 .kb-search-input {
     width: 220px;

@@ -4,6 +4,30 @@
 
 ## 2026-10-19
 
+### 数据导入 / 导出（F-KB-007 + F-OPS-002，实现 + 浏览器验证，待 Codex 验收）
+
+### Added
+- `backend/src/store.js`：新增 `BACKUP_VERSION = 1`、`exportSnapshot()`、`importSnapshot()`。快照**刻意使用名称与相对引用而非自增 ID**——分类/标签按名称、文档父子关系按 `ref` / `parent_ref`——因此备份文件可跨库、跨机器还原。导出含分类、标签、文档正文、父子层级、创建/更新时间。
+- `backend/src/api.js`：新增 `GET /api/backup/export`、`POST /api/backup/import`。
+- `backend/src/index.js`：JSON body 限制由 2mb 放宽至 16mb（原值不足以承载较大知识库的导入）。
+- `frontend/src/api/client.js`：新增 `exportBackup()` / `importBackup(snapshot)` 封装。
+- `frontend/src/views/KnowledgeBase.vue`：列表工具栏新增「导出 / 导入」按钮。导出走 fetch → Blob → 本地下载 `team-toolbox-backup-<时间戳>.json`（不在服务端落盘）；导入走隐藏 file input → 解析 JSON → 校验 → `confirm` 确认 → POST → 提示新增/跳过/新建分类数量，并刷新分类、标签、页面树与列表（派发 `kb-changed`）。
+
+### Import 语义
+- **合并模式**，不删除既有数据。
+- 分类按名称复用，不存在则新建（受 50 上限约束）。
+- 文档以「同父级下同名」判定已存在并跳过；因此**重复导入同一份备份是幂等的**。
+- 逐层推进重建父子层级；父级缺失或成环的文档降级为顶层导入并记入 `details`，保证数据不丢。
+
+### Fixed
+- `importSnapshot` 幂等性缺陷：页面因「同父级同名」被跳过时未登记 `ref → 既有 ID` 映射，导致其子页面误判"父级不在备份中"而被降级为顶层导入，重复导入会产生重复页面。现已在跳过分支同步登记映射。
+- `KnowledgeBase.vue` 按钮永久禁用：`:disabled="ioBusy"` 中 `ioBusy` 以空字符串表示"空闲"，而 Vue 3 对空字符串求值为真，导致导出/导入按钮始终渲染为 `disabled`、完全无法点击。改为 `:disabled="ioBusy !== ''"`。
+
+### Verified
+- 后端 `npm test` **100/100 通过**（store 44 + api 56，含本次新增 4 组备份用例：快照可移植性、非法备份 400、导出→再导入全跳过幂等、父子层级与分类重建）。
+- curl 联调：导出 13 篇/3 分类；原样重导入 `imported:0, skipped:13`；新数据导入 3 篇并正确重建父子关系、分类归属与孤儿降级。
+- 真实浏览器 CDP 端到端 **10/10 PASS**：按钮渲染、初始未禁用、隐藏 file input、无文件时静默、导出生成 Blob 下载链接、导出后按钮状态恢复、导入备份文件成功、重复导入幂等、新页面导入后列表与页面树同步刷新、统计数字正确。控制台 0 异常，`npm run build` 通过。
+
 ### TASK-011 工具箱首个工具：比例锁定（实现 + 浏览器验证，待 Codex 验收）
 
 ### Added

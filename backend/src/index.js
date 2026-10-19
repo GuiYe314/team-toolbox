@@ -15,7 +15,8 @@ const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number(process.env.PORT) || 3000;
 
 const app = express();
-app.use(express.json({ limit: '2mb' }));
+// 导入备份会携带全部文档正文，默认 2mb 不足以承载较大知识库，这里放宽到 16mb。
+app.use(express.json({ limit: '16mb' }));
 
 // 业务接口（TASK-003）：文档 / 分类 / 标签的 CRUD 与关联读写
 registerApi(app, { getDb: getDefaultDatabase });

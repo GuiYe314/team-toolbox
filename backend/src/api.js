@@ -6,7 +6,7 @@
 //   - 解析并校验路径/查询参数
 //
 // 覆盖特性：F-KB-001（新建/读取）、F-KB-002（编辑 + 409 冲突）、F-KB-003（删除）、
-//           F-KB-004/F-KB-005 的“分类/标签关联读写支持”部分，以及 F-KB-006 搜索。
+//           F-KB-004/F-KB-005 的“分类/标签关联读写支持”部分，以及 F-KB-006 搜索、F-KB-007/F-OPS-002 备份导入导出。
 // 注意：标签名“英文小写合并”属于 F-KB-005，已在 TASK-006 落地。
 //
 // 统一响应体：
@@ -264,6 +264,21 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
         }
         store.deleteTag({ connection: getDb(), id });
         res.status(204).end();
+    }));
+
+    // ───────────────────── 备份导入 / 导出 ─────────────────────
+    // F-KB-007（导出为独立于引擎的备份格式）、F-OPS-002（备份/恢复）。
+    // 快照使用分类名与相对引用（ref / parent_ref），可跨库跨机还原，见 store.exportSnapshot。
+
+    // 导出全量快照（分类 / 标签 / 文档 + 正文 + 父子层级）
+    router.get('/backup/export', wrap((_req, res) => {
+        res.json(store.exportSnapshot({ connection: getDb() }));
+    }));
+
+    // 导入快照：合并模式，不删除既有数据；同级同标题跳过，返回导入统计
+    router.post('/backup/import', wrap((req, res) => {
+        const stats = store.importSnapshot({ connection: getDb(), snapshot: req.body });
+        res.json(stats);
     }));
 
     // ───────────────────── Markdown 安全渲染 ─────────────────────

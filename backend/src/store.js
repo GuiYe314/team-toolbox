@@ -750,3 +750,194 @@ export function getDocumentTags({ connection: db, document_id }) {
     `).all(document_id);
     return rows.map(r => r.name);
 }
+
+// ─────────────────────── 备份导入 / 导出（F-KB-007、F-OPS-002） ───────────────────────
+
+/** 备份文件格式版本；不兼容变更时递增并在此处做迁移分支 */
+export const BACKUP_VERSION = 1;
+
+/**
+ * 导出全量快照：分类、标签、文档（含父子层级与正文）。
+ *
+ * 快照刻意使用**名称**（分类名、标签名）与**相对引用**（ref / parent_ref）而非数据库自增 ID，
+ * 使备份文件可跨库、跨机器还原；ref 仅用于重建父子层级，不保证与导入后 ID 一致。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @returns {{ version: number, app: string, exported_at: string, counts: object, categories: object[], documents: object[] }}
+ */
+export function exportSnapshot({ connection: db }) {
+    const categories = listCategories({ connection: db });
+    const tags = listTags({ connection: db });
+    const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+
+    const docs = db.prepare(`
+        SELECT id, parent_id, title, content_md, category_id, created_at, updated_at
+        FROM documents ORDER BY id ASC
+    `).all();
+
+    const tagRows = db.prepare(`
+        SELECT dt.document_id AS document_id, t.name AS name
+        FROM document_tags dt JOIN tags t ON t.id = dt.tag_id
+        ORDER BY t.name ASC
+    `).all();
+    const tagsByDoc = new Map();
+    for (const row of tagRows) {
+        if (!tagsByDoc.has(row.document_id)) tagsByDoc.set(row.document_id, []);
+        tagsByDoc.get(row.document_id).push(row.name);
+    }
+
+    return {
+        version: BACKUP_VERSION,
+        app: 'team-toolbox',
+        exported_at: new Date().toISOString(),
+        counts: {
+            documents: docs.length,
+            categories: categories.length,
+            tags: tags.length
+        },
+        categories: categories.map((c) => ({ name: c.name })),
+        documents: docs.map((d) => ({
+            ref: d.id,
+            parent_ref: d.parent_id == null ? null : d.parent_id,
+            title: d.title,
+            content_md: d.content_md || '',
+            category: d.category_id == null ? null : (categoryNameById.get(d.category_id) || null),
+            tags: tagsByDoc.get(d.id) || [],
+            created_at: d.created_at,
+            updated_at: d.updated_at
+        }))
+    };
+}
+
+/**
+ * 导入快照（合并模式，不删除既有数据）：
+ *   - 分类：按名称复用，不存在则新建（受 50 上限约束，超限跳过）。
+ *   - 文档：同一父页面下标题相同视为已存在并跳过；否则新建并重建父子层级。
+ *   - 时间：新建后把 created_at / updated_at 还原为备份中的值（格式非法则保持当前时间）。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @param {object} config.snapshot - exportSnapshot 产出的 JSON
+ * @returns {{ imported: number, skipped: number, categories_created: number, details: object[] }}
+ * @throws {{ code: 'invalid_input', message: string }}
+ */
+export function importSnapshot({ connection: db, snapshot }) {
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+        throw errorMap(new Error('备份文件格式不正确'), '(store)', 'invalid_input');
+    }
+    if (!Array.isArray(snapshot.documents)) {
+        throw errorMap(new Error('备份文件中缺少 documents 文档数组'), '(store)', 'invalid_input');
+    }
+
+    const details = [];
+    const pushDetail = (kind, message) => {
+        if (details.length < 50) details.push({ kind, message });
+    };
+
+    // ── 分类：按名称复用或新建 ──
+    const categoryByName = new Map(listCategories({ connection: db }).map((c) => [c.name, c.id]));
+    let categoriesCreated = 0;
+    for (const raw of Array.isArray(snapshot.categories) ? snapshot.categories : []) {
+        const name = typeof raw === 'string' ? raw : (raw && typeof raw.name === 'string' ? raw.name : '');
+        const trimmed = name.trim();
+        if (!trimmed || categoryByName.has(trimmed)) continue;
+        try {
+            const created = createCategory({ connection: db, name: trimmed });
+            categoryByName.set(created.name, created.id);
+            categoriesCreated += 1;
+        } catch (err) {
+            // 超过 50 上限或重名等：跳过该分类，不影响文档导入（文档将落为未分类）
+            pushDetail('category_skipped', trimmed);
+        }
+    }
+
+    // ── 文档：校验 + 分层导入 ──
+    const candidates = [];
+    for (const d of snapshot.documents) {
+        if (!d || typeof d !== 'object' || typeof d.title !== 'string' || !d.title.trim()) {
+            pushDetail('invalid', '缺少标题的文档已跳过');
+            continue;
+        }
+        candidates.push({
+            ref: Number.isInteger(d.ref) ? d.ref : null,
+            parentRef: Number.isInteger(d.parent_ref) ? d.parent_ref : null,
+            title: d.title.trim(),
+            content_md: typeof d.content_md === 'string' ? d.content_md : '',
+            category: typeof d.category === 'string' && categoryByName.has(d.category.trim()) ? categoryByName.get(d.category.trim()) : null,
+            tags: Array.isArray(d.tags) ? d.tags.filter((t) => typeof t === 'string') : [],
+            created_at: typeof d.created_at === 'string' ? d.created_at : null,
+            updated_at: typeof d.updated_at === 'string' ? d.updated_at : null
+        });
+    }
+
+    const stats = { imported: 0, skipped: 0, categories_created: categoriesCreated, details };
+    const refToNewId = new Map();
+    const findByTitleAndParent = db.prepare(
+        'SELECT id FROM documents WHERE title = ? AND parent_id IS ?'
+    );
+    const restoreTime = db.prepare('UPDATE documents SET created_at = ?, updated_at = ? WHERE id = ?');
+    const isIsoish = (v) => typeof v === 'string' && !Number.isNaN(new Date(v).getTime());
+
+    // 同级同标题 → 跳过；父级尚未导入 → 留到下一轮（按层级推进）
+    const importOne = (doc, parentId) => {
+        const existing = findByTitleAndParent.get(doc.title, parentId);
+        if (existing) {
+            stats.skipped += 1;
+            pushDetail('skipped', `「${doc.title}」已存在，跳过`);
+            // 关键：跳过时也要登记 ref → 既有 ID，否则其子页面会误判“父级缺失”
+            // 而被降级为顶层导入，造成重复页面（重复导入不再幂等）。
+            if (doc.ref !== null) refToNewId.set(doc.ref, existing.id);
+            return;
+        }
+        let created;
+        try {
+            created = createDocument({
+                connection: db,
+                title: doc.title,
+                content_md: doc.content_md,
+                category_id: doc.category,
+                parent_id: parentId,
+                tags: doc.tags
+            });
+        } catch (err) {
+            stats.skipped += 1;
+            pushDetail('failed', `「${doc.title}」导入失败：${(err && err.message) || '未知原因'}`);
+            return;
+        }
+        if (doc.created_at && doc.updated_at && isIsoish(doc.created_at) && isIsoish(doc.updated_at)) {
+            restoreTime.run(doc.created_at, doc.updated_at, created.id);
+        }
+        stats.imported += 1;
+        if (doc.ref !== null) refToNewId.set(doc.ref, created.id);
+    };
+
+    const tx = db.transaction(() => {
+        let pending = candidates;
+        // 逐层推进：父级已导入（或本就是顶层）的文档先导入
+        for (let guard = 0; pending.length > 0 && guard <= 32; guard += 1) {
+            const deferred = [];
+            for (const doc of pending) {
+                if (doc.parentRef !== null && !refToNewId.has(doc.parentRef)) {
+                    deferred.push(doc);
+                    continue;
+                }
+                importOne(doc, doc.parentRef === null ? null : refToNewId.get(doc.parentRef));
+            }
+            if (deferred.length === pending.length) {
+                pending = deferred;
+                break; // 剩余文档的父级始终不在快照内（含环），下述按顶层导入
+            }
+            pending = deferred;
+        }
+        // 父级缺失或成环的文档：降级为顶层导入，保证数据不丢
+        for (const doc of pending) {
+            pushDetail('reparented', `「${doc.title}」的父页面不在备份中，已导入为顶层页面`);
+            importOne(doc, null);
+        }
+    });
+
+    tx();
+
+    return stats;
+}

@@ -66,5 +66,11 @@ export const api = {
     deleteCategory: (id) => request('DELETE', '/categories/' + id),
     listTags: () => request('GET', '/tags'),
     deleteTag: (id) => request('DELETE', '/tags/' + id),
-    renderMarkdown: (md) => request('POST', '/markdown/render', { md })
+    renderMarkdown: (md) => request('POST', '/markdown/render', { md }),
+
+    // ── 备份导入 / 导出 ──
+    // exportBackup 返回 { res, body }，body 即快照 JSON（调用方负责转 Blob 下载）
+    exportBackup: () => request('GET', '/backup/export'),
+    // importBackup 传解析后的快照对象；合并模式，不删除既有数据
+    importBackup: (snapshot) => request('POST', '/backup/import', snapshot)
 };

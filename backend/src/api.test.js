@@ -490,3 +490,93 @@ test('DELETE /api/documents/:id 级联删除子页面', async () => {
     const gone = await fetch(base + `/api/documents/${child.data.id}`);
     assert.equal(gone.status, 404);
 });
+
+// ───────────────────────── 备份导入 / 导出 ─────────────────────────
+
+test('GET /api/backup/export 返回可移植快照（名称 + ref 相对引用）', async () => {
+    const parent = await postDoc({ title: `导出父-${Date.now()}`, content_md: '导出正文' });
+    await postDoc({ title: `导出子-${Date.now()}`, parent_id: parent.data.id, tags: ['导出标签'] });
+
+    const r = await fetch(base + '/api/backup/export');
+    assert.equal(r.status, 200);
+    const snap = await r.json();
+    assert.equal(snap.app, 'team-toolbox');
+    assert.equal(snap.version, 1);
+    assert.ok(Array.isArray(snap.categories));
+    assert.ok(Array.isArray(snap.documents));
+
+    const node = snap.documents.find((d) => d.ref === parent.data.id);
+    assert.ok(node, '快照应包含新建页面');
+    assert.ok(node.title.startsWith('导出父-'), '快照应保留页面标题');
+    assert.equal(node.content_md, '导出正文');
+    assert.ok('created_at' in node, '快照应携带创建时间以便还原');
+
+    const child = snap.documents.find((d) => d.parent_ref === parent.data.id);
+    assert.ok(child, '子页面的 parent_ref 应指向父页ref');
+    assert.ok(child.tags.includes('导出标签'), '快照应包含标签名');
+});
+
+test('POST /api/backup/import 无效备份 → 400 invalid_input', async () => {
+    const bad = await fetch(base + '/api/backup/import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ hello: 'world' })
+    });
+    assert.equal(bad.status, 400);
+    assert.equal((await bad.json()).error, 'invalid_input');
+
+    const arr = await fetch(base + '/api/backup/import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify([1, 2, 3])
+    });
+    assert.equal(arr.status, 400);
+});
+
+test('导入 → 导出 → 再导入 幂等：重复导入全部跳过', async () => {
+    const snap = await (await fetch(base + '/api/backup/export')).json();
+
+    const again = await fetch(base + '/api/backup/import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(snap)
+    });
+    assert.equal(again.status, 200);
+    const stats = await again.json();
+    assert.equal(stats.imported, 0, '重复导入不应新增页面');
+    assert.equal(stats.skipped, snap.documents.length, '所有页面都应被跳过');
+    assert.equal(stats.categories_created, 0, '同名分类应复用');
+});
+
+test('导入快照可重建父子层级与分类', async () => {
+    const stamp = Date.now();
+    const snapshot = {
+        version: 1,
+        app: 'team-toolbox',
+        categories: [{ name: `导入分类-${stamp}` }],
+        documents: [
+            { ref: 1, parent_ref: null, title: `导入父-${stamp}`, content_md: 'P', category: `导入分类-${stamp}`, tags: [] },
+            { ref: 2, parent_ref: 1, title: `导入子-${stamp}`, content_md: 'C', category: null, tags: [] },
+            { ref: 3, parent_ref: 99, title: `导入孤儿-${stamp}`, content_md: 'O', category: null, tags: [] }
+        ]
+    };
+
+    const r = await fetch(base + '/api/backup/import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(snapshot)
+    });
+    assert.equal(r.status, 200);
+    const stats = await r.json();
+    assert.equal(stats.imported, 3);
+    assert.equal(stats.categories_created, 1);
+    assert.ok(stats.details.some((d) => d.kind === 'reparented'), '父级缺失的页面应被记录为顶层导入');
+
+    const tree = await (await fetch(base + '/api/documents?limit=200')).json();
+    const parent = tree.items.find((d) => d.title === `导入父-${stamp}`);
+    const child = tree.items.find((d) => d.title === `导入子-${stamp}`);
+    const orphan = tree.items.find((d) => d.title === `导入孤儿-${stamp}`);
+    assert.ok(child.parent_id === parent.id, '子页面应挂到父页面下');
+    assert.equal(parent.category_id !== null, true, '页面应归属导入的分类');
+    assert.equal(orphan.parent_id, null, '孤儿页面应作为顶层导入');
+});
