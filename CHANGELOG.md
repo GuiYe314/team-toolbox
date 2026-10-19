@@ -4,6 +4,24 @@
 
 ## 2026-10-19
 
+### TASK-003 文档 CRUD API（实现 + 接口测试，待 Codex 验收）
+
+### Added
+- `backend/src/api.js`：Express 路由器工厂 `registerApi(app, { getDb, basePath })`，实现文档（增/查/列表/改/删）、分类（增/查/删）、标签（查/删）的 HTTP 接口；统一错误码→HTTP 状态码映射（`sendError`：invalid_input→400、not_found→404、conflict→409、constraint_failed→409、其余→500），409 冲突响应附带服务端当前快照 `current`；`detail` 仅非生产环境暴露。
+- `backend/src/index.js`：在 `express.json({ limit: '2mb' })` 之后挂载 `registerApi`，业务接口上线（原健康检查与 `_dev/render-markdown` 保留）。
+- `backend/src/api.test.js`：接口级自动化测试（node:test + 临时 http server + fetch），23 tests 全过，覆盖 F-KB-001/002/003 的 API 部分与分类/标签关联读写；含 409 冲突、`current` 快照、分页、非法 ID、空标题/超长正文 400、重名 409 等用例。
+- `backend/package.json`：`test` 脚本改为 `node --test src/store.test.js src/api.test.js`。
+
+### Verified
+- `npm test` → 5 suites / 57 tests（store 34 + api 23），**全部 pass / 0 fail**。
+- 真实后端联调（curl）：分类创建 201；文档创建（带 category_id/tags）201；读取 200 含 tags；列表返回 `{ total, items }`（含 category_name/tags）；旧版本更新 **409 + current 快照**；正确版本更新 200 version 递增；空标题 400；删除 204 后 GET 404。验证后已清空开发库测试数据。
+- 开发库 `data/team-toolbox.sqlite3` 联调前后均为空库（测试数据已清理）。
+
+### Notes
+- 依用户 2026-10-19 "继续" 指令，在 TASK-002 自测通过基础上推进 TASK-003；**TASK-002 的 Codex 正式验收仍待补**，不宣称验收通过。
+- 范围边界：标签小写合并（F-KB-005）、按标签 AND 过滤、分类重命名、搜索（F-KB-006）、首页最近更新（F-KB-008）属 TASK-006/007/008，本次未做；前端接入 UI 属 TASK-005，接口尚未被 UI 消费。
+- 未提交 Git（与 TASK-002 修复一并待用户决定 push）；WorkBuddy 使用模型：MiniMax-M3；积分未提供，无法确认。
+
 ### TASK-002 修复：测试可运行 + 连接工厂支持 path 注入
 
 ### Fixed
