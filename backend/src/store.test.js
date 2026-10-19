@@ -683,6 +683,67 @@ describe('文档存储层', () => {
         assert.ok(onlyA.items.find((i) => i.id === a.id));
         assert.ok(!onlyA.items.find((i) => i.id === bc.id));
     });
+
+    // ── 搜索（F-KB-006） ──
+
+    it('searchDocuments：按标题关键词命中', () => {
+        const d = store.createDocument({ connection: db, title: 'Vue 组件规范', content_md: '正文无关内容' });
+        const r = store.searchDocuments({ connection: db, keyword: '组件规范' });
+        assert.ok(r.items.find((i) => i.id === d.id));
+    });
+
+    it('searchDocuments：按正文关键词命中', () => {
+        const d = store.createDocument({ connection: db, title: '标题无关键词', content_md: '这里讨论 Shader Graph 的用法与节点' });
+        const r = store.searchDocuments({ connection: db, keyword: 'Shader' });
+        assert.ok(r.items.find((i) => i.id === d.id));
+    });
+
+    it('searchDocuments：未命中返回空', () => {
+        const r = store.searchDocuments({ connection: db, keyword: 'zzz_无此词_zzz' });
+        assert.strictEqual(r.total, 0);
+        assert.deepStrictEqual(r.items, []);
+    });
+
+    it('searchDocuments：空关键词返回空（不发起全表匹配）', () => {
+        const r = store.searchDocuments({ connection: db, keyword: '   ' });
+        assert.strictEqual(r.total, 0);
+        assert.deepStrictEqual(r.items, []);
+    });
+
+    it('searchDocuments：大小写不敏感', () => {
+        const d = store.createDocument({ connection: db, title: 'React 入门', content_md: 'x' });
+        const r = store.searchDocuments({ connection: db, keyword: 'react' });
+        assert.ok(r.items.find((i) => i.id === d.id));
+    });
+
+    it('searchDocuments：LIKE 通配符按字面量匹配（% _ \\ 不触发通配）', () => {
+        const d = store.createDocument({ connection: db, title: '进度 100% 完成', content_md: 'x' });
+        // 关键词含 %：若被当作通配符会匹配所有文档；正确行为应只匹配字面 100%
+        const r = store.searchDocuments({ connection: db, keyword: '100%' });
+        assert.strictEqual(r.total, 1);
+        assert.strictEqual(r.items[0].id, d.id);
+    });
+
+    it('searchDocuments：返回摘要片段 snippet', () => {
+        const d = store.createDocument({
+            connection: db, title: '片段测试', content_md: '这是一段需要被摘要提取的正文内容用于验证 snippet 生成'
+        });
+        const r = store.searchDocuments({ connection: db, keyword: '摘要' });
+        const hit = r.items.find((i) => i.id === d.id);
+        assert.ok(hit && typeof hit.snippet === 'string' && hit.snippet.length > 0);
+    });
+
+    it('searchDocuments：结果按 updated_at 倒序', () => {
+        const a = store.createDocument({ connection: db, title: '排序A 公共词', content_md: 'x' });
+        const b = store.createDocument({ connection: db, title: '排序B 公共词', content_md: 'x' });
+        // 显式设置不同更新时间，保证排序可判定
+        db.prepare("UPDATE documents SET updated_at = '2020-01-01T00:00:00Z' WHERE id = ?").run(a.id);
+        db.prepare("UPDATE documents SET updated_at = '2026-01-01T00:00:00Z' WHERE id = ?").run(b.id);
+        const r = store.searchDocuments({ connection: db, keyword: '公共词' });
+        const ids = r.items.map((i) => i.id);
+        assert.ok(ids.includes(a.id) && ids.includes(b.id));
+        assert.strictEqual(r.items[0].id, b.id, '更新的应排在前面');
+    });
 });
 
 // ─────────────────────────────────────────────────

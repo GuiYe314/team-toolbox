@@ -372,6 +372,75 @@ export function listDocuments({ connection: db, filter = {} }) {
 }
 
 /**
+ * 生成搜索摘要片段（F-KB-006）：在正文（折叠为单行）中定位关键词（不区分大小写），
+ * 取其前后窗口；未命中则取正文前 N 个字符。去除换行、折叠空白，避免渲染原始 Markdown 换行。
+ *
+ * @param {string} content 正文 Markdown
+ * @param {string} keyword 原始关键词（未转义）
+ * @returns {string}
+ */
+function makeSnippet(content, keyword) {
+    if (!content) return '';
+    const oneLine = String(content).replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!keyword) return oneLine.slice(0, 120);
+    const idx = oneLine.toLowerCase().indexOf(keyword.toLowerCase());
+    if (idx < 0) return oneLine.slice(0, 120);
+    const radius = 50;
+    const start = Math.max(0, idx - radius);
+    const end = Math.min(oneLine.length, idx + keyword.length + radius);
+    let snippet = oneLine.slice(start, end);
+    if (start > 0) snippet = '…' + snippet;
+    if (end < oneLine.length) snippet = snippet + '…';
+    return snippet;
+}
+
+/**
+ * 关键词搜索（F-KB-006）：标题或正文包含关键词（不区分大小写，参数化 LIKE）。
+ * 关键词中的 LIKE 通配符（%、_、\）会被转义为字面量，防止意外通配与注入。
+ * 结果按 updated_at 倒序、分页返回，附带摘要片段 snippet。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @param {string} config.keyword 原始关键词（会做首尾去空白）
+ * @param {number} [config.limit=20]
+ * @param {number} [config.offset=0]
+ * @returns {{ total:number, items:object[] }}
+ */
+export function searchDocuments({ connection: db, keyword, limit = 20, offset = 0 }) {
+    const kw = (keyword || '').trim();
+    if (!kw) return { total: 0, items: [] };
+    // 转义 LIKE 通配符，使其按字面量匹配（配合 ESCAPE '\'）
+    const escaped = kw
+        .replace(/\\/g, '\\\\')
+        .replace(/%/g, '\\%')
+        .replace(/_/g, '\\_');
+    const params = [`%${escaped}%`, `%${escaped}%`];
+    const where = `WHERE (d.title LIKE ? ESCAPE '\\' OR d.content_md LIKE ? ESCAPE '\\')`;
+
+    const total = db.prepare(`SELECT COUNT(*) as n FROM documents d ${where}`).get(...params).n;
+
+    const raw = db.prepare(`
+        SELECT d.*, c.name as category_name,
+            GROUP_CONCAT(t.name, ',') as tag_names
+        FROM documents d
+        LEFT JOIN categories c ON c.id = d.category_id
+        LEFT JOIN document_tags dt ON dt.document_id = d.id
+        LEFT JOIN tags t ON t.id = dt.tag_id
+        ${where}
+        GROUP BY d.id
+        ORDER BY d.updated_at DESC
+        LIMIT ? OFFSET ?
+    `).all(...params, limit, offset);
+
+    const items = raw.map((row) => ({
+        ...row,
+        tags: row.tag_names ? row.tag_names.split(',') : [],
+        snippet: makeSnippet(row.content_md, kw)
+    }));
+    return { total, items };
+}
+
+/**
  * 页面树数据：只取渲染侧边栏所需字段，按创建顺序稳定排序。
  * 由前端组装成嵌套结构（后端不递归 JSON，避免深层页面反复遍历）。
  *

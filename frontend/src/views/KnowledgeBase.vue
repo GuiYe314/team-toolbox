@@ -84,15 +84,26 @@
                 </div>
 
                 <div class="kb-toolbar">
-                    <span class="kb-count">{{ total }} 个文档</span>
-                    <span class="kb-search-hint">搜索即将在 TASK-007 开放</span>
+                    <span class="kb-count" v-if="!searchMode">{{ total }} 个文档</span>
+                    <span class="kb-count" v-else>搜索「{{ searchQuery }}」· {{ searchTotal }} 条结果</span>
+                    <div class="kb-search">
+                        <input
+                            class="kb-search-input"
+                            v-model="searchQuery"
+                            type="search"
+                            placeholder="搜索标题或正文…"
+                            @input="onSearchInput"
+                        />
+                        <button v-if="searchQuery" class="kb-search-clear" type="button" @click="clearSearch">清除</button>
+                    </div>
                 </div>
 
                 <p v-if="loading" class="nt-state">加载中…</p>
                 <p v-else-if="error" class="nt-state nt-state-error">{{ error }}</p>
                 <p v-else-if="items.length === 0" class="nt-empty">
                     <span class="nt-empty-emoji">🗒️</span>
-                    这里还没有文档。点击右上角「新建」开始记录团队知识。
+                    <template v-if="searchMode">未找到与「{{ searchQuery }}」相关的文档。<button class="nt-link" type="button" @click="clearSearch">查看全部文档</button></template>
+                    <template v-else>这里还没有文档。点击右上角「新建」开始记录团队知识。</template>
                 </p>
 
                 <ul v-else class="nt-doc-list">
@@ -105,6 +116,7 @@
                         <DocIcon class="doc-emoji" :size="16" />
                         <div class="doc-info">
                             <span class="doc-title">{{ doc.title }}</span>
+                            <span v-if="doc.snippet" class="doc-snippet">{{ doc.snippet }}</span>
                             <span class="doc-sub">
                                 <span v-if="doc.parent_id" class="doc-path">{{ pathLabel(doc.parent_id) }}</span>
                                 <span v-if="doc.category_name" class="nt-pill">{{ doc.category_name }}</span>
@@ -118,6 +130,10 @@
                         </div>
                     </li>
                 </ul>
+
+                <p v-if="searchMode && searchTotal > items.length" class="kb-more">
+                    <button class="nt-btn" type="button" @click="loadMoreSearch" :disabled="loading">加载更多</button>
+                </p>
             </section>
         </div>
     </div>
@@ -145,7 +161,12 @@ export default {
                 editingCatId: null,
                 editingCatName: '',
                 addCatMode: false,
-                newCatName: ''
+                newCatName: '',
+                // 搜索（F-KB-006）
+                searchQuery: '',
+                searchMode: false,
+                searchTotal: 0,
+                searchTimer: null
             };
         },
         async mounted() {
@@ -227,6 +248,7 @@ export default {
         },
         selectCategory(id) {
             this.selectedCategory = id;
+            this.exitSearch();
             this.load();
         },
         // ── 标签筛选（F-KB-005）──
@@ -234,11 +256,57 @@ export default {
             const i = this.selectedTags.indexOf(name);
             if (i >= 0) this.selectedTags.splice(i, 1);
             else this.selectedTags.push(name);
+            this.exitSearch();
             this.load();
         },
         clearTagFilter() {
             this.selectedTags = [];
+            this.exitSearch();
             this.load();
+        },
+        // ── 搜索（F-KB-006）──
+        onSearchInput() {
+            // 防抖：停止输入 300ms 后发起搜索；空关键词回到普通列表
+            if (this.searchTimer) clearTimeout(this.searchTimer);
+            this.searchTimer = setTimeout(() => {
+                const q = this.searchQuery.trim();
+                if (!q) {
+                    this.exitSearch();
+                    this.load();
+                } else {
+                    this.searchMode = true;
+                    this.doSearch(0);
+                }
+            }, 300);
+        },
+        async doSearch(offset) {
+            if (!this.searchMode) return;
+            this.loading = true;
+            this.error = '';
+            try {
+                const { res, body } = await api.search(this.searchQuery.trim(), { limit: 20, offset });
+                if (!res.ok) throw new Error(body?.message || '搜索失败');
+                const list = (body && body.items) || [];
+                this.searchTotal = (body && typeof body.total === 'number') ? body.total : list.length;
+                if (offset > 0) this.items = this.items.concat(list);
+                else this.items = list;
+            } catch (e) {
+                this.error = e.network ? e.message : (e.message || '搜索失败');
+            } finally {
+                this.loading = false;
+            }
+        },
+        loadMoreSearch() {
+            this.doSearch(this.items.length);
+        },
+        clearSearch() {
+            this.searchQuery = '';
+            this.exitSearch();
+            this.load();
+        },
+        exitSearch() {
+            this.searchMode = false;
+            this.searchTotal = 0;
         },
         // ── 分类管理（F-KB-004）──
         startAddCategory() {
@@ -558,9 +626,61 @@ export default {
     color: var(--color-text-muted);
     font-weight: 500;
 }
-.kb-search-hint {
+.kb-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.kb-search-input {
+    width: 220px;
+    max-width: 50vw;
+    padding: 5px 10px;
+    font-size: 13px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 7px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    outline: none;
+}
+.kb-search-input:focus-visible {
+    border-color: var(--color-focus);
+    outline: 2px solid var(--color-focus);
+    outline-offset: 1px;
+}
+.kb-search-clear {
+    border: none;
+    background: none;
+    color: var(--color-focus);
     font-size: 12px;
-    color: var(--color-text-faint);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 5px;
+}
+.kb-search-clear:hover {
+    text-decoration: underline;
+}
+.doc-snippet {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.kb-more {
+    text-align: center;
+    padding: 14px 0 4px;
+}
+.nt-link {
+    border: none;
+    background: none;
+    color: var(--color-focus);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+}
+.nt-link:hover {
+    text-decoration: underline;
 }
 
 .nt-doc-list {

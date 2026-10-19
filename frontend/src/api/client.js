@@ -47,6 +47,13 @@ async function request(method, path, payload) {
 
 export const api = {
     listDocuments: (query = '') => request('GET', '/documents' + query),
+    search: (q, { limit = 20, offset = 0 } = {}) => {
+        const params = new URLSearchParams();
+        params.set('q', q);
+        params.set('limit', String(limit));
+        params.set('offset', String(offset));
+        return request('GET', '/search?' + params.toString());
+    },
     listDocumentTree: () => request('GET', '/documents/tree'),
     listChildren: (id) => request('GET', '/documents/' + id + '/children'),
     getDocument: (id) => request('GET', '/documents/' + id),

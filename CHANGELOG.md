@@ -4,6 +4,29 @@
 
 ## 2026-10-19
 
+### TASK-007 搜索（实现 + 单测/浏览器验证，待 Codex 验收）
+
+### Added
+- `backend/src/store.js`：新增 `searchDocuments`（关键词参数化 `LIKE` 匹配标题或正文，不区分大小写；`%`/`_`/`\` 通配符转义为字面量防注入；空关键词返回空；结果按 `updated_at` 倒序、分页；附带 `snippet` 摘要片段）。
+- `backend/src/api.js`：新增 `GET /search?q=&limit=&offset=`（空关键词不发起查询返回空结果）；文件头注释覆盖 F-KB-006。
+- `frontend/src/api/client.js`：新增 `api.search(q, {limit, offset})`。
+- `frontend/src/views/KnowledgeBase.vue`：用真实搜索框替换「搜索即将在 TASK-007 开放」占位；输入防抖 300ms 切换搜索模式，结果渲染标题/摘要/分类/标签；无结果空状态；分页「加载更多」；「清除」回列表；点击分类/标签 chip 退出搜索。
+
+### Changed
+- `docs/ARCHITECTURE.md` 第 9 节：搜索实现由"待决策"明确为参数化 `LIKE` 子串匹配方案（未引入 FTS5）。
+
+### Verified
+- `npm test`（backend）→ 5 suites / **93 tests 全过 / 0 fail**（store 34 + api 23 + 页面树 12 + 分类标签 +11 + 搜索 +8）。
+- `npm run build`（frontend）→ 构建通过（KnowledgeBase 分块 10.93kB）。
+- 真实后端联调（curl，dev 库演示数据）：`?q=规范`→3 篇；`?q=Unity`→1 篇；`?q=50%` 特殊字符→0 不报错；空关键词→`{total:0,items:[]}`。
+- 真实 Edge 浏览器（puppeteer-core，脚本置于 `.workbuddy/ui-verify` 不入库）8 项交互断言全过（搜索框、搜索「规范」→3 条且计数文案正确、清空回列表、无结果空状态、特殊字符「50%」不崩溃、清除按钮）。
+- 中文搜索采用子串 `LIKE`，契合中文无词边界；通配符转义防注入。
+
+### Notes
+- 覆盖 F-KB-006（搜索）。搜索与分类/标签过滤相互独立，未做组合筛选。
+- 仍待 Codex 验收；浏览器交互式视觉验收需在浏览器手工确认。
+- 未提交 Git（与既有改动一并待用户决定 push）；WorkBuddy 使用模型：MiniMax-M3；积分未提供，无法确认。
+
 ### TASK-006 分类与标签（实现 + 单测/浏览器验证，待 Codex 验收）
 
 ### Added

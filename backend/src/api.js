@@ -6,8 +6,8 @@
 //   - 解析并校验路径/查询参数
 //
 // 覆盖特性：F-KB-001（新建/读取）、F-KB-002（编辑 + 409 冲突）、F-KB-003（删除）、
-//           F-KB-004/F-KB-005 的“分类/标签关联读写支持”部分。
-// 注意：标签名“英文小写合并”属于 F-KB-005，留给 TASK-006；本任务仅提供读写关联能力。
+//           F-KB-004/F-KB-005 的“分类/标签关联读写支持”部分，以及 F-KB-006 搜索。
+// 注意：标签名“英文小写合并”属于 F-KB-005，已在 TASK-006 落地。
 //
 // 统一响应体：
 //   成功：{ ...data }
@@ -121,6 +121,24 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
             if (tagArr.length > 0) filter.tags = tagArr;
         }
         res.json(store.listDocuments({ connection: getDb(), filter }));
+    }));
+
+    // 搜索（F-KB-006）：关键词匹配标题或正文（参数化 LIKE，转义通配符），
+    // 结果按 updated_at 倒序、分页。空关键词不发起查询，直接返回空结果。
+    router.get('/search', wrap((req, res) => {
+        const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+        if (!q) {
+            return res.json({ total: 0, items: [], query: '' });
+        }
+        const limit = clampInt(req.query.limit, 20, 1, 100);
+        const offset = clampInt(req.query.offset, 0, 0, 100000);
+        const { total, items } = store.searchDocuments({
+            connection: getDb(),
+            keyword: q,
+            limit,
+            offset
+        });
+        res.json({ total, items, query: q });
     }));
 
     // 页面树（侧边栏用；必须在 /documents/:id 之前注册，避免被当成 ID）

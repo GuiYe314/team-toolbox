@@ -345,6 +345,50 @@ test('GET /api/documents?tags= 按标签 AND 过滤', async () => {
     assert.equal(data2.items.length, 2, '仅 zalpha 应命中 2 篇');
 });
 
+// ───────────────────────── 搜索（F-KB-006） ─────────────────────────
+
+test('GET /api/search 按标题关键词命中', async () => {
+    await postDoc({ title: '搜索标题命中篇', content_md: '无关正文' });
+    const r = await fetch(base + '/api/search?q=' + encodeURIComponent('标题命中'));
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.ok(data.items.length >= 1);
+    assert.ok(data.items.some((i) => i.title.includes('搜索标题命中篇')));
+    assert.equal(data.query, '标题命中');
+});
+
+test('GET /api/search 按正文关键词命中', async () => {
+    await postDoc({ title: '标题无关键词', content_md: '正文里藏着 Shader Graph 字样' });
+    const r = await fetch(base + '/api/search?q=' + encodeURIComponent('Shader'));
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.ok(data.items.some((i) => i.content_md.includes('Shader Graph')));
+});
+
+test('GET /api/search 空关键词不发起查询（返回空结果 200）', async () => {
+    const r = await fetch(base + '/api/search?q=' + encodeURIComponent('   '));
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.equal(data.total, 0);
+    assert.deepStrictEqual(data.items, []);
+});
+
+test('GET /api/search 特殊字符（% _ \\）按字面量匹配，不触发通配也不报错', async () => {
+    await postDoc({ title: '完成度 50% 达标', content_md: 'x' });
+    const r = await fetch(base + '/api/search?q=' + encodeURIComponent('50%'));
+    assert.equal(r.status, 200, '特殊字符不应导致 500');
+    const data = await r.json();
+    assert.equal(data.total, 1);
+    assert.equal(data.items[0].title, '完成度 50% 达标');
+});
+
+test('GET /api/search 未命中返回空结果（非报错）', async () => {
+    const r = await fetch(base + '/api/search?q=' + encodeURIComponent('绝对无此词zzz'));
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.equal(data.total, 0);
+});
+
 // ───────────────────────── 页面树（迁移 002） ─────────────────────────
 
 test('POST /api/documents 带 parent_id → 201 并回显 parent_id', async () => {
