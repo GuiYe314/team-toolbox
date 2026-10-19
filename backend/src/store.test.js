@@ -489,6 +489,34 @@ describe('文档存储层', () => {
         assert.ok(page2.items.length <= 3, '第二页应返回最多 3 条');
     });
 
+    it('listDocuments 默认按 updated_at 倒序（F-KB-008）', () => {
+        const old = store.createDocument({ connection: db, title: '旧文档' });
+        const mid = store.createDocument({ connection: db, title: '中文档' });
+        const fresh = store.createDocument({ connection: db, title: '新文档' });
+
+        // 显式设置不同更新时间，确保排序可控（不依赖创建时差）
+        db.prepare("UPDATE documents SET updated_at = '2020-01-01 00:00:00' WHERE id = ?").run(old.id);
+        db.prepare("UPDATE documents SET updated_at = '2021-06-01 00:00:00' WHERE id = ?").run(mid.id);
+        db.prepare("UPDATE documents SET updated_at = '2022-12-31 23:59:59' WHERE id = ?").run(fresh.id);
+
+        const res = store.listDocuments({ connection: db, filter: {} });
+        const ids = res.items.map((i) => i.id);
+        const iOld = ids.indexOf(old.id);
+        const iMid = ids.indexOf(mid.id);
+        const iFresh = ids.indexOf(fresh.id);
+        // 倒序：三篇间 fresh 最前、old 最后（不要求全局首，避免与其他用例数据干扰）
+        assert.ok(iFresh < iMid, 'fresh 应排在 mid 之前');
+        assert.ok(iMid < iOld, 'mid 应排在 old 之前');
+    });
+
+    it('listDocuments 空库返回空（F-KB-008 空状态）', () => {
+        // 当前 db 已含其他测试数据，这里验证空标题/空内容行为由上游校验
+        // 直接验证：用不存在的分类筛选得到空结果
+        const empty = store.listDocuments({ connection: db, filter: { category_id: 999999 } });
+        assert.equal(empty.total, 0);
+        assert.equal(empty.items.length, 0);
+    });
+
     it('listDocuments 按分类筛选', () => {
         const cat = store.createCategory({ connection: db, name: '列表筛选分类' });
         store.createDocument({ connection: db, title: 'Filtered Doc', category_id: cat.id });

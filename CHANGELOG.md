@@ -4,6 +4,22 @@
 
 ## 2026-10-19
 
+### TASK-008 首页最近更新（实现 + 单测/浏览器验证，待 Codex 验收）
+
+### Changed
+- `frontend/src/views/Home.vue`：「最近更新」区块由静态占位改为真实数据驱动——`mounted` 调用 `api.listDocuments('?limit=20&offset=0')`，渲染标题/分类 pill/标签 pill/更新时间；「查看更多」增量分页（`hasMore = recent.length < recentTotal`）；点击条目跳 `/kb/:id`；空库空状态引导「新建文档」（跳 `/kb/new`）；加载中/失败重试状态齐备，失败不丢已有列表。修复初版误用 `res.items`/`res.total`（应为 `body.items`/`body.total`）导致列表恒空的 bug。
+
+### Verified
+- `npm test`（backend）→ 5 suites / **96 tests 全过 / 0 fail**（store 34 + api 23 + 页面树 12 + 分类标签 +11 + 搜索 +8 + 默认排序/分页/空结果 +4）。
+- `npm run build`（frontend）→ 构建通过（Home 分块 4.34kB JS / 4.61kB CSS）。
+- 真实 Edge 浏览器（puppeteer-core，脚本置于 `.workbuddy/ui-verify` 不入库）9 项交互断言全过：populated 场景首屏 20 条、首条标题非空、含分类/标签 pill、「查看更多」点击后 25 条、点击跳详情；empty 场景空状态渲染、含「新建文档」按钮、点击跳 `/kb/new`。
+- 后端无新增代码：`store.listDocuments` 默认 `ORDER BY updated_at DESC`、limit 20 即满足 F-KB-008。
+
+### Notes
+- 覆盖 F-KB-008（首页最近更新）。首页"最近更新"与搜索、分类/标签筛选相互独立，符合 F-KB-008 仅要求默认视图展示最近更新的边界。
+- 仍待 Codex 验收；浏览器交互式视觉验收需在浏览器手工确认。
+- 未提交 Git（与既有改动一并待用户决定 push）；WorkBuddy 使用模型：MiniMax-M3；积分未提供，无法确认。
+
 ### TASK-007 搜索（实现 + 单测/浏览器验证，待 Codex 验收）
 
 ### Added

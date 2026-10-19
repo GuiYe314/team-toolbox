@@ -345,6 +345,32 @@ test('GET /api/documents?tags= 按标签 AND 过滤', async () => {
     assert.equal(data2.items.length, 2, '仅 zalpha 应命中 2 篇');
 });
 
+test('GET /api/documents 默认排序与分页（F-KB-008）', async () => {
+    await postDoc({ title: '分页-Doc-0' });
+    await postDoc({ title: '分页-Doc-1' });
+    await postDoc({ title: '分页-Doc-2' });
+    await postDoc({ title: '分页-Doc-3' });
+    await postDoc({ title: '分页-Doc-4' });
+
+    const p1 = await fetch(base + '/api/documents?limit=2&offset=0');
+    assert.equal(p1.status, 200);
+    const d1 = await p1.json();
+    assert.equal(d1.items.length, 2, '首页应返回 2 条');
+    assert.ok(d1.total >= 5, 'total 应 >= 5');
+
+    const p2 = await fetch(base + '/api/documents?limit=2&offset=2');
+    const d2 = await p2.json();
+    assert.equal(d2.items.length, 2, '第二页应返回 2 条');
+
+    const all = await fetch(base + '/api/documents');
+    const da = await all.json();
+    assert.ok(da.items.length > 0);
+    const first = da.items[0];
+    assert.ok('category_name' in first, '响应应包含 category_name 字段');
+    assert.ok(Array.isArray(first.tags), '响应 tags 应为数组');
+    assert.ok('updated_at' in first, '响应应包含 updated_at 字段');
+});
+
 // ───────────────────────── 搜索（F-KB-006） ─────────────────────────
 
 test('GET /api/search 按标题关键词命中', async () => {

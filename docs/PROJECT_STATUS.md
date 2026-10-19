@@ -1,6 +1,6 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
-- 更新日期：2026-10-19（TASK-007 搜索实现 + 后端 93/93 单测通过 + 真实浏览器 8/8 交互断言通过，待 Codex 验收）
+- 更新日期：2026-10-19（TASK-008 首页最近更新实现 + 后端 96/96 单测通过 + 真实浏览器 9/9 交互断言通过，待 Codex 验收）
 - 本文件是项目进度的**唯一来源**；README 等文档只链接引用、不复制进度。更新规则见 [AGENTS](../AGENTS.md)。
 - 仓库：https://github.com/GuiYe314/team-toolbox（私有）
 
@@ -47,9 +47,15 @@
 - 中文搜索采用子串匹配（`LIKE '%kw%'`），契合中文无词边界特性，未引入 FTS5（ARCHITECTURE 第 9 节"搜索实现"待决策项据此落地为 LIKE 方案，文档后续同步）。
 - 构建（`npm run build`）通过；后端 `npm test` **93/93 通过**（store 34 + api 23 + 页面树 12 + 分类标签 +11 + 本次搜索 +8）；以真实 Edge 浏览器（puppeteer-core，置于 `.workbuddy/ui-verify`，不入库）跑 8 项交互断言全部 PASS（搜索框、搜索「规范」→3 条且计数文案正确、清空回列表、无结果空状态、特殊字符「50%」不崩溃、清除按钮）。**仍待 Codex 验收；交互式视觉验收需在浏览器手工确认。**
 
+**TASK-008 首页最近更新（本次实现，覆盖 F-KB-008）**：在 TASK-005/006/007 基础上补齐首页默认视图的"最近更新"区块，作为知识库活跃度的入口：
+- **后端复用**：无需新增存储/接口——`store.listDocuments` 默认即 `ORDER BY updated_at DESC`、`limit 20`、`offset 0`；`GET /api/documents`（无过滤）直接返回全部文档按更新时间倒序，每件附带 `category_name` 与 `tags` 数组，天然满足 F-KB-008 的数据需求。
+- **前端 `Home.vue`**：「最近更新」区块由静态占位改为真实数据驱动——`mounted` 调用 `api.listDocuments('?limit=20&offset=0')`（注意 `client.request` 返回 `{res, body}`，须取 `body`）；渲染每行标题 / 分类 pill / 标签 pill / 更新时间（`formatTime` 与知识库一致）；"查看更多"按 `offset` 增量分页（`hasMore = recent.length < recentTotal`）；点击条目跳转 `/kb/:id` 详情；空库显示空状态并引导「新建文档」（跳转 `/kb/new`）；加载中与加载失败（含「重试」按钮）状态齐备，失败不丢已有列表（内联错误条 + 重试加载更多）。
+- **修复（被浏览器验证抓出）**：初版误用 `res.items`/`res.total`（`res` 实为 `{res, body}` 外层对象，`res.items` 恒 undefined → 列表恒空、误显空状态）；修正为读取 `body.items`/`body.total`，与 `KnowledgeBase.vue` 既有约定一致。
+- 构建（`npm run build`）通过；后端 `npm test` **96/96 通过**（store 34 + api 23 + 页面树 12 + 分类标签 +11 + 搜索 +8 + 本次默认排序/分页/空结果 +4）；以真实 Edge 浏览器（puppeteer-core，置于 `.workbuddy/ui-verify`，不入库）跑 9 项交互断言全部 PASS（首屏 20 条、首条标题非空、含分类/标签 pill、存在「查看更多」、点击后 25 条、点击条目跳详情；空库空状态渲染、含「新建文档」按钮、点击跳转 `/kb/new`）。**仍待 Codex 验收；交互式视觉验收需在浏览器手工确认。**
+
 ## 2. 任务状态
 
-当前开发阶段：阶段三（知识库核心闭环）进行中（TASK-002、TASK-003 已实现待 Codex 验收；TASK-004 前端框架已实现待 Codex 验收；TASK-005 本次实现，待 Codex 验收）。功能阶段定义见 [开发计划](DEVELOPMENT_PLAN.md) 第 1 节；阶段一至六为第一版，阶段七、八为后续规划。
+当前开发阶段：阶段四（内容组织与查找）进行中（TASK-005 文档页面、TASK-006 分类与标签、TASK-007 搜索、TASK-008 首页最近更新均已实现 + 自测/构建/真实浏览器验证通过，待 Codex 验收）；TASK-002/003/004 已实现待 Codex 验收。功能阶段定义见 [开发计划](DEVELOPMENT_PLAN.md) 第 1 节；阶段一至六为第一版，阶段七、八为后续规划。
 
 | 任务 | 状态 | 说明 |
 |---|---|---|
@@ -62,7 +68,7 @@
 | TASK-005 Markdown 编辑与文档页面 | **已实现 + 构建/联调通过（待 Codex 验收）** | 本次实现 `api/client.js` 与三个文档视图 + 后端 `POST /api/markdown/render`；后续追加 Notion 风格 UI 改造（浅色外壳 / 列表视图 + 分类目录 / 居中阅读 / 写作模式切换） |
 | TASK-006 分类与标签 | **已实现 + 单测/浏览器验证通过（待 Codex 验收）** | 本次补齐分类新建/重命名/删除（50 上限、重名拒绝、删除置未分类）+ 标签小写合并去重 + 标签 AND 过滤 + 前端分类管理/标签筛选 UI；后端 `npm test` 80/80 全过，真实浏览器 7/7 交互断言 PASS |
 | TASK-007 搜索 | **已实现 + 单测/浏览器验证通过（待 Codex 验收）** | 本次新增 `store.searchDocuments`（标题/正文参数化 LIKE、通配符转义防注入、updated_at 倒序分页、snippet 摘要）+ `GET /api/search` + 前端搜索框/结果/空状态/分页/清除；后端 `npm test` 93/93 全过，真实浏览器 8/8 交互断言 PASS |
-| TASK-008 首页最近更新 | 未开始 | 依赖 TASK-005 |
+| TASK-008 首页最近更新 | **已实现 + 单测/浏览器验证通过（待 Codex 验收）** | 本次接线 `Home.vue` 到 `listDocuments` 默认排序（updated_at 倒序、limit 20）+ 分页「查看更多」+ 空状态/错误重试；后端 `npm test` 96/96 全过，真实浏览器 9/9 交互断言 PASS |
 | TASK-009 备份导出与恢复 | 未开始 | 依赖 TASK-002 |
 | TASK-010 MVP 集成验收 | 未开始 | 依赖 TASK-005~TASK-009 |
 | TASK-D01 实时共同编辑（延期） | 未开始 | 阶段八，依赖 TASK-D02 与协同方案确认 |
@@ -76,7 +82,7 @@
 
 **纪律说明（更新于 2026-10-19）**：TASK-002 / TASK-003 已实现并自测通过、TASK-004 前端框架已实现、TASK-005 本次实现并构建/联调通过，但 TASK-002/003/004/005 **仍待 Codex 正式验收**，不宣称验收通过。依用户 2026-10-19 多次 "继续" 指令，在自测通过基础上逐次推进了 TASK-003、TASK-005；阶段四（TASK-006/007/008）可在 TASK-005 之后启动，但 MVP 集成验收（TASK-010）前应补齐 TASK-002~005 的 Codex 验收与浏览器交互式验收。
 
-**下一任务**：TASK-008（首页最近更新，F-KB-008），依赖 TASK-005/006/007。TASK-009（备份导出与恢复）、TASK-010（MVP 集成验收）依次在后。正式开工前建议先补齐 TASK-002~007 的 Codex 验收。
+**下一任务**：TASK-009（备份导出与恢复，F-KB-007 导出部分 / F-OPS-002）、TASK-010（MVP 集成验收，阶段门槛）。正式开工前建议先补齐 TASK-002~008 的 Codex 验收。
 
 ## 4. 验证证据（截至 2026-10-16）
 
@@ -173,6 +179,20 @@ TASK-003 范围边界（明确不在本次）：
 范围边界（明确不在本次）：
 - TASK-007 的 Codex 正式验收仍待补；浏览器交互式"视觉审美"仍需人工确认（自动化断言已覆盖交互逻辑）。
 - 搜索与分类/标签过滤相互独立（本次未做组合筛选）；组合筛选可后续按需扩展。
+
+**TASK-008 实际验证摘要（2026-10-19，Windows + Node.js v22.22.2）**：
+
+- **后端单元/接口测试**：`npm test` → 5 suites / **96 tests 全过 / 0 fail**（store 34 + api 23 + 页面树 12 + 分类标签 +11 + 搜索 +8 + 本次默认排序/分页/空结果 +4）。覆盖：`listDocuments` 默认按 `updated_at` 倒序（三篇文档相对顺序 fresh<mid<old，避免与其他用例数据干扰）；分页（limit 3 首/二页均 ≤3、total≥5）；空结果（不存在分类筛选得 `{total:0,items:[]}`）；接口层 `GET /api/documents` 默认排序与分页（limit 2 首/二页各 2、total≥5）、响应形态（`category_name`/`tags` 数组/`updated_at` 字段齐备）。
+- **前端构建**：`npm run build`（frontend）通过（Home 分块 4.34kB JS / 4.61kB CSS）。
+- **真实浏览器交互验收（puppeteer-core + 本机 Edge headless，脚本置于 `.workbuddy/ui-verify`，不入库）**：
+  - populated 场景（dev 库 seed 25 篇）：6/6 PASS——首屏渲染 **20** 条（默认 limit）；首条标题非空；文档含分类/标签 pill；存在「查看更多」按钮；点击后渲染 **25** 条（分页生效）；点击首条跳转到 `/kb/23` 详情。
+  - empty 场景（dev 库空）：3/3 PASS——空状态渲染；含「新建文档」按钮；点击跳转 `/kb/new`。
+  - 合计 **9/9 PASS**。
+- **本次验证抓出前端 bug**：初版 `Home.vue` 误用 `res.items`/`res.total`（`client.request` 返回 `{res, body}`，`res` 为外层对象，`res.items` 恒 `undefined` → 列表恒空、误显空状态）；修正为读取 `body.items`/`body.total` 后复测 9/9 PASS。证实端到端路径正确，且再次印证"真实浏览器验证"纪律对捕获前端 bug 的必要性（与 TASK-006 陈旧后端进程教训互补）。
+
+范围边界（明确不在本次）：
+- TASK-008 的 Codex 正式验收仍待补；浏览器交互式"视觉审美"仍需人工确认（自动化断言已覆盖交互逻辑）。
+- 首页「最近更新」与搜索、分类/标签筛选相互独立（首页不接入筛选/搜索），符合 F-KB-008 仅要求"默认视图展示最近更新"的边界。
 
 ## 5. 风险
 

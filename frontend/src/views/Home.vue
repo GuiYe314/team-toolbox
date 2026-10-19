@@ -8,11 +8,54 @@
         <!-- 最近更新 -->
         <section class="section">
             <h2 class="section-title">最近更新</h2>
-            <div class="empty-state">
-                <p class="empty-icon">📋</p>
-                <p>暂无文档</p>
-                <p class="empty-hint">知识库功能正在准备中，稍后将开放使用</p>
+
+            <p v-if="loading && recent.length === 0" class="state-loading">加载中…</p>
+
+            <div v-else-if="error && recent.length === 0" class="state-error">
+                <p>加载失败：{{ error }}</p>
+                <button class="retry-btn" @click="retry">重试</button>
             </div>
+
+            <div v-else-if="recent.length === 0" class="empty-state">
+                <p class="empty-icon">📋</p>
+                <p>知识库还没有文档</p>
+                <p class="empty-hint">点击下方按钮创建第一篇文档，开始沉淀团队知识。</p>
+                <button class="empty-action" @click="goNew">新建文档</button>
+            </div>
+
+            <template v-else>
+                <p v-if="error" class="state-error-inline">
+                    加载失败：{{ error }}
+                    <button class="retry-link" @click="retry">重试</button>
+                </p>
+                <ul class="recent-list">
+                    <li
+                        v-for="doc in recent"
+                        :key="doc.id"
+                        class="recent-item"
+                        @click="goDoc(doc.id)"
+                    >
+                        <div class="recent-main">
+                            <span class="recent-title">{{ doc.title }}</span>
+                            <span class="recent-sub">
+                                <span v-if="doc.category_name" class="doc-pill">{{ doc.category_name }}</span>
+                                <span
+                                    v-for="t in (doc.tags || [])"
+                                    :key="t"
+                                    class="doc-pill doc-pill-tag"
+                                >#{{ t }}</span>
+                            </span>
+                        </div>
+                        <span class="recent-time">{{ formatTime(doc.updated_at) }}</span>
+                    </li>
+                </ul>
+                <button
+                    v-if="hasMore"
+                    class="more-btn"
+                    :disabled="loading"
+                    @click="loadMore"
+                >{{ loading ? '加载中…' : '查看更多' }}</button>
+            </template>
         </section>
 
         <!-- 工具卡片 -->
@@ -36,6 +79,8 @@
 </template>
 
 <script>
+import { api } from '../api/client.js';
+
 export default {
     name: 'Home',
     data() {
@@ -57,8 +102,76 @@ export default {
                     status: 'planned',
                     routeName: 'tool-qrcode'
                 }
-            ]
+            ],
+            // F-KB-008：首页最近更新
+            recent: [],
+            recentTotal: 0,
+            offset: 0,
+            limit: 20,
+            loading: false,
+            error: null
         };
+    },
+    computed: {
+        hasMore() {
+            return this.recent.length < this.recentTotal;
+        }
+    },
+    mounted() {
+        this.loadRecent();
+    },
+    methods: {
+        async loadRecent() {
+            this.offset = 0;
+            this.error = null;
+            this.loading = true;
+            try {
+                const { body } = await api.listDocuments(`?limit=${this.limit}&offset=0`);
+                this.recent = (body && body.items) || [];
+                this.recentTotal = (body && body.total) || 0;
+                this.offset = this.recent.length;
+            } catch (e) {
+                this.error = (e && e.message) ? e.message : '网络错误';
+                this.recent = [];
+            } finally {
+                this.loading = false;
+            }
+        },
+        async loadMore() {
+            if (this.loading || !this.hasMore) return;
+            this.loading = true;
+            this.error = null;
+            try {
+                const { body } = await api.listDocuments(`?limit=${this.limit}&offset=${this.offset}`);
+                const items = (body && body.items) || [];
+                this.recent = this.recent.concat(items);
+                this.recentTotal = (body && body.total) || 0;
+                this.offset = this.offset + items.length;
+            } catch (e) {
+                this.error = (e && e.message) ? e.message : '网络错误';
+            } finally {
+                this.loading = false;
+            }
+        },
+        retry() {
+            if (this.recent.length === 0) this.loadRecent();
+            else this.loadMore();
+        },
+        goDoc(id) {
+            this.$router.push({ name: 'kb-detail', params: { id } });
+        },
+        goNew() {
+            this.$router.push({ name: 'kb-new' });
+        },
+        formatTime(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return iso;
+            return d.toLocaleString('zh-CN', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+        }
     }
 };
 </script>
@@ -106,7 +219,158 @@ export default {
 .empty-hint {
     font-size: 13px;
     color: var(--color-text-muted);
-    margin: 4px 0 0;
+    margin: 4px 0 16px;
+}
+.empty-action {
+    font-size: 14px;
+    color: #fff;
+    background: var(--color-focus);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    cursor: pointer;
+}
+.empty-action:hover {
+    filter: brightness(1.05);
+}
+.empty-action:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}
+.state-loading {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+.state-error {
+    text-align: center;
+    padding: 32px 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+.state-error p {
+    margin: 0 0 12px;
+    color: var(--color-text-muted);
+}
+.retry-btn {
+    font-size: 14px;
+    color: #fff;
+    background: var(--color-focus);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    cursor: pointer;
+}
+.retry-btn:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}
+.state-error-inline {
+    font-size: 13px;
+    color: #b42318;
+    margin: 0 0 12px;
+}
+.retry-link {
+    font-size: 13px;
+    color: var(--color-focus);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 6px;
+    text-decoration: underline;
+}
+.retry-link:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+.recent-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.recent-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+}
+.recent-item:last-child {
+    border-bottom: none;
+}
+.recent-item:hover {
+    background: var(--color-bg);
+}
+.recent-main {
+    min-width: 0;
+}
+.recent-title {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.recent-sub {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.doc-pill {
+    font-size: 11px;
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #4338ca;
+    white-space: nowrap;
+}
+.doc-pill-tag {
+    background: #ecfdf5;
+    color: #047857;
+}
+.recent-time {
+    flex: none;
+    font-size: 12px;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+.more-btn {
+    display: block;
+    margin: 16px auto 0;
+    font-size: 14px;
+    color: var(--color-focus);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 9px 22px;
+    cursor: pointer;
+}
+.more-btn:hover:not(:disabled) {
+    border-color: var(--color-focus);
+}
+.more-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+.more-btn:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
 }
 .tools-grid {
     display: grid;
