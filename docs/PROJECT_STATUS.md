@@ -1,6 +1,6 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
-- 更新日期：2026-10-19（TASK-005 文档页面实现 + 前端 Notion 风格 UI 改造 + 页面树/子页面 Notion 功能形态改造 + 构建通过，待 Codex 验收）
+- 更新日期：2026-10-19（TASK-006 分类与标签实现 + 后端 80/80 单测通过 + 真实浏览器 7/7 交互断言通过，待 Codex 验收）
 - 本文件是项目进度的**唯一来源**；README 等文档只链接引用、不复制进度。更新规则见 [AGENTS](../AGENTS.md)。
 - 仓库：https://github.com/GuiYe314/team-toolbox（私有）
 
@@ -32,6 +32,13 @@
 - 修复 `migrate.js` Windows 入口判断（原 `import.meta.url === file://${process.argv[1]}` 在 Windows 反斜杠路径下恒 false 且未 `await`，导致迁移 002 从未应用）→ 改用 `pathToFileURL(process.argv[1]).href` 并 `await runMigrations`。
 - 构建（`npm run build`）通过；后端 `npm test` **69/69 通过**（store 34 + api 23 + 新增页面树测试）；以真实 Edge 浏览器（puppeteer-core，置于 `.workbuddy/ui-verify`，不入库）跑 16 项交互断言全部 PASS（树渲染/缩进/高亮、自动展开、子页面列表、面包屑、··· 菜单、行内重命名同步、新建子页面带 parent 参数、删除确认取消/确认、侧边栏自动刷新）。为预览灌入 10 篇演示文档（编程→Unity→基础/技巧/插件/Shader Graph；编程→Git 等，maxDepth=2）。**仍待 Codex 验收；交互式视觉验收需在浏览器手工确认。**
 
+**TASK-006 分类与标签（本次实现，覆盖 F-KB-004 / F-KB-005）**：在 TASK-003 的分类/标签关联读写与 TASK-005 前端框架之上，补齐分类管理与标签筛选的完整闭环：
+- **分类管理（F-KB-004）**：后端 `store.createCategory` 新增分类数量上限 50（达上限返回 `invalid_input`）；新增 `store.updateCategory`（空名→`invalid_input`、重名→`constraint_failed`、不存在→`not_found`）；`api.js` 新增 `PUT /categories/:id`（重命名）、复用既有 `POST`/`DELETE /categories`。删除分类沿用 `ON DELETE SET NULL`（文档置为未分类，不级联删文档）。
+- **标签规范化（F-KB-005 细则）**：`store.validateTags` 改为英文小写合并（`toLowerCase()`）+ 去首尾空白 + 去重（`[...new Set]`），单文档上限 10；`api/client.js` 新增 `createCategory`/`updateCategory`/`deleteCategory`/`deleteTag` 封装。`DocumentEdit.vue` 标签输入框补充提示（逗号分隔、英文自动小写去重）。
+- **标签 AND 过滤（F-KB-005）**：`store.listDocuments` 支持 `tags` 数组参数，用子查询 `d.id IN (SELECT dt.document_id FROM document_tags dt JOIN tags t ON t.id=dt.tag_id WHERE t.name IN (...) GROUP BY dt.document_id HAVING COUNT(DISTINCT dt.tag_id) = N)` 实现"须同时包含所选全部标签"；`api.js` 的 `GET /documents` 解析 `req.query.tags`（逗号分隔或数组）传入过滤。`KnowledgeBase.vue` 右侧新增标签 chip 多选筛选 + 「清除筛选」，筛选随 URL 参数 `tags` 触发并实时刷新计数与列表。
+- **前端分类管理 UI（F-KB-004）**：`KnowledgeBase.vue` 左侧分类目录新增行内重命名（hover 显形「改名」+ 回车提交）、hover 显形「删除」（删除前查该分类文档数并在 `confirm` 提示受影响数量，确认后删除；若当前选中则置空为「全部文档」）、「＋ 新建分类」行内输入（1–30 字，重名/超 50 上限由后端拒绝并提示）。分类增删改均派发 `kb-changed` 同步侧边栏刷新。
+- 构建（`npm run build`）通过；后端 `npm test` **80/80 通过**（store 34 + api 23 + 页面树 12 + 本次新增分类/标签用例 +11）；以真实 Edge 浏览器（puppeteer-core，置于 `.workbuddy/ui-verify`，不入库）跑 7 项交互断言全部 PASS（点击标签 chip、仅 zzalpha→3 篇、zzalpha AND zzbeta→1 篇、分类重命名生效、分类删除生效）。**仍待 Codex 验收；交互式视觉验收需在浏览器手工确认。**
+
 ## 2. 任务状态
 
 当前开发阶段：阶段三（知识库核心闭环）进行中（TASK-002、TASK-003 已实现待 Codex 验收；TASK-004 前端框架已实现待 Codex 验收；TASK-005 本次实现，待 Codex 验收）。功能阶段定义见 [开发计划](DEVELOPMENT_PLAN.md) 第 1 节；阶段一至六为第一版，阶段七、八为后续规划。
@@ -45,7 +52,7 @@
 | TASK-003 文档 CRUD API | **已实现 + 接口测试通过（待 Codex 验收）** | 本次新增 `api.js`/`api.test.js`；`npm test`（api）23 tests 全过；覆盖 F-KB-001/002/003 API 部分 + 分类/标签关联读写 |
 | TASK-004 前端框架与导航布局 | **已实现（本次前端构建验证通过，作为 TASK-005 宿主；待 Codex 验收）** | 侧边导航 / 首页 / 知识库 / 工具箱 / 工具空状态 / 404 框架落地；本次随 TASK-005 验证 `npm run build` 通过 |
 | TASK-005 Markdown 编辑与文档页面 | **已实现 + 构建/联调通过（待 Codex 验收）** | 本次实现 `api/client.js` 与三个文档视图 + 后端 `POST /api/markdown/render`；后续追加 Notion 风格 UI 改造（浅色外壳 / 列表视图 + 分类目录 / 居中阅读 / 写作模式切换） |
-| TASK-006 分类与标签 | 未开始 | 依赖 TASK-005（含标签小写合并等 F-KB-005 细则） |
+| TASK-006 分类与标签 | **已实现 + 单测/浏览器验证通过（待 Codex 验收）** | 本次补齐分类新建/重命名/删除（50 上限、重名拒绝、删除置未分类）+ 标签小写合并去重 + 标签 AND 过滤 + 前端分类管理/标签筛选 UI；后端 `npm test` 80/80 全过，真实浏览器 7/7 交互断言 PASS |
 | TASK-007 搜索 | 未开始 | 依赖 TASK-005 |
 | TASK-008 首页最近更新 | 未开始 | 依赖 TASK-005 |
 | TASK-009 备份导出与恢复 | 未开始 | 依赖 TASK-002 |
@@ -61,7 +68,7 @@
 
 **纪律说明（更新于 2026-10-19）**：TASK-002 / TASK-003 已实现并自测通过、TASK-004 前端框架已实现、TASK-005 本次实现并构建/联调通过，但 TASK-002/003/004/005 **仍待 Codex 正式验收**，不宣称验收通过。依用户 2026-10-19 多次 "继续" 指令，在自测通过基础上逐次推进了 TASK-003、TASK-005；阶段四（TASK-006/007/008）可在 TASK-005 之后启动，但 MVP 集成验收（TASK-010）前应补齐 TASK-002~005 的 Codex 验收与浏览器交互式验收。
 
-**下一任务**：TASK-006（分类与标签，含标签小写合并等 F-KB-004/005 细则），依赖 TASK-005（本次完成）。TASK-007（搜索）、TASK-008（首页最近更新）同属阶段四，可在 TASK-005 之后并行排期。正式开工前建议先补齐 TASK-002/003/004/005 的 Codex 验收。
+**下一任务**：TASK-007（搜索，F-KB-006），依赖 TASK-005/006（标签与分类已就绪）。TASK-008（首页最近更新，F-KB-008）同属阶段四，可在之后并行排期。正式开工前建议先补齐 TASK-002/003/004/005/006 的 Codex 验收。
 
 ## 4. 验证证据（截至 2026-10-16）
 
@@ -119,7 +126,7 @@ TASK-003 范围边界（明确不在本次）：
   - 验证后已清理开发库中的测试文档，`data/team-toolbox.sqlite3` 恢复为空库。
 - **TASK-005 范围边界（明确不在本次）**：
   - 浏览器交互式验收（冲突弹窗点击、sessionStorage 草稿恢复、断网重试、双会话 409 复现、含 `<script>` 文档渲染不执行）属 FUNCTIONAL_SPEC 的手工验收条目，需在浏览器执行；本会话仅完成构建与 API 契约层验证，不谎称交互验收已通过。
-  - 分类管理 UI 的「新建/重命名/删除」、标签小写合并与 AND 过滤、搜索（F-KB-006）、首页最近更新（F-KB-008）属 TASK-006/007/008，本次未实现（编辑页已预留分类下拉与标签输入框，仅消费既有分类）。
+  - 分类管理 UI 的「新建/重命名/删除」、标签小写合并与 AND 过滤——**已于 TASK-006 实现**（见上文 TASK-006 条目与验证摘要）。搜索（F-KB-006）、首页最近更新（F-KB-008）属 TASK-007/008，本次未实现（编辑页已预留分类下拉与标签输入框，仅消费既有分类）。
 
 **页面树 / Notion 功能形态 实际验证摘要（2026-10-19，Windows + Node.js v22.22.2）**：
 
@@ -134,6 +141,18 @@ TASK-003 范围边界（明确不在本次）：
 - 页面「复制链接」实现为复制前端路由 URL（非分享型短链）；重命名/移动等仅前端触发 API，未做撤销。
 - 浏览器交互式视觉验收（树观感、菜单、面包屑样式）已用自动化断言覆盖交互逻辑，但纯视觉审美仍需人工确认。
 - 本会话仅做自测 + 构建 + 真实浏览器自动化断言；**Codex 正式验收仍待补**，不宣称验收通过。
+
+**TASK-006 实际验证摘要（2026-10-19，Windows + Node.js v22.22.2）**：
+
+- **后端单元/接口测试**：`npm test` → 5 suites / **80 tests 全过 / 0 fail**（store 34 + api 23 + 页面树 12 + 本次新增分类/标签用例 +11）。覆盖：分类新建（重名→`constraint_failed`、超 50 上限→`invalid_input`）、`updateCategory` 重命名（成功/重名 409/不存在 404/空名 400）、标签归一（`toLowerCase`+去空白+去重，`[...new Set]`）、`listDocuments` 按 `tags` 的 AND 过滤子查询（`GROUP BY ... HAVING COUNT(DISTINCT tag_id) = N`）；接口层 `PUT /categories/:id` 重命名 200 / 重名 409 / 不存在 404、`GET /documents?tags=` 按标签 AND 过滤（zzalpha→3 篇、zzalpha+zzbeta→1 篇）。
+- **真实后端联调**（curl，重置 dev 库后 seed 验证）：`GET /api/documents?tags=zzalpha` → `total:3`（zz-X1/zz-R2/zz-R1）；`GET /api/documents?tags=zzalpha,zzbeta` → `total:1`（zz-R1）；`PUT /api/categories/1` 改名 → 200。
+- **前端构建**：`npm run build`（frontend）通过，新增 `KnowledgeBase.vue` 分类管理/标签筛选分块无报错。
+- **真实浏览器交互验收（puppeteer-core + 本机 Edge headless，脚本置于 `.workbuddy/ui-verify`，不入库）**：7 项交互断言全部 PASS——点击 `#zzalpha` chip 成功；仅 zzalpha→3 篇（R1/R2/X1）；zzalpha AND zzbeta→1 篇（R1）；分类 `zzcatR` 存在；分类重命名生效（zzcatR→zzcatR改）；分类 `zzcatD` 存在；分类删除生效（zzcatD 消失）。
+- **本次验证复盘**：初版真实浏览器验证曾 5/7 FAIL（两个计数断言读到全部 17 篇），根因是后端进程为改动前的**陈旧实例**（未重启，忽略 `tags` 参数）；重启后端加载最新 `store.js`/`api.js` 后复测即 7/7 PASS，证实实现与前端均正确，非前端 bug。
+
+范围边界（明确不在本次）：
+- TASK-006 的 Codex 正式验收仍待补；浏览器交互式"视觉审美"仍需人工确认（自动化断言已覆盖交互逻辑）。
+- 标签删除（`DELETE /tags/:id`）解除文档关联已实现并封装至客户端，但未在本次浏览器断言中专门点击验证；由单测（`deleteTag` 关联清理）覆盖。
 
 ## 5. 风险
 

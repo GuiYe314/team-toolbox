@@ -287,6 +287,64 @@ test('DELETE /api/tags/:id 不存在 → 404', async () => {
     assert.equal((await r.json()).error, 'not_found');
 });
 
+// ───────────────────────── 分类重命名（F-KB-004） ─────────────────────────
+
+test('PUT /api/categories/:id 重命名 → 200 并回显新名', async () => {
+    const created = await fetch(base + '/api/categories', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '改名前' })
+    });
+    const id = (await created.json()).id;
+    const r = await fetch(base + `/api/categories/${id}`, {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '改名后' })
+    });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).name, '改名后');
+});
+
+test('PUT /api/categories/:id 重名 → 409 constraint_failed', async () => {
+    await fetch(base + '/api/categories', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '占名' })
+    });
+    const created = await fetch(base + '/api/categories', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '待改' })
+    });
+    const id = (await created.json()).id;
+    const r = await fetch(base + `/api/categories/${id}`, {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '占名' })
+    });
+    assert.equal(r.status, 409);
+    assert.equal((await r.json()).error, 'constraint_failed');
+});
+
+test('PUT /api/categories/:id 不存在 → 404', async () => {
+    const r = await fetch(base + '/api/categories/999999', {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'x' })
+    });
+    assert.equal(r.status, 404);
+    assert.equal((await r.json()).error, 'not_found');
+});
+
+test('GET /api/documents?tags= 按标签 AND 过滤', async () => {
+    const ab = await postDoc({ title: 'AND-AB', tags: ['zalpha', 'zbeta'] });
+    await postDoc({ title: 'AND-A', tags: ['zalpha'] });
+    await postDoc({ title: 'AND-BC', tags: ['zbeta', 'zgamma'] });
+    const r = await fetch(base + '/api/documents?tags=' + encodeURIComponent('zalpha,zbeta'));
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    const ids = data.items.map((i) => i.id);
+    assert.ok(ids.includes(ab.data.id), '应包含同时含 zalpha/zbeta 的文档');
+    assert.equal(ids.length, 1, 'AND 语义：仅同时含两标签的文档命中');
+    const r2 = await fetch(base + '/api/documents?tags=zalpha');
+    const data2 = await r2.json();
+    assert.equal(data2.items.length, 2, '仅 zalpha 应命中 2 篇');
+});
+
 // ───────────────────────── 页面树（迁移 002） ─────────────────────────
 
 test('POST /api/documents 带 parent_id → 201 并回显 parent_id', async () => {

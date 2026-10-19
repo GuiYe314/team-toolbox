@@ -619,6 +619,70 @@ describe('文档存储层', () => {
         assert.ok(Array.isArray(cats));
         assert.ok(cats.length > 0);
     });
+
+    // ── 分类重命名 / 上限（F-KB-004） ──
+
+    it('updateCategory 重命名成功', () => {
+        const c = store.createCategory({ connection: db, name: '重命名前' });
+        const u = store.updateCategory({ connection: db, id: c.id, name: '重命名后' });
+        assert.strictEqual(u.name, '重命名后');
+        assert.strictEqual(
+            store.listCategories({ connection: db }).find((x) => x.id === c.id).name,
+            '重命名后'
+        );
+    });
+
+    it('updateCategory 重名被拒（constraint_failed）', () => {
+        store.createCategory({ connection: db, name: '已占名' });
+        const c = store.createCategory({ connection: db, name: '待改名' });
+        assert.throws(() => {
+            store.updateCategory({ connection: db, id: c.id, name: '已占名' });
+        }, /已存在/);
+    });
+
+    it('updateCategory 不存在 → not_found', () => {
+        assert.throws(() => {
+            store.updateCategory({ connection: db, id: 999999, name: 'x' });
+        }, /分类不存在/);
+    });
+
+    it('updateCategory 空名 → invalid_input', () => {
+        const c = store.createCategory({ connection: db, name: '空名校验' });
+        assert.throws(() => {
+            store.updateCategory({ connection: db, id: c.id, name: '   ' });
+        }, /不能为空/);
+    });
+
+    it('createCategory 超过 50 个被拒（invalid_input）', () => {
+        let guard = 0;
+        while (store.listCategories({ connection: db }).length < 50 && guard++ < 200) {
+            store.createCategory({ connection: db, name: '批量分类-' + guard });
+        }
+        assert.throws(() => {
+            store.createCategory({ connection: db, name: '超额分类' });
+        }, /上限/);
+    });
+
+    // ── 标签规范化与 AND 过滤（F-KB-005） ──
+
+    it('createDocument 标签英文小写合并且去重', () => {
+        const r = store.createDocument({
+            connection: db, title: '标签归一', tags: ['FrontEnd', 'frontend', ' 规范 ', '规范']
+        });
+        const doc = store.getDocument({ connection: db, id: r.id });
+        assert.deepStrictEqual(doc.tags.sort(), ['frontend', '规范']);
+    });
+
+    it('listDocuments 按标签 AND 过滤', () => {
+        const ab = store.createDocument({ connection: db, title: 'AND-AB', tags: ['alpha', 'beta'] });
+        const a = store.createDocument({ connection: db, title: 'AND-A', tags: ['alpha'] });
+        const bc = store.createDocument({ connection: db, title: 'AND-BC', tags: ['beta', 'gamma'] });
+        const both = store.listDocuments({ connection: db, filter: { tags: ['alpha', 'beta'] } });
+        assert.deepStrictEqual(both.items.map((i) => i.id).sort(), [ab.id]);
+        const onlyA = store.listDocuments({ connection: db, filter: { tags: ['alpha'] } });
+        assert.ok(onlyA.items.find((i) => i.id === a.id));
+        assert.ok(!onlyA.items.find((i) => i.id === bc.id));
+    });
 });
 
 // ─────────────────────────────────────────────────

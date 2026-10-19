@@ -54,6 +54,10 @@ export const api = {
     updateDocument: (id, payload) => request('PUT', '/documents/' + id, payload),
     deleteDocument: (id) => request('DELETE', '/documents/' + id),
     listCategories: () => request('GET', '/categories'),
+    createCategory: (name) => request('POST', '/categories', { name }),
+    updateCategory: (id, name) => request('PUT', '/categories/' + id, { name }),
+    deleteCategory: (id) => request('DELETE', '/categories/' + id),
     listTags: () => request('GET', '/tags'),
+    deleteTag: (id) => request('DELETE', '/tags/' + id),
     renderMarkdown: (md) => request('POST', '/markdown/render', { md })
 };

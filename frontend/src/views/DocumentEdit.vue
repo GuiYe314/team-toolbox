@@ -50,14 +50,15 @@
                 </div>
                 <div class="meta-field">
                     <span class="meta-label">标签</span>
-                    <input
-                        id="tags"
-                        v-model="form.tagsText"
-                        class="nt-input"
-                        type="text"
-                        placeholder="逗号分隔，如：前端, 规范"
-                        @input="onInput"
-                    />
+                        <input
+                            id="tags"
+                            v-model="form.tagsText"
+                            class="nt-input"
+                            type="text"
+                            placeholder="逗号分隔，如：前端, 规范（英文自动小写、去重）"
+                            title="多个标签用逗号分隔；保存时英文自动转为小写并去重，单篇最多 10 个"
+                            @input="onInput"
+                        />
                 </div>
             </div>
 

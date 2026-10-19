@@ -75,12 +75,13 @@ function validateTags(tags) {
         if (typeof tag !== 'string') {
             return { valid: false, message: '标签名必须为字符串' };
         }
-        const trimmed = tag.trim();
-        if (trimmed.length === 0) continue; // 忽略空标签
-        if (trimmed.length > 30) {
-            return { valid: false, message: `标签名 "${trimmed}" 超过 30 字符限制` };
+        // F-KB-005：英文统一小写合并（中文不受影响），去空白后跳过空标签
+        const normalized = tag.trim().toLowerCase();
+        if (normalized.length === 0) continue; // 忽略空标签
+        if (normalized.length > 30) {
+            return { valid: false, message: `标签名 "${normalized}" 超过 30 字符限制` };
         }
-        validated.push(trimmed);
+        validated.push(normalized);
     }
     return { valid: true, value: [...new Set(validated)] }; // 去重
 }
@@ -310,13 +311,14 @@ export function getDocument({ connection: db, id }) {
  * @param {object} config
  * @param {import('better-sqlite3').Database} config.connection
  * @param {{ limit?: number, offset?: number, category_id?: number|null,
- *           parent_id?: number|null, root?: boolean }} [config.filter]
+ *           parent_id?: number|null, root?: boolean, tags?: string[] }} [config.filter]
  *   - parent_id：只看该页面的直接子页面
  *   - root：只看顶层页面（parent_id IS NULL）
+ *   - tags：按标签 AND 过滤（数组，文档须同时包含全部所选标签）
  * @returns {{ items: object[], total: number }}
  */
 export function listDocuments({ connection: db, filter = {} }) {
-    const { limit = 20, offset = 0, category_id, parent_id, root } = filter;
+    const { limit = 20, offset = 0, category_id, parent_id, root, tags } = filter;
 
     const conds = [];
     const params = [];
@@ -329,6 +331,19 @@ export function listDocuments({ connection: db, filter = {} }) {
     } else if (parent_id !== undefined && parent_id !== null) {
         conds.push('d.parent_id = ?');
         params.push(parent_id);
+    }
+    // F-KB-005：标签 AND 过滤（文档须同时包含所选全部标签）
+    const tagNames = Array.isArray(tags)
+        ? [...new Set(tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean))]
+        : [];
+    if (tagNames.length > 0) {
+        const ph = tagNames.map(() => '?').join(',');
+        conds.push(
+            `d.id IN (SELECT dt.document_id FROM document_tags dt ` +
+            `JOIN tags t ON t.id = dt.tag_id WHERE t.name IN (${ph}) ` +
+            `GROUP BY dt.document_id HAVING COUNT(DISTINCT dt.tag_id) = ${tagNames.length})`
+        );
+        params.push(...tagNames);
     }
     const where = conds.length > 0 ? 'WHERE ' + conds.join(' AND ') : '';
 
@@ -549,6 +564,11 @@ export function createCategory({ connection: db, name }) {
     if (trimmed.length > 30) {
         throw errorMap(new Error('分类名称不能超过 30 字符'), '(store)', 'invalid_input');
     }
+    // F-KB-004：分类上限 50
+    const count = db.prepare('SELECT COUNT(*) AS n FROM categories').get().n;
+    if (count >= 50) {
+        throw errorMap(new Error('分类数量已达上限（最多 50 个）'), '(store)', 'invalid_input');
+    }
     const now = new Date().toISOString();
     try {
         const result = db.prepare('INSERT INTO categories (name, created_at) VALUES (?, ?)').run(trimmed, now);
@@ -585,6 +605,39 @@ export function deleteCategory({ connection: db, id }) {
         throw errorMap(err, '(store)', 'not_found');
     }
     db.prepare('DELETE FROM categories WHERE id = ?').run(id);
+}
+
+/**
+ * 重命名分类（不影响文档归属，外键 ON DELETE SET NULL 与此无关）。
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @param {number} config.id
+ * @param {string} config.name - 1-30 字符，同级唯一（单级分类即全局唯一）
+ * @returns {{ id: number, name: string }}
+ */
+export function updateCategory({ connection: db, id, name }) {
+    if (typeof name !== 'string' || name.trim().length === 0) {
+        throw errorMap(new Error('分类名称不能为空'), '(store)', 'invalid_input');
+    }
+    const trimmed = name.trim();
+    if (trimmed.length > 30) {
+        throw errorMap(new Error('分类名称不能超过 30 字符'), '(store)', 'invalid_input');
+    }
+    const cat = db.prepare('SELECT id FROM categories WHERE id = ?').get(id);
+    if (!cat) {
+        const err = new Error('分类不存在');
+        err.code = 'not_found';
+        throw errorMap(err, '(store)', 'not_found');
+    }
+    try {
+        db.prepare('UPDATE categories SET name = ? WHERE id = ?').run(trimmed, id);
+    } catch (err) {
+        if (err.code === 'SQLITE_CONSTRAINT' || (typeof err.code === 'string' && err.code.startsWith('SQLITE_CONSTRAINT_'))) {
+            throw errorMap(new Error('分类名称已存在'), '(store)', 'constraint_failed');
+        }
+        throw errorMap(err, '(store)', 'write');
+    }
+    return { id, name: trimmed };
 }
 
 /**

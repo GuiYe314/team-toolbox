@@ -4,6 +4,27 @@
 
 ## 2026-10-19
 
+### TASK-006 分类与标签（实现 + 单测/浏览器验证，待 Codex 验收）
+
+### Added
+- `backend/src/store.js`：`createCategory` 新增分类数量上限 50（达上限返回 `invalid_input`）；新增 `updateCategory`（空名→`invalid_input`、重名→`constraint_failed`、不存在→`not_found`，成功 `UPDATE categories SET name=?`）；`validateTags` 改为英文小写合并（`toLowerCase()`）+ 去首尾空白 + 去重（`[...new Set]`），单文档≤10；`listDocuments` 新增 `tags` 数组参数，用子查询 `HAVING COUNT(DISTINCT dt.tag_id) = N` 实现标签 AND 过滤。
+- `backend/src/api.js`：新增 `PUT /categories/:id`（重命名）；`GET /documents` 解析 `req.query.tags`（逗号分隔或数组）传入过滤。
+- `frontend/src/api/client.js`：新增 `createCategory` / `updateCategory` / `deleteCategory` / `deleteTag` 封装。
+- `frontend/src/views/KnowledgeBase.vue`：左侧分类目录新增行内重命名（hover 显形「改名」+ 回车提交）、hover 显形「删除」（删除前查该分类文档数并 `confirm` 提示受影响数量，确认后删除；当前选中则置空为「全部文档」）、「＋ 新建分类」行内输入（1–30 字）；右侧新增标签 chip 多选筛选 + 「清除筛选」，筛选随 `tags` 参数触发并实时刷新计数与列表；分类增删改派发 `kb-changed` 同步侧边栏。
+- `frontend/src/views/DocumentEdit.vue`：标签输入框补充提示（逗号分隔、英文自动小写去重）。
+
+### Verified
+- `npm test`（backend）→ 5 suites / **80 tests 全过 / 0 fail**（store 34 + api 23 + 页面树 12 + 本次新增分类/标签用例 +11）。
+- `npm run build`（frontend）→ 构建通过。
+- 真实后端联调（curl，重置 dev 库后 seed）：`GET /api/documents?tags=zzalpha` → `total:3`（zz-X1/zz-R2/zz-R1）；`GET /api/documents?tags=zzalpha,zzbeta` → `total:1`（zz-R1）；`PUT /api/categories/1` 改名 → 200。
+- 真实 Edge 浏览器（puppeteer-core，脚本置于 `.workbuddy/ui-verify` 不入库）7 项交互断言全过（点击标签 chip、仅 zzalpha→3 篇、zzalpha AND zzbeta→1 篇、分类重命名生效、分类删除生效）。
+- 复盘：初版浏览器验证 5/7 FAIL（计数读到全部 17 篇），根因为后端进程为改动前陈旧实例（未重启、忽略 `tags`）；重启后端加载最新代码后复测 7/7 PASS，证实实现与前端均正确。
+
+### Notes
+- 覆盖 F-KB-004（分类新建/重命名/删除，删除置未分类）与 F-KB-005（标签小写合并、AND 过滤、单文档≤10）。
+- 仍待 Codex 验收；浏览器交互式视觉验收需在浏览器手工确认。
+- 未提交 Git（与既有改动一并待用户决定 push）；WorkBuddy 使用模型：MiniMax-M3；积分未提供，无法确认。
+
 ### 知识库页面树改造（Notion 功能形态，待 Codex 验收）
 
 ### Added

@@ -112,6 +112,14 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
             }
             filter.parent_id = pid;
         }
+        // tags：逗号分隔或重复参数，按标签 AND 过滤
+        if (req.query.tags !== undefined && req.query.tags !== '') {
+            const raw = Array.isArray(req.query.tags)
+                ? req.query.tags.join(',')
+                : String(req.query.tags);
+            const tagArr = raw.split(',').map((s) => s.trim()).filter(Boolean);
+            if (tagArr.length > 0) filter.tags = tagArr;
+        }
         res.json(store.listDocuments({ connection: getDb(), filter }));
     }));
 
@@ -203,6 +211,17 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
         const body = req.body || {};
         const created = store.createCategory({ connection: getDb(), name: body.name });
         res.status(201).json(created);
+    }));
+
+    // 重命名分类（F-KB-004）
+    router.put('/categories/:id', wrap((req, res) => {
+        const id = parseId(req.params.id);
+        if (id === null) {
+            return res.status(400).json({ error: 'invalid_input', message: '分类 ID 无效' });
+        }
+        const body = req.body || {};
+        const updated = store.updateCategory({ connection: getDb(), id, name: body.name });
+        res.json(updated);
     }));
 
     router.delete('/categories/:id', wrap((req, res) => {
