@@ -49,8 +49,10 @@
                     :nodes="pageTree"
                     :depth="0"
                     :active-id="activeId"
+                    :expanded="expanded"
                     :renaming-id="renamingId"
                     @open="openNode"
+                    @toggle="toggleNode"
                     @create-child="createChild"
                     @menu="openMenu"
                     @rename-submit="submitRename"
@@ -102,6 +104,8 @@
 import { api } from './api/client.js';
 import PageTree from './components/PageTree.vue';
 
+const EXPANDED_KEY = 'kb-tree-expanded';
+
 export default {
     name: 'App',
     components: { PageTree },
@@ -112,6 +116,7 @@ export default {
             treeRows: [],
             treeLoading: true,
             treeError: '',
+            expanded: {},
             renamingId: null,
             renameBusy: false,
             menu: null,
@@ -151,6 +156,7 @@ export default {
     watch: {
         '$route.fullPath'() {
             this.menu = null;
+            this.focusActive();
         }
     },
     mounted() {
@@ -164,6 +170,7 @@ export default {
         this._treeChangeHandler = () => this.loadTree();
         window.addEventListener('kb-changed', this._treeChangeHandler);
 
+        this.loadExpanded();
         this.loadTree();
     },
     beforeUnmount() {
@@ -180,10 +187,55 @@ export default {
                 const { res, body } = await api.listDocumentTree();
                 if (!res.ok) throw new Error((body && body.message) || '页面树加载失败');
                 this.treeRows = (body && body.items) || [];
+                this.focusActive();
             } catch (e) {
                 this.treeError = e.network ? '无法连接后端服务' : (e.message || '页面树加载失败');
             } finally {
                 this.treeLoading = false;
+            }
+        },
+        loadExpanded() {
+            try {
+                const raw = localStorage.getItem(EXPANDED_KEY);
+                if (raw) this.expanded = JSON.parse(raw) || {};
+            } catch {
+                this.expanded = {};
+            }
+        },
+        saveExpanded() {
+            try {
+                localStorage.setItem(EXPANDED_KEY, JSON.stringify(this.expanded));
+            } catch { /* localStorage 不可用时忽略（仅影响折叠记忆） */ }
+        },
+        toggleNode(id) {
+            this.expanded = { ...this.expanded, [id]: !this.expanded[id] };
+            this.saveExpanded();
+        },
+        /** 自动展开当前页面及其祖先，打开子页面时父页面始终可见（Notion 行为） */
+        focusActive() {
+            const id = this.activeId;
+            if (!id) return;
+            const parentOf = new Map(this.treeRows.map((r) => [r.id, r.parent_id]));
+            const next = { ...this.expanded };
+            let changed = false;
+
+            if (this.treeRows.some((r) => r.parent_id === id) && !next[id]) {
+                next[id] = true;
+                changed = true;
+            }
+
+            let p = parentOf.get(id);
+            let guard = 0;
+            while (p != null && guard++ < 200) {
+                if (!next[p]) {
+                    next[p] = true;
+                    changed = true;
+                }
+                p = parentOf.get(p);
+            }
+            if (changed) {
+                this.expanded = next;
+                this.saveExpanded();
             }
         },
 
@@ -200,6 +252,8 @@ export default {
         },
         createChild(node) {
             this.menu = null;
+            this.expanded = { ...this.expanded, [node.id]: true };
+            this.saveExpanded();
             this.closeSidebar();
             this.$router.push({ name: 'kb-new', query: { parent: String(node.id) } }).catch(() => {});
         },
