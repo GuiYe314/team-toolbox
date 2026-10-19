@@ -9,12 +9,12 @@
             <div v-for="tool in tools" :key="tool.id" class="tool-card">
                 <div class="tool-card-header">
                     <span class="tool-icon">{{ tool.icon }}</span>
-                    <span class="tool-status">规划中</span>
+                    <span class="tool-status" :class="{ ready: tool.status === '可用' }">{{ tool.status }}</span>
                 </div>
                 <h3 class="tool-name">{{ tool.name }}</h3>
                 <p class="tool-desc">{{ tool.desc }}</p>
                 <button class="tool-action" @click="$router.push({ name: tool.routeName })">
-                    查看详情
+                    {{ tool.status === '可用' ? '打开工具' : '查看详情' }}
                 </button>
             </div>
         </div>
@@ -28,18 +28,28 @@ export default {
         return {
             tools: [
                 {
+                    id: 'ratio-lock',
+                    name: '比例锁定',
+                    desc: '锁定宽高比，输入任一侧自动换算另一侧',
+                    icon: '📐',
+                    routeName: 'tool-ratio-lock',
+                    status: '可用'
+                },
+                {
                     id: 'json-fmt',
                     name: 'JSON 格式化',
                     desc: 'JSON 数据的美化与压缩',
                     icon: '{ }',
-                    routeName: 'tool-json-fmt'
+                    routeName: 'tool-json-fmt',
+                    status: '规划中'
                 },
                 {
                     id: 'qrcode',
                     name: '二维码生成',
                     desc: '文本或链接快速生成二维码',
                     icon: '⬡',
-                    routeName: 'tool-qrcode'
+                    routeName: 'tool-qrcode',
+                    status: '规划中'
                 }
             ]
         };
@@ -93,6 +103,10 @@ export default {
     color: var(--color-text-muted);
     padding: 2px 8px;
     border-radius: 4px;
+}
+.tool-status.ready {
+    background: #e7f3ea;
+    color: #1d7a3c;
 }
 .tool-name {
     margin: 0 0 6px;

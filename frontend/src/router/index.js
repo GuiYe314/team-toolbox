@@ -32,6 +32,11 @@ const routes = [
         component: () => import('../views/Tools.vue')
     },
     {
+        path: '/tools/ratio-lock',
+        name: 'tool-ratio-lock',
+        component: () => import('../views/RatioLock.vue')
+    },
+    {
         path: '/tools/json-fmt',
         name: 'tool-json-fmt',
         component: () => import('../views/ToolEmptyState.vue')
