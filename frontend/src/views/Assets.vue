@@ -142,6 +142,37 @@
 
             <span class="am-toolbar-spacer"></span>
 
+            <!--
+              批量模式开关。
+
+              设计取舍：复选框**默认隐藏**，只有点这个按钮才进入批量模式。
+              原因：资源管理的主流程是「浏览 + 单个操作」，复选框常驻会
+              让每行都多一个视觉噪点（截图里能明显看到 14 个空框抢注意力），
+              还会让「点击行 = 打开详情」这条主路径变得含义模糊。
+              进入批量模式后才出现复选框与批量操作条。
+            -->
+            <button
+                v-hint
+                class="btn btn-sm am-batch-toggle"
+                :class="{ 'is-on': batchMode }"
+                type="button"
+                :aria-pressed="String(batchMode)"
+                title="批量选择"
+                aria-label="批量选择"
+                @click="toggleBatchMode"
+            >
+                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3.5" y="3.5" width="7" height="7" rx="1.4" />
+                    <rect x="13.5" y="3.5" width="7" height="7" rx="1.4" />
+                    <rect x="3.5" y="13.5" width="7" height="7" rx="1.4" />
+                    <path d="M6 7l1.2 1.2L9.5 6" />
+                    <path d="M16 7l1.2 1.2L19.5 6" />
+                    <path d="M6 17l1.2 1.2L9.5 16" />
+                    <path d="M16 17l1.2 1.2L19.5 16" />
+                </svg>
+                批量
+            </button>
+
             <div class="am-segment" role="group" aria-label="视图切换">
                 <button
                     class="am-seg-item am-seg-icon"
@@ -175,8 +206,8 @@
             </div>
         </div>
 
-        <!-- ═══ 批量操作条 ═══ -->
-        <div v-if="selectedIds.length > 0" class="am-selbar">
+        <!-- ═══ 批量操作条（仅批量模式显示）═══ -->
+        <div v-if="batchMode" class="am-selbar">
             <span class="am-sel-count">已选择 {{ selectedIds.length }} 项</span>
             <button class="btn btn-sm" type="button" @click="batchDownload">
                 <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
@@ -322,7 +353,8 @@
                     <table class="am-table">
                         <thead>
                             <tr>
-                                <th class="am-td-check">
+                                <!-- 复选框列：仅批量模式显示 -->
+                                <th v-if="batchMode" class="am-td-check">
                                     <input
                                         class="am-check"
                                         type="checkbox"
@@ -356,7 +388,7 @@
                                 @dblclick="openPreview(a)"
                                 @contextmenu.prevent="openRowMenu(a, $event)"
                             >
-                                <td class="am-td-check" @click.stop>
+                                <td v-if="batchMode" class="am-td-check" @click.stop>
                                     <input
                                         class="am-check"
                                         type="checkbox"
@@ -448,7 +480,9 @@
                         @contextmenu.prevent="openRowMenu(a, $event)"
                     >
                         <div class="am-card-media">
+                            <!-- 复选框：仅批量模式显示 -->
                             <input
+                                v-if="batchMode"
                                 class="am-check am-card-check"
                                 type="checkbox"
                                 :checked="selectedIds.includes(a.id)"
@@ -546,28 +580,61 @@
             @versions-loaded="previewVersions = $event"
         />
 
-        <!-- ═══ 右键菜单 ═══ -->
-        <div v-if="menu" class="dropdown am-menu" role="menu" :style="{ top: menu.y + 'px', left: menu.x + 'px' }" @mouseleave="menu = null">
-            <button type="button" role="menuitem" @click="menuAction('preview')">预览</button>
-            <button type="button" role="menuitem" @click="menuAction('download')">下载</button>
-            <button type="button" role="menuitem" @click="menuAction('upload-new')">上传新版本</button>
-            <button type="button" role="menuitem" @click="menuAction('publish')">发布最新版本</button>
-            <button type="button" role="menuitem" @click="menuAction('rename')">重命名</button>
-            <button type="button" role="menuitem" @click="menuAction('move')">移动到…</button>
-            <div class="dd-sep"></div>
-            <button class="dd-danger" type="button" role="menuitem" @click="menuAction('delete')">
-                {{ trashMode ? '永久删除' : '移入回收站' }}
-            </button>
-        </div>
+        <!--
+          ═══ 右键菜单 ═══
+
+          用 Teleport 挂到 body —— 这不是「为了让 DOM 扁平」，而是**必须**：
+
+          .main-content 上有 backdrop-filter: blur(30px)（玻璃拟态），
+          而 backdrop-filter / filter / transform 都会创建**包含块**，
+          使得后代的 position: fixed 改为相对该元素定位、而非相对视口。
+
+          后果：菜单的 left 是按视口坐标算的（如 1397px），
+          实际却渲染在 main-content 偏移（250px）之后 → 1648px，
+          整个菜单跑到视口外，用户完全看不到。
+
+          挂到 body 后 fixed 相对视口，坐标才对。
+        -->
+        <Teleport to="body">
+            <div
+                v-if="menu"
+                ref="rowMenuEl"
+                class="dropdown am-menu"
+                role="menu"
+                :style="menuStyle('menu')"
+                @mouseleave="menu = null"
+            >
+                <button type="button" role="menuitem" @click="menuAction('preview')">预览</button>
+                <button type="button" role="menuitem" @click="menuAction('download')">下载</button>
+                <button type="button" role="menuitem" @click="menuAction('upload-new')">上传新版本</button>
+                <button type="button" role="menuitem" @click="menuAction('publish')">发布最新版本</button>
+                <button type="button" role="menuitem" @click="menuAction('rename')">重命名</button>
+                <button type="button" role="menuitem" @click="menuAction('move')">移动到…</button>
+                <div class="dd-sep"></div>
+                <button class="dd-danger" type="button" role="menuitem" @click="menuAction('delete')">
+                    {{ trashMode ? '永久删除' : '移入回收站' }}
+                </button>
+            </div>
+        </Teleport>
 
         <!-- ═══ 文件夹右键菜单 ═══ -->
-        <div v-if="folderMenu" class="dropdown am-menu" role="menu" :style="{ top: folderMenu.y + 'px', left: folderMenu.x + 'px' }" @mouseleave="folderMenu = null">
-            <button type="button" role="menuitem" @click="folderMenuAction('open')">打开</button>
-            <button type="button" role="menuitem" @click="folderMenuAction('child')">新建子文件夹</button>
-            <button type="button" role="menuitem" @click="folderMenuAction('rename')">重命名</button>
-            <div class="dd-sep"></div>
-            <button class="dd-danger" type="button" role="menuitem" @click="folderMenuAction('delete')">删除文件夹</button>
-        </div>
+        <!-- 同样 Teleport 到 body —— 原因见上方右键菜单的注释 -->
+        <Teleport to="body">
+            <div
+                v-if="folderMenu"
+                ref="folderMenuEl"
+                class="dropdown am-menu"
+                role="menu"
+                :style="menuStyle('folderMenu')"
+                @mouseleave="folderMenu = null"
+            >
+                <button type="button" role="menuitem" @click="folderMenuAction('open')">打开</button>
+                <button type="button" role="menuitem" @click="folderMenuAction('child')">新建子文件夹</button>
+                <button type="button" role="menuitem" @click="folderMenuAction('rename')">重命名</button>
+                <div class="dd-sep"></div>
+                <button class="dd-danger" type="button" role="menuitem" @click="folderMenuAction('delete')">删除文件夹</button>
+            </div>
+        </Teleport>
 
         <!-- ═══ 通用输入弹窗（重命名 / 新建文件夹 / 移动 / 标签） ═══ -->
         <div v-if="prompt" class="overlay" @click.self="prompt = null">
@@ -683,6 +750,12 @@ export default {
 
             // ── 选择 ──
             selectedIds: [],
+            /**
+             * 批量模式开关。
+             * 只有开启时才显示复选框列与批量操作条；
+             * 关闭时清空选择（见 toggleBatchMode）。
+             */
+            batchMode: false,
 
             // ── 文件夹 ──
             folderTree: [],
@@ -978,6 +1051,16 @@ export default {
             this.order = this.order === 'asc' ? 'desc' : 'asc';
             this.reload();
         },
+        /**
+         * 切换批量模式。
+         *
+         * 退出时清空已选 —— 留着选择会让用户下次进入批量模式时
+         * 看到「已选择 N 项」却不知道选的是什么，误操作风险高。
+         */
+        toggleBatchMode() {
+            this.batchMode = !this.batchMode;
+            if (!this.batchMode) this.clearSelection();
+        },
         onSearchInput() {
             // 防抖 300ms，避免每敲一个字就打一次接口
             clearTimeout(this._searchTimer);
@@ -997,10 +1080,21 @@ export default {
         },
 
         // ── 选择 ──
+        /**
+         * 点击行。
+         *
+         * 两种模式语义不同：
+         *  - 普通模式：打开右侧详情（主路径）
+         *  - 批量模式：**只切换选中**，不开详情。
+         *    否则用户勾选一批资源时详情面板会不断跳，右侧内容乱闪。
+         */
         onRowClick(a) {
+            if (this.batchMode) {
+                this.toggleSelect(a.id);
+                return;
+            }
             this.detailId = a.id;
             this.loadDetail();
-            this.toggleSelect(a.id);
         },
         toggleSelect(id) {
             const i = this.selectedIds.indexOf(id);
@@ -1035,10 +1129,69 @@ export default {
         markThumbFail(id) { this.thumbFailed[id] = true; },
 
         // ── 右键菜单 ──
+        /**
+         * 打开资源右键 / 更多操作菜单。
+         *
+         * 定位策略：**先渲染、再测量、最后定位**。
+         *
+         * 为什么不能像原来那样用硬编码宽度算位置：
+         * 菜单宽度由内容决定（实测 188px，而代码里写的是 176px），
+         * 而且按钮在表格**最右列**（x≈1589，视口宽 1700）。
+         * 从按钮左边缘向右展开 188px → 右边缘 1777，直接跑到视口外，
+         * 用户完全看不到菜单。
+         *
+         * 所以改为：先按锚点位置渲染出来，拿到真实尺寸后再夹取到视口内。
+         */
         openRowMenu(a, ev) {
-            const rect = ev.currentTarget.getBoundingClientRect();
-            this.menu = { asset: a, x: this.clampX(rect.left, 176), y: this.clampY(rect.bottom + 4, 260) };
+            // currentTarget 在事件回调结束后会变成 null，必须立即取出来
+            const anchor = ev.currentTarget;
+            this.menu = { asset: a, anchor, x: 0, y: 0 };
             this.folderMenu = null;
+            this.$nextTick(() => this.positionMenu('menu', 'rowMenuEl'));
+        },
+        /**
+         * 测量菜单真实尺寸并定位到视口内。
+         *
+         * 水平方向：**优先让菜单右边缘对齐按钮右边缘**。
+         * 按钮在表格最右列，右对齐时菜单自然落在按钮左侧，不会顶出视口。
+         * 若右对齐后左边缘仍小于 8px（按钮靠视口最左时），再翻到按钮右侧。
+         *
+         * @param {string} key      菜单状态字段名（'menu' / 'folderMenu'）
+         * @param {string} refName 菜单元素的 ref 名
+         */
+        /**
+         * 菜单定位样式。
+         *
+         * positioned 为 false 时先隐藏 —— 菜单要先渲染出来才能量到真实尺寸，
+         * 若此时就显示在 (0,0)，用户会看到菜单「闪」到左上角再跳到位。
+         */
+        menuStyle(key) {
+            const m = this[key];
+            if (!m) return {};
+            if (!m.positioned) return { visibility: 'hidden' };
+            return { top: m.y + 'px', left: m.x + 'px' };
+        },
+        positionMenu(key, refName) {            const m = this[key];
+            if (!m || !m.anchor) return;
+            // 用 ref 而不是 querySelector —— 两个菜单共用 .am-menu class，
+            // querySelector 只会取到第一个，量到的可能是另一个菜单的尺寸
+            const el = this.$refs[refName];
+            if (!el) return;
+
+            const r = m.anchor.getBoundingClientRect();
+            // 用实际渲染尺寸，不靠硬编码
+            const w = el.offsetWidth || 176;
+            const h = el.offsetHeight || 200;
+
+            // 右对齐：菜单右边缘 = 按钮右边缘
+            let x = r.right - w;
+            // 越界则翻到按钮左侧
+            if (x < 8) x = r.left;
+            // 仍越界（按钮在视口边缘且菜单太宽）→ 夹取
+            x = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+
+            const y = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - h - 8));
+            this[key] = { ...m, x, y, positioned: true };
         },
         /**
          * 打开资源下载二维码。
@@ -1052,12 +1205,11 @@ export default {
             this.qrMode = 'asset';
         },
         openFolderMenu(node, ev) {
-            const rect = ev.currentTarget.getBoundingClientRect();
-            this.folderMenu = { node, x: this.clampX(rect.left, 176), y: this.clampY(rect.bottom + 4, 180) };
+            const anchor = ev.currentTarget;
+            this.folderMenu = { node, anchor, x: 0, y: 0 };
             this.menu = null;
+            this.$nextTick(() => this.positionMenu('folderMenu', 'folderMenuEl'));
         },
-        clampX(x, w) { return Math.max(8, Math.min(x, window.innerWidth - w - 8)); },
-        clampY(y, h) { return Math.max(8, Math.min(y, window.innerHeight - h - 8)); },
 
         async menuAction(what) {
             const a = this.menu && this.menu.asset;

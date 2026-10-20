@@ -164,7 +164,9 @@ await sleep(900);
 await evalJs(`(() => { const s = document.querySelectorAll('.am-select')[0];
   s.value = 'model'; s.dispatchEvent(new Event('change',{bubbles:true})); return 1; })()`);
 await sleep(800);
-const byType = await evalJs(`JSON.stringify([...document.querySelectorAll('.am-table tbody tr')].map(r=>r.children[2].textContent.trim()))`);
+// 按 class 取列，不按 children 索引 —— 复选框列在批量模式下才存在，
+// 用索引会随列数变化而错位
+const byType = await evalJs(`JSON.stringify([...document.querySelectorAll('.am-table tbody tr')].map(r=>(r.querySelector('td:nth-child(2)')||{}).textContent?.trim()||''))`);
 check('类型筛选生效（只看 3D 模型）', JSON.parse(byType).every(t => t === '3D 模型'), byType);
 await evalJs(`(() => { const s = document.querySelectorAll('.am-select')[0];
   s.value = 'all'; s.dispatchEvent(new Event('change',{bubbles:true})); return 1; })()`);
@@ -186,6 +188,13 @@ const so = JSON.parse(sortedOk);
 check('按名称排序生效（升序或降序）', so.isAsc || so.isDesc, `n=${so.n} first=${so.first} asc=${so.isAsc} desc=${so.isDesc}`);
 
 // ── 6. 多选 + 批量操作条 ──
+// 复选框只在批量模式下出现（见 verify-batch-mode.mjs），先开启批量模式
+await evalJs(`(() => {
+  const t = document.querySelector('.am-batch-toggle');
+  if (t && t.getAttribute('aria-pressed') !== 'true') t.click();
+  return 1;
+})()`);
+await sleep(500);
 await evalJs(`document.querySelector('.am-table tbody .am-check').click()`);
 await sleep(500);
 const sel = await evalJs(`JSON.stringify({
@@ -198,9 +207,17 @@ check('批量条显示选中数量', JSON.parse(sel).text.includes('1'), JSON.pa
 check('行高亮为选中态', JSON.parse(sel).selected === 1, JSON.parse(sel).selected + ' 行');
 await evalJs(`[...document.querySelectorAll('.am-selbar .btn-ghost')].find(b=>b.textContent.includes('取消选择')).click()`);
 await sleep(400);
-check('取消选择后批量条消失', await evalJs(`document.querySelectorAll('.am-selbar').length === 0`));
+// 注意：批量条现在跟随**批量模式**而非选中数量 ——
+// 「取消选择」只清空勾选，批量模式仍在，条还在（符合新语义）。
+check('取消选择后计数归零', await evalJs(`(document.querySelector('.am-sel-count')||{}).textContent?.includes('0')`));
+check('取消选择后行不再高亮', await evalJs(`document.querySelectorAll('.am-table tbody tr.is-selected').length === 0`));
+// 退出批量模式 → 批量条消失
+await evalJs(`document.querySelector('.am-batch-toggle').click()`);
+await sleep(400);
+check('退出批量模式后批量条消失', await evalJs(`document.querySelectorAll('.am-selbar').length === 0`));
 
 // ── 7. 详情面板 + Latest/Published 分离 ──
+// 已在上面退出批量模式 —— 批量模式下点行只切换选中，不打开详情
 await evalJs(`(() => {
   const r = [...document.querySelectorAll('.am-table tbody tr')].find(x => x.textContent.includes('${stamp}主模型'));
   r.click(); return 1; })()`);

@@ -282,7 +282,15 @@
 .am-td-check { width: 34px; }
 .am-td-name { color: var(--text-primary); font-weight: var(--weight-medium); }
 .am-td-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.am-td-act { width: 34px; text-align: right; }
+/* 操作列：二维码 + 更多操作两个按钮，要放得下 */
+.am-td-act { width: 62px; text-align: right; }
+
+/* 批量模式开关按钮：开启时用 accent 描边，与普通态一眼可辨 */
+.am-batch-toggle.is-on {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+}
 
 /* 名称单元格：图标 + 名称 + 标签/版本标记 */
 .am-name-cell {
