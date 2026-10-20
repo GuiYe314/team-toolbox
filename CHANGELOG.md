@@ -4,6 +4,40 @@
 
 ## 2026-10-20
 
+### 统一修复所有浮层定位（实现 + 浏览器验证，待 Codex 验收）
+
+### Context
+上一轮修复了「更多操作菜单跑到视口外」，根因是 `backdrop-filter` 创建包含块。本轮把该问题系统性排查并收尾 —— 排查后确认它是**本项目的系统性约束**，而非单点 bug。
+
+### Fixed
+- **所有浮层统一改为 `<Teleport to="body">`**。本项目用了玻璃拟态（`.glass-panel` 上的 `backdrop-filter`），按 CSS 规范 `backdrop-filter` / `filter` / `transform` 都会创建**包含块**，使后代 `position: fixed` 改为相对该元素而非相对视口定位。实测有三个包含块：`.main-content` / `.main-sidebar` / `.page-sidebar`。
+- 受影响并已修复的浮层：
+  | 浮层 | 修复前 | 修复后 |
+  |---|---|---|
+  | 资源页预览弹窗 | x=337 w=1255 | x=102 w=1496（视口 88%） |
+  | 所有 `.overlay` 遮罩 | 只覆盖主内容区 | 0,0 1700×1050（铺满视口） |
+  | 存储路径 / 二维码弹窗 | 偏离屏幕中心 250px | 中心偏差 0,0 |
+  | 知识库删除确认、Markdown 帮助、App 删页面确认 | 遮罩不全 | 已修 |
+  | 资源 / 文件夹右键菜单 | 整块跑到视口外 | 已修（上一轮） |
+- `verify-assets.mjs` 的 cleanup 只按本轮 id 删两个资源；脚本被 SIGTERM 打断时 exit 处理器里的 async fetch 不会跑完，资源留在库里 —— 实测积压 6 个 `AM786258…` 残留。改为按名称特征 `/^AM\d{4,}/` 搜索全量回收，测试文件夹同理。
+
+### 排查方法（可复用）
+写探针对每个浮层做两件事：① 往上找第一个含 `backdrop-filter`/`filter`/`transform` 的祖先（即包含块）；② 对比 `getBoundingClientRect()` 与 `offsetLeft` 的差值 —— 差值就是偏移量，能直接对上包含块的偏移。
+
+### 约定
+**本项目新增任何 `position: fixed` 浮层时，必须放进 `<Teleport to="body">`。** 玻璃拟态与 fixed 定位天然冲突，这是硬约束。
+
+### Added
+- `frontend/verify-overlay-position.mjs`：16 项验收。判据用**可观测事实**而非绕的祖先链推导：遮罩是否铺满视口（0,0,vw,vh）、弹窗中心是否与视口中心重合、预览弹窗宽度是否为视口 88%、浮层是否挂在 body 下。
+
+### 验证证据
+- 前端 `verify-overlay-position` 16/16；全量回归 313/313（vditor 18 + help 17 + hint 20 + cards 18 + assets 32 + storage 32 + preview 23 + qr 18 + batch-mode 21 + overlay 16 + ui-verify 53 + batch-delete 45）。
+- 后端 `npm test` 243/243（本轮无后端改动）。
+- 实测：预览弹窗宽度 1496/1700 = 88.0%，中心偏差 0,0；遮罩 0,0 1700×1050。
+- 生产构建通过。
+
+## 2026-10-20
+
 ### 批量功能改为显式开关 + 修复更多操作菜单位置（实现 + 浏览器验证，待 Codex 验收）
 
 ### Changed
