@@ -350,7 +350,9 @@ export function listDocuments({ connection: db, filter = {} }) {
     const total = db.prepare(`SELECT COUNT(*) as n FROM documents d ${where}`).get(...params).n;
 
     const items = db.prepare(`
-        SELECT d.*, c.name as category_name,
+        SELECT d.id, d.title, d.category_id, d.version, d.parent_id,
+               d.created_at, d.updated_at,
+               c.name as category_name,
             GROUP_CONCAT(t.name, ',') as tag_names
         FROM documents d
         LEFT JOIN categories c ON c.id = d.category_id
@@ -362,29 +364,89 @@ export function listDocuments({ connection: db, filter = {} }) {
         LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
 
+    // 摘要要读正文，但正文不进列表响应——列表默认一次拉 200 条，
+    // 带上全文会让响应体积随库线性膨胀，而列表只需要开头一小段。
+    // 故分两步：先取元信息，再按本页 id 批量取正文（占位符参数化，无注入风险）。
+    const contentById = new Map();
+    if (items.length > 0) {
+        const ph = items.map(() => '?').join(',');
+        for (const row of db.prepare(
+            `SELECT id, content_md FROM documents WHERE id IN (${ph})`
+        ).all(...items.map(r => r.id))) {
+            contentById.set(row.id, row.content_md);
+        }
+    }
+
     return {
         total,
+        // snippet：列表卡片要显示正文摘要，否则一行只有标题、信息密度过低。
         items: items.map(row => ({
             ...row,
-            tags: row.tag_names ? row.tag_names.split(',') : []
+            tags: row.tag_names ? row.tag_names.split(',') : [],
+            snippet: makeSnippet(contentById.get(row.id), '', 140)
         }))
     };
 }
 
 /**
- * 生成搜索摘要片段（F-KB-006）：在正文（折叠为单行）中定位关键词（不区分大小写），
- * 取其前后窗口；未命中则取正文前 N 个字符。去除换行、折叠空白，避免渲染原始 Markdown 换行。
+ * 把Markdown 正文压成纯文本单行（供列表摘要用）。
+ *
+ * 列表摘要要的是「读起来像句话」，不能把源码符号原样丢给用户：
+ * `## 标题`、`**加粗**`、`- 列表`、`[链接](url)`、`![图](src)`、行内代码反引号
+ * 都必须去掉，否则摘要栏会出现 `## `、`**`、`](` 这类噪声。
+ *
+ * 顺序有讲究：
+ * 1. 先抽掉代码块 / 行内代码（内容不承载叙述，留着反而更乱）；
+ * 2. 图片与链接只留可见文字（图片没有文字，整个删掉）；
+ * 3. 再清掉标题、引用、列表、表格、分隔线等结构性标记；
+ * 4. 最后折叠空白为单个空格并裁掉首尾。
  *
  * @param {string} content 正文 Markdown
- * @param {string} keyword 原始关键词（未转义）
  * @returns {string}
  */
-function makeSnippet(content, keyword) {
+function toPlainText(content) {
     if (!content) return '';
-    const oneLine = String(content).replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!keyword) return oneLine.slice(0, 120);
+    return String(content)
+        .replace(/```[\s\S]*?```/g, ' ')      // 围栏代码块
+        .replace(/~~~[\s\S]*?~~~/g, ' ')
+        .replace(/`([^`]*)`/g, '$1')          // 行内代码保留文字
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')// 图片整体删除（无可见文字）
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/^\s{0,3}#{1,6}\s+/gm, '')   // ATX 标题
+        .replace(/^\s{0,3}>\s?/gm, '')        // 引用
+        .replace(/^\s{0,3}([-*_])\s*\1\s*\1[-*_\s]*$/gm, ' ') // 分隔线
+        .replace(/^\s{0,3}([-*+]|\d+\.)\s+/gm, '')            // 列表
+        .replace(/^\s*\|.*\|\s*$/gm, ' ')     // 表格行
+        .replace(/^\s*[-:| ]{4,}\s*$/gm, ' ')  // 表格分隔行
+        .replace(/(\*\*|__)(.*?)\1/g, '$2')    // 加粗
+        .replace(/(\*|_)(.*?)\1/g, '$2')       // 斜体
+        .replace(/~~(.*?)~~/g, '$1')           // 删除线
+        .replace(/<[^>]+>/g, ' ')              // 内联 HTML
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/**
+ * 生成摘要片段（F-KB-006）：在正文纯文本中定位关键词（不区分大小写），
+ * 取其前后窗口；未命中则取正文前 maxLen 个字符。
+ *
+ * @param {string} content 正文 Markdown
+ * @param {string} keyword 原始关键词（未转义）；为空则纯取开头摘要
+ * @param {number} [maxLen=120] 未命中关键词时的截取长度
+ * @returns {string}
+ */
+function makeSnippet(content, keyword, maxLen = 120) {
+    const oneLine = toPlainText(content);
+    if (!oneLine) return '';
+    const head = () => oneLine.slice(0, maxLen) + (oneLine.length > maxLen ? '…' : '');
+    if (!keyword) {
+        // 列表摘要：工作日志类文档正文常是「日期 + 事项」的清单，
+        // 逐条剥掉日期前缀，否则摘要会变成一串日期，读不出任何有效信息。
+        // 注意只在**无关键词**时做——搜索时用户可能正是按日期检索，不能抹掉。
+        return head().replace(/(?:^|\s)\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
+    }
     const idx = oneLine.toLowerCase().indexOf(keyword.toLowerCase());
-    if (idx < 0) return oneLine.slice(0, 120);
+    if (idx < 0) return head();
     const radius = 50;
     const start = Math.max(0, idx - radius);
     const end = Math.min(oneLine.length, idx + keyword.length + radius);

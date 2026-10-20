@@ -2,6 +2,37 @@
 
 格式：日期 + 类型 + 条目。**只追加，不改写历史。**当前进度以 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) 为唯一来源，本文件不承载状态。
 
+## 2026-10-20
+
+### 知识库与首页改为文档卡片（实现 + 浏览器验证，待 Codex 验收）
+
+### Added
+- `backend/src/store.js` 新增 `toPlainText()`：把Markdown 正文压成纯文本单行，供列表摘要使用。按顺序剥掉代码块、行内代码标记、图片、链接 URL、标题/引用/列表/表格/分隔线等结构性标记，再折叠空白。目的是摘要读起来像句话，而不是漏出 `## `、`**`、`](` 这类源码噪声。
+- `listDocuments()` 现在返回 `snippet`（正文开头 140 字），并**不再返回 `content_md` 全文**。原实现用 `SELECT d.*`，列表一次拉 200 条会把每篇正文全部回传，响应体积随库线性膨胀；现改为列表只取元信息字段，再按本页 id 分批取正文生成摘要（占位符参数化，无注入风险）。
+- `frontend/src/views/KnowledgeBase.vue`：文档列表从「一行一条」改为**自适应卡片网格**（`repeat(auto-fit, minmax(300px, 1fr))`），卡片内含标题、2行摘要、标签、时间、悬停编辑按钮。勾选框移入卡片标题行。
+- `frontend/src/views/Home.vue`：最近更新同步改为卡片网格，与知识库共用同一套视觉语言。
+- `frontend/verify-cards.mjs`（新，18 项断言）。
+
+### Changed
+- 摘要固定 `-webkit-line-clamp: 2` + `flex: 1`，保证同一排卡片等高、整排底边齐平；无摘要时以「暂无内容」占位。
+- 网格用 `auto-fit` 而非 `auto-fill`：`auto-fill` 会保留空轨道，3 张卡片在2 列宽容器里第 3 张独占一行、右侧留大片空白。
+- 响应式不再靠固定断点隐藏列（原先 ≤1500px 隐藏时间列、≤1340px 隐藏标签列），改由 `minmax + auto-fit` 自动降列，逐级折叠的意图得以保留。
+- `verify-batch-delete.mjs` 的地址改为 `VERIFY_BASE` 环境变量优先，原先硬编码 5175，换端口即失效。
+
+### Fixed
+- 工作日志类文档的摘要原本会显示成「2026-10-19 海昏侯，修复AR内容 2026-10-20 ...」——全是日期、读不出信息。现逐条剥离日期前缀。**仅在无关键词时剥离**：搜索时用户可能正是按日期检索，抹掉会破坏检索。
+
+### 验证证据
+- 后端 `npm test`：115/115 通过。
+- 前端 `verify-cards` 18/18（含 snippet 质量、卡片多列、同排等高、line-clamp、响应式降列 1068px→3列 / 900px→2列 / 520px→1列）。
+- 回归：verify-vditor 18/18、verify-help 17/17、verify-hint 20/20、ui-verify 53/53、verify-batch-delete 45/45。
+- `npm run build` 通过；Light/Dark 两套主题截图核对（卡片等高、摘要可读、宽度填满）。
+- 列表接口实测返回字段：`id,title,category_id,version,parent_id,created_at,updated_at,category_name,tag_names,tags,snippet`——已无 `content_md`。
+
+### Notes
+- `.app-layout` 的 `min-width: 1280px` 是刻意设计（窄屏横向滚动而非整体缩放），符合「响应式逐级折叠侧栏、不缩放页面」的规范；因此响应式断言改为主动改变主内容容器宽度来测，而非改视口宽度。
+- 本次仅改前端展示与列表接口返回字段，**未改动任何业务逻辑，未删除任何已有功能**；批量删除、搜索、标签筛选、导入导出均照常可用（45/45 回归通过）。
+
 ## 2026-10-19
 
 ### TASK-012 Markdown 图片附件 + 备份导出可选 gzip（实现 + 浏览器验证，待 Codex 验收）

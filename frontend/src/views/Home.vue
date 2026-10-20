@@ -38,18 +38,20 @@
                         class="recent-item"
                         @click="goDoc(doc.id)"
                     >
-                        <div class="recent-main">
+                        <div class="recent-head">
                             <span class="recent-title">{{ doc.title }}</span>
-                            <span class="recent-sub">
-                                <span v-if="doc.category_name" class="doc-pill">{{ doc.category_name }}</span>
-                                <span
-                                    v-for="t in (doc.tags || [])"
-                                    :key="t"
-                                    class="doc-pill doc-pill-tag"
-                                >#{{ t }}</span>
-                            </span>
+                            <span class="recent-time">{{ formatTime(doc.updated_at) }}</span>
                         </div>
-                        <span class="recent-time">{{ formatTime(doc.updated_at) }}</span>
+                        <p v-if="doc.snippet" class="recent-snippet">{{ doc.snippet }}</p>
+                        <p v-else class="recent-snippet recent-snippet-empty">暂无内容</p>
+                        <div v-if="doc.category_name || (doc.tags || []).length" class="recent-sub">
+                            <span v-if="doc.category_name" class="doc-pill">{{ doc.category_name }}</span>
+                            <span
+                                v-for="t in (doc.tags || [])"
+                                :key="t"
+                                class="doc-pill doc-pill-tag"
+                            >#{{ t }}</span>
+                        </div>
                     </li>
                 </ul>
                 <button
@@ -250,39 +252,43 @@ export default {
     margin-bottom: 8px !important;
 }
 
-/* ── 最近更新列表：与知识库文档行同一视觉语言 ──────────────────── */
+/* ── 最近更新：与知识库同一套卡片语言 ──────────────────────────── */
+/* 文档标题普遍很短，单行列表会浪费横向空间；改为自适应卡片网格，
+   一屏能看到的内容量约为原来 3~4 倍。 */
 .recent-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    display: grid;
+    /* auto-fit：折叠空轨道并拉伸现有列，避免 3 张卡片在 2 列容器里
+       第 3 张单独占一行、右侧留大片空白 */
+    grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+    gap: 10px;
 }
 .recent-item {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 104px;
-    align-items: center;
-    gap: 14px;
-    min-height: 48px;
-    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding: 12px 14px;
     border-radius: var(--radius-md);
-    border: 1px solid transparent;
+    border: 1px solid var(--panel-border);
     background: var(--panel-background);
     cursor: pointer;
     transition: background var(--dur-base) var(--ease-out),
-                border-color var(--dur-base) var(--ease-out),
-                transform var(--dur-base) var(--ease-out);
+                border-color var(--dur-base) var(--ease-out);
 }
 .recent-item:hover {
     background: var(--panel-background-hover);
-    border-color: var(--panel-border);
-    transform: translateY(-1px);
+    border-color: var(--accent-border);
 }
-.recent-main {
+/* 标题行：标题吃掉剩余宽度，时间固定在右上角 */
+.recent-head {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: baseline;
+    gap: 10px;
     min-width: 0;
 }
 .recent-title {
+    flex: 1;
+    min-width: 0;
     font-size: var(--text-doc-title);
     font-weight: var(--weight-semibold);
     color: var(--text-primary);
@@ -290,10 +296,33 @@ export default {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.recent-time {
+    flex: none;
+    font-size: var(--text-tag);
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+/* 摘要固定 2 行：卡片高度一致，整排底部才齐。
+   flex:1 让它吃掉多余高度，无摘要时也保留同样空间。 */
+.recent-snippet {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    flex: 1;
+    margin: 0;
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
+    line-height: var(--line-relaxed);
+    overflow: hidden;
+}
+.recent-snippet-empty { font-style: italic; opacity: 0.7; }
 .recent-sub {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+    margin-top: auto;
 }
 .recent-sub:empty { display: none; }
 .doc-pill {
@@ -310,13 +339,6 @@ export default {
     white-space: nowrap;
 }
 .doc-pill-tag { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
-.recent-time {
-    font-size: var(--text-secondary);
-    color: var(--text-tertiary);
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-    white-space: nowrap;
-}
 
 /* ── 工具卡片网格：自适应列，窄屏自动降列 ──────────────────────── */
 .tools-grid {
@@ -379,9 +401,5 @@ export default {
     margin-top: 14px;
 }
 
-@media (max-width: 1340px) {
-    /* 主内容区变窄时优先牺牲时间列，保住标题可读 */
-    .recent-item { grid-template-columns: minmax(0, 1fr); }
-    .recent-time { display: none; }
-}
+/* 卡片网格靠 auto-fill 自动降列，无需额外断点 */
 </style>

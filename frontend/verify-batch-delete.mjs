@@ -11,7 +11,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const BASE = process.argv[2] || 'http://127.0.0.1:5175';
+const BASE = process.env.VERIFY_BASE || process.argv[2] || 'http://127.0.0.1:5173';
 const API = 'http://127.0.0.1:3000/api';
 const PORT = Number(process.env.CDP_PORT) || 9334;
 const profile = mkdtempSync(join(tmpdir(), 'tt-bd-'));

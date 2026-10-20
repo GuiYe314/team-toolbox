@@ -168,34 +168,39 @@
                 @click="onRowClick(doc)"
                 @keyup.enter="onRowClick(doc)"
             >
-                <label v-if="selectMode" class="kb-check-cell" @click.stop>
-                    <input
-                        class="kb-check"
-                        type="checkbox"
-                        :checked="selectedIds.includes(doc.id)"
-                        :aria-label="'选择文档 ' + doc.title"
-                        @change="toggleSelect(doc.id)"
-                    />
-                </label>
                 <span class="doc-icon-wrap">
                     <DocIcon :size="18" />
                 </span>
                 <div class="doc-main">
-                    <span class="doc-title">{{ doc.title }}</span>
-                    <span v-if="doc.snippet" class="doc-snippet">{{ doc.snippet }}</span>
-                </div>
-                <div class="doc-meta">
-                    <span v-if="doc.category_name" class="tag tag-static">{{ doc.category_name }}</span>
-                    <span v-for="t in (doc.tags || [])" :key="t" class="tag tag-static">#{{ t }}</span>
-                </div>
-                <span class="doc-time">{{ formatTime(doc.updated_at) }}</span>
-                <div class="doc-actions">
-                    <button v-hint class="mini-btn" type="button" title="编辑" aria-label="编辑文档" @click.stop="goEdit(doc.id)">
-                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7.5 18.5l-4 1 1-4z" />
-                        </svg>
-                    </button>
+                    <div class="doc-head">
+                        <span class="doc-title">{{ doc.title }}</span>
+                        <label v-if="selectMode" class="kb-check-cell" @click.stop>
+                            <input
+                                class="kb-check"
+                                type="checkbox"
+                                :checked="selectedIds.includes(doc.id)"
+                                :aria-label="'选择文档 ' + doc.title"
+                                @change="toggleSelect(doc.id)"
+                            />
+                        </label>
+                        <div class="doc-actions">
+                            <button v-hint class="mini-btn" type="button" title="编辑" aria-label="编辑文档" @click.stop="goEdit(doc.id)">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M12 20h9" />
+                                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7.5 18.5l-4 1 1-4z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <p v-if="doc.snippet" class="doc-snippet">{{ doc.snippet }}</p>
+                    <p v-else class="doc-snippet doc-snippet-empty">暂无内容</p>
+                    <div class="doc-foot">
+                        <div class="doc-meta">
+                            <span v-if="doc.category_name" class="tag tag-static">{{ doc.category_name }}</span>
+                            <span v-for="t in (doc.tags || [])" :key="t" class="tag tag-static">#{{ t }}</span>
+                        </div>
+                        <span class="doc-time">{{ formatTime(doc.updated_at) }}</span>
+                    </div>
                 </div>
             </li>
         </ul>
@@ -894,46 +899,48 @@ export default {
 }
 .nt-link:hover { text-decoration: underline; }
 
-/* ── 文档行 ──────────────────────────────────────────────────────── */
-/* 文档行用 Grid 而非 Flex，保证时间戳右对齐成一条竖线，扫读更稳。
-   默认五列：图标 / 标题+摘要 / 分类标签 / 时间 / 操作。*/
+/* ── 文档卡片网格 ────────────────────────────────────────────────── */
+/* 为什么从「一行一条」改成「自适应卡片网格」：
+   文档标题普遍很短（"10月"、"工作"），单行列表下每条只用到约 1/4 宽度，
+   一屏能看的信息量极低。卡片式把标题、摘要、标签、时间收纳进一个方块，
+   同样的屏幕面积能多看 3~4 倍内容。 */
 .doc-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    display: grid;
+    /* minmax 下限决定单卡最小宽度。
+       用 auto-fit 而非 auto-fill：auto-fill 会保留空轨道，
+       3 张卡片在 2 列宽的容器里第 3 张会孤零零占一行、右侧留大片空白；
+       auto-fit 会折叠空轨道并拉伸现有列，把宽度填满。
+       代价是「同一行的卡片等宽」，但对信息密度而言填满远比留白重要。 */
+    grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+    gap: 10px;
+    /* 卡片有外描边，用负 margin + padding 抵消，让卡片边缘与上方工具栏左对齐 */
+    margin: 0 -2px;
+    padding: 2px;
 }
-/* 选择模式多出勾选列 → 六列。列宽定义放在这里而不是 .doc-row：
-   非选择模式不渲染勾选格，无需为它预留位置。*/
-.doc-list.is-selecting .doc-row {
-    grid-template-columns: 22px 28px minmax(180px, 1fr) auto 104px 30px;
-}
+/* 卡片内是两行布局：图标栏 + 内容栏 */
 .doc-row {
     display: grid;
-    grid-template-columns: 28px minmax(200px, 1fr) auto 104px 30px;
-    align-items: center;
-    gap: 12px;
-    min-height: 52px;
-    padding: 7px 10px;
+    grid-template-columns: 24px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    min-width: 0;
+    padding: 12px 13px;
     border-radius: var(--radius-md);
-    border: 1px solid transparent;
+    border: 1px solid var(--panel-border);
     background: var(--panel-background);
     cursor: pointer;
+    /* 卡片高度按内容撑开，但摘要固定 2 行 → 整排卡片底部对齐，视觉更齐 */
     transition: background var(--dur-base) var(--ease-out),
-                border-color var(--dur-base) var(--ease-out),
-                transform var(--dur-base) var(--ease-out);
+                border-color var(--dur-base) var(--ease-out);
 }
 /* 选中态用 accent 描边 + 极淡底色，与 hover 的中性灰明确区分 */
 .doc-row.is-selected {
     background: var(--accent-soft);
     border-color: var(--accent-border);
 }
-/* 选中态不做上浮：勾选时行还在原位，位置感稳定 */
-.doc-row.is-selected:hover { transform: none; }
 .doc-row:hover {
     background: var(--panel-background-hover);
-    border-color: var(--panel-border);
-    /* 极轻微上浮 1px：提供「可点」的反馈，但不做明显缩放 */
-    transform: translateY(-1px);
+    border-color: var(--accent-border);
 }
 .doc-row:focus-visible {
     outline: none;
@@ -944,15 +951,25 @@ export default {
 .doc-icon-wrap {
     display: grid;
     place-items: center;
+    padding-top: 1px;
     color: var(--text-tertiary);
 }
 .doc-main {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 6px;
+    min-width: 0;
+}
+/* 标题行：标题占满剩余空间，勾选框与操作按钮贴右 */
+.doc-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     min-width: 0;
 }
 .doc-title {
+    flex: 1;
+    min-width: 0;
     font-size: var(--text-doc-title);
     font-weight: var(--weight-semibold);
     color: var(--text-primary);
@@ -960,31 +977,52 @@ export default {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* 摘要固定 2 行：超出的省略。这是卡片能对齐的关键——
+   若不限行数，一句话和一段话的卡片高度不同，整排会参差。
+   用 flex:1 让它吃掉标题行之外的多余高度，
+   无摘要时也保留同样空间（靠「暂无内容」占位），保证整排底边齐平。 */
 .doc-snippet {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    flex: 1;
+    margin: 0;
     font-size: var(--text-secondary);
     color: var(--text-tertiary);
-    line-height: var(--line-tight);
+    line-height: var(--line-relaxed);
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
-/* 标签区放不下时截断，不换行挤压标题 */
+.doc-snippet-empty { font-style: italic; opacity: 0.7; }
+/* 卡片底部：标签在左、时间在右 */
+.doc-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+}
+/* 标签区放不下时截断，不换行把卡片撑高 */
 .doc-meta {
     display: flex;
     align-items: center;
     gap: 6px;
-    max-width: 260px;
+    min-width: 0;
     overflow: hidden;
     flex-wrap: nowrap;
 }
+/* 没有标签时让时间贴左，避免时间孤零零占满整行 */
+.doc-meta:empty { display: none; }
+.doc-foot .doc-meta:not(:empty) + .doc-time { margin-left: auto; }
 .doc-time {
-    font-size: var(--text-secondary);
+    flex: none;
+    font-size: var(--text-tag);
     color: var(--text-tertiary);
     font-variant-numeric: tabular-nums;
-    text-align: right;
     white-space: nowrap;
 }
 .doc-actions {
+    flex: none;
     display: flex;
     justify-content: flex-end;
     opacity: 0;
@@ -995,8 +1033,8 @@ export default {
 .mini-btn {
     display: grid;
     place-items: center;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
     background: transparent;
@@ -1012,22 +1050,19 @@ export default {
     box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
+/* 勾选框在卡片标题行内，选中模式下一眼可见位置固定 */
+.kb-check-cell {
+    flex: none;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+
 .kb-more {
     display: flex;
     justify-content: center;
     padding: 16px 0 6px;
 }
 
-/* ── 响应式：窄屏优先牺牲标签区，再牺牲时间列 ────────────────────── */
-@media (max-width: 1500px) {
-    .doc-row { grid-template-columns: 28px minmax(160px, 1fr) auto 30px; }
-    .doc-list.is-selecting .doc-row { grid-template-columns: 22px 28px minmax(140px, 1fr) auto 30px; }
-    .doc-time { display: none; }
-}
-@media (max-width: 1340px) {
-    .doc-row { grid-template-columns: 28px minmax(140px, 1fr) 30px; }
-    .doc-list.is-selecting .doc-row { grid-template-columns: 22px 28px minmax(120px, 1fr) 30px; }
-    .doc-meta { display: none; }
-    .kb-page { padding: 22px 20px 18px; }
-}
+/* ── 响应式：容器变窄时由 auto-fill 自动降列，无需额外断点 ──────── */
 </style>
