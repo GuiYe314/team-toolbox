@@ -4,6 +4,37 @@
 
 ## 2026-10-20
 
+### 把前端硬约束写进 AGENTS.md（实现 + 浏览器验证，待 Codex 验收）
+
+### Added
+- `AGENTS.md` 新增「## 前端约定」小节：10 条硬约束 + 验收脚本索引表（12 个 `verify-*.mjs` 及其覆盖范围与对应约定，逐个核对文件存在）。
+- `frontend/src/styles/glass.css` 顶部补充 `backdrop-filter` 创建包含块的详细说明与「浮层必须 Teleport 到 body」的硬约束 —— 写在该文件里是因为改样式的人一定会看到。
+
+### 约束内容
+1. 浮层必须 Teleport 到 body
+2. 颜色一律走 CSS 变量（组件内禁止硬编码色值；主题色只在 `theme.css`、量值只在 `tokens.css`；样式文件按 `tokens → theme → glass → layout → components → 业务样式` 单向依赖）
+3. 深色背景不用纯黑
+4. 动效时长：微交互 120~180ms，主题切换 200~300ms
+5. 图标统一 Lucide 风格（内联 SVG、stroke-width 1.7~1.9；禁止 Emoji / 3D 图标 / 混用图标库）
+6. backdrop-filter 不层层嵌套
+7. 响应式逐级折叠，不整体缩放；`.app-layout` 保持 `min-width: 1280px`
+8. 浮层定位先测量后落位（不硬编码宽度、用 `ref` 取元素）
+9. 破坏性操作需二次确认，且失败原因写进操作日志不静默吞掉
+10. 验收脚本自造数据必须按特征全量回收，不得只硬编码本轮 id
+
+### Fixed
+- 写规范时逐条核查实际代码，发现「颜色一律走 CSS 变量」这条**当时是假的** —— `AssetQrDialog.vue` 在 JS 里硬编码了 4 个色值。已修：
+  - `theme.css` 新增 `--qr-foreground` / `--qr-background`（**必须不透明** —— 半透明背景会降低扫码识别率）
+  - 组件改用 `getComputedStyle(...).getPropertyValue(...)` 读取，兜底用 `currentColor` / `transparent` 而非字面色值
+- **顺带修一个真 bug**：`AssetQrDialog.vue` 里有**两个 `mounted()`** —— Options API 中后者覆盖前者，新加的主题监听（`MutationObserver` 监听 `data-theme`）会被顶掉，导致主题切换后二维码颜色不更新。已删除旧的 `mounted`。
+
+### 验证证据
+- 前端 `verify-qr-share` 18 → 20（新增两条断言：颜色走 CSS 变量、前景色与 `--qr-foreground` 一致）；全量回归 315/315。
+- 后端 `npm test` 243/243（本轮无后端改动）。
+- 生产构建通过。
+
+## 2026-10-20
+
 ### 统一修复所有浮层定位（实现 + 浏览器验证，待 Codex 验收）
 
 ### Context
