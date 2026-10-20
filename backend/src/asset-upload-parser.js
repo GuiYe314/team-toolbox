@@ -15,6 +15,33 @@ import { errorMap } from './errors.js';
 const MAX_FIELD_BYTES = 64 * 1024;
 
 /**
+ * 把 busboy 给的 latin1 字符串还原成 UTF-8。
+ *
+ * 关键坑点：busboy（以及 RFC 7578 之前的 multipart 实现）默认按
+ * **latin1** 解码 filename / 字段值。中文名经它解一遍就变成
+ * "ä¸­ææµè¯" 这类乱码，必须再按 latin1→UTF-8 还原一次。
+ *
+ * 判断技巧：还原后若出现替换字符（U+FFFD）说明原本不是 UTF-8，
+ * 此时保留原值 —— 宁可显示乱码，也不要把一个本来正确的字符串改坏。
+ *
+ * @param {string} value busboy 解出的原始字符串
+ * @returns {string} 修正后的字符串
+ */
+function toUtf8(value) {
+    const s = String(value);
+    // 纯 ASCII 无需处理，短路返回（多数情况的快路径）
+    if (!/[\x80-\xff]/.test(s)) return s;
+    try {
+        const buf = Buffer.from(s, 'latin1');
+        const fixed = buf.toString('utf8');
+        // 含U+FFFD 说明这段字节不是合法 UTF-8，别乱改
+        return fixed.includes('\ufffd') ? s : fixed;
+    } catch {
+        return s;
+    }
+}
+
+/**
  * 解析 multipart/form-data，返回文件与全部文本字段。
  *
  * @param {import('express').Request} req
@@ -56,12 +83,13 @@ export function parseUploadWithFields(req, maxBytes) {
         // 文本字段。busboy 的 text 事件在 file 之前或之后都可能触发，
         // 所以必须等到 close 才能确认字段已全部收齐。
         bb.on('field', (name, value) => {
-            fields[name] = String(value);
+            fields[name] = toUtf8(value);
         });
 
         bb.on('file', (_field, stream, info) => {
             got = true;
-            filename = info && info.filename ? info.filename : '';
+            // 中文文件名必须经 toUtf8 还原，否则列表里全是乱码
+            filename = info && info.filename ? toUtf8(info.filename) : '';
             stream.on('data', (c) => chunks.push(c));
             stream.on('limit', () => {
                 truncated = true;

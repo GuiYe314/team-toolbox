@@ -28,45 +28,10 @@
  * 复用原上传链路与错误提示，不新增接口。
  */
 import { api } from '../api/client.js';
+// Vditor 加载逻辑已抽到共享模块，资源管理的 Markdown 预览也复用它，
+// 避免两处各自注入脚本/样式
+import { loadVditor } from './MarkdownLoader.js';
 
-let loaderPromise = null;
-
-/**
- * 按需加载 Vditor 的 UMD 脚本与样式。
- * 用共享 Promise 保证并发调用只注入一次。
- * @returns {Promise<any>} Vditor 构造器
- */
-function loadVditor() {
-    if (window.Vditor) return Promise.resolve(window.Vditor);
-    if (loaderPromise) return loaderPromise;
-
-    loaderPromise = new Promise((resolve, reject) => {
-        // 样式
-        if (!document.querySelector('link[data-vditor-css]')) {
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            // 注意：Vditor 内部固定在 cdn 后拼 /dist/css/...，
-            // 故主样式也必须走 /vendor/vditor/dist/index.css，不能直接引 /vendor/vditor/index.css
-            link.href = '/vendor/vditor/dist/index.css';
-            link.dataset.vditorCss = '1';
-            document.head.appendChild(link);
-        }
-        // 脚本
-        const script = document.createElement('script');
-        script.src = '/vendor/vditor/dist/index.min.js';
-        script.async = true;
-        script.onload = () => {
-            if (window.Vditor) resolve(window.Vditor);
-            else reject(new Error('Vditor 脚本已加载但未挂载全局对象'));
-        };
-        script.onerror = () => {
-            loaderPromise = null;   // 允许重试
-            reject(new Error('编辑器资源加载失败，请确认 /vendor/vditor/ 已正确部署'));
-        };
-        document.head.appendChild(script);
-    });
-    return loaderPromise;
-}
 
 export default {
     name: 'MarkdownEditor',

@@ -1,0 +1,571 @@
+/* ==========================================================================
+   资源管理 — 视图样式
+   放在独立文件而非既有 components.css：本模块是独立子系统，
+   样式规则多且内聚，将来整体下线时删一个文件即可，不影响其他视图。
+
+   规范约束（与项目既有约定一致）：
+   - 全部颜色走 Token 变量，禁止硬编码色值
+   - backdrop-filter 只给大型 Panel，列表项/按钮一律半透明底
+   - 动效 120~150ms，禁止弹跳与大幅缩放
+   - 无 Emoji；图标沿用全局 .icon（Lucide 风格 / stroke 1.8）
+   ========================================================================== */
+
+.am-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+/* ── 页头 ────────────────────────────────────────────────────────── */
+.am-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex: none;
+    margin-bottom: 12px;
+}
+.am-title {
+    margin: 0;
+    font-size: var(--text-page-title);
+    font-weight: var(--weight-bold);
+    letter-spacing: -0.015em;
+    color: var(--text-primary);
+}
+.am-desc {
+    margin: 5px 0 0;
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
+}
+.am-desc strong {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── 工具栏：搜索 + 筛选 + 排序 + 视图切换 ─────────────────────────── */
+.am-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: none;
+    margin-bottom: 12px;
+}
+.am-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 180px;
+    max-width: 340px;
+}
+.am-search-icon {
+    position: absolute;
+    left: 11px;
+    display: grid;
+    place-items: center;
+    color: var(--text-tertiary);
+    pointer-events: none;
+}
+.am-search-input {
+    width: 100%;
+    padding-left: 34px;
+    padding-right: 30px;
+}
+.am-search-input::-webkit-search-cancel-button { display: none; }
+.am-search-clear {
+    position: absolute;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.am-search-clear:hover { background: var(--hover-background); color: var(--text-primary); }
+
+/* 分段控件：类型 / 状态筛选、List-Grid 切换共用 */
+.am-segment {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--radius-sm);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
+}
+.am-seg-item {
+    height: 26px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: var(--text-secondary);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.am-seg-item:hover { background: var(--hover-background); color: var(--text-primary); }
+.am-seg-item.is-on {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: var(--weight-semibold);
+}
+/* 图标型分段项（List / Grid 切换）不显示文字 */
+.am-seg-icon { padding: 0; width: 28px; display: grid; place-items: center; }
+
+.am-select {
+    height: 30px;
+    padding: 0 26px 0 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--panel-border);
+    background-color: var(--panel-background);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--text-secondary);
+    cursor: pointer;
+    appearance: none;
+    /* 下拉箭头用 CSS 画，避免额外图标依赖；颜色走 Token */
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 14px) 13px, calc(100% - 9px) 13px;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+}
+.am-select:focus-visible {
+    outline: none;
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.am-toolbar-spacer { flex: 1; }
+
+/* ── 批量操作条：仅在有选中项时出现 ───────────────────────────────── */
+.am-selbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: none;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--accent-border);
+    background: var(--accent-soft);
+    /* 只淡入 + 2px 上移，不做缩放，避免下方列表跳动 */
+    animation: am-bar-in var(--dur-base) var(--ease-out);
+}
+@keyframes am-bar-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.am-sel-count {
+    font-size: var(--text-secondary);
+    color: var(--text-primary);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+.am-sel-spacer { flex: 1; }
+
+/* ── 主体：列表区 + 详情栏 ─────────────────────────────────────────── */
+.am-body {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+}
+.am-list-wrap {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 详情栏：宽屏固定在右侧，窄屏变为抽屉 */
+.am-detail {
+    flex: none;
+    width: 320px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+    overflow: hidden;
+}
+/* 窄屏转抽屉：贴右、浮起、带遮罩 */
+@media (max-width: 1180px) {
+    .am-detail {
+        position: fixed;
+        top: var(--page-padding);
+        right: var(--page-padding);
+        bottom: var(--page-padding);
+        width: min(340px, calc(100vw - var(--page-padding) * 2));
+        z-index: var(--z-modal);
+        box-shadow: var(--shadow-overlay);
+        animation: am-drawer-in var(--dur-base) var(--ease-out);
+    }
+}
+@keyframes am-drawer-in {
+    from { opacity: 0; transform: translateX(12px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+.am-detail-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-modal) - 1);
+    background: var(--overlay-backdrop);
+}
+
+/* ── List 视图：表格 ───────────────────────────────────────────────── */
+/* 不用 Tabulator：它命令式接管 DOM，在 Vue 里会与虚拟 DOM 争抢，
+   造成状态不同步与内存泄漏。这里用语义化 table + computed 排序分页。 */
+.am-table-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+}
+.am-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-secondary);
+}
+.am-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    text-align: left;
+    font-weight: var(--weight-medium);
+    font-size: var(--text-tag);
+    color: var(--text-tertiary);
+    padding: 9px 10px;
+    background: var(--surface-solid);
+    border-bottom: 1px solid var(--panel-border);
+    white-space: nowrap;
+    user-select: none;
+}
+.am-table th.is-sortable { cursor: pointer; }
+.am-table th.is-sortable:hover { color: var(--text-primary); }
+.am-th-inner { display: inline-flex; align-items: center; gap: 5px; }
+.am-sort-mark { color: var(--accent); }
+
+.am-table tbody tr {
+    border-bottom: 1px solid var(--line-normal);
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out);
+}
+.am-table tbody tr:last-child { border-bottom: none; }
+.am-table tbody tr:hover { background: var(--panel-background-hover); }
+.am-table tbody tr.is-selected { background: var(--accent-soft); }
+.am-table tbody tr:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+.am-table td {
+    padding: 8px 10px;
+    vertical-align: middle;
+    color: var(--text-secondary);
+}
+.am-td-check { width: 34px; }
+.am-td-name { color: var(--text-primary); font-weight: var(--weight-medium); }
+.am-td-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.am-td-act { width: 34px; text-align: right; }
+
+/* 名称单元格：图标 + 名称 + 标签/版本标记 */
+.am-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+}
+.am-name-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 缩略图：优先真实图片，否则类型图标 */
+.am-thumb {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--panel-background-hover);
+    border: 1px solid var(--panel-border);
+    color: var(--text-tertiary);
+    overflow: hidden;
+}
+.am-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.am-thumb-badge {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+}
+
+/* 版本标记：v8 / 已发布 v6 */
+.am-ver {
+    display: inline-flex;
+    align-items: center;
+    height: 19px;
+    padding: 0 7px;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-tag);
+    font-variant-numeric: tabular-nums;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background-hover);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.am-ver-latest { color: var(--text-primary); font-weight: var(--weight-semibold); }
+.am-ver-pub { color: var(--success); background: var(--success-soft); border-color: var(--success); }
+/* 「已上传但未发布」：accent 描边，提醒还有未发布的改动 */
+.am-ver-pending {
+    color: var(--warning);
+    background: var(--warning-soft);
+    border-color: var(--warning);
+}
+
+/* ── Grid 视图 ────────────────────────────────────────────────────── */
+.am-grid {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(184px, 100%), 1fr));
+    gap: 10px;
+    align-content: start;
+    padding: 1px;
+}
+.am-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--panel-border);
+    background: var(--panel-background);
+    cursor: pointer;
+    overflow: hidden;
+    transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.am-card:hover { background: var(--panel-background-hover); border-color: var(--accent-border); }
+.am-card.is-selected { background: var(--accent-soft); border-color: var(--accent-border); }
+.am-card:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.am-card-media {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    display: grid;
+    place-items: center;
+    background: var(--surface-sunken);
+    color: var(--text-tertiary);
+    overflow: hidden;
+}
+.am-card-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.am-card-play {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--text-inverse);
+    background: var(--overlay-backdrop);
+}
+.am-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 9px 10px;
+    min-width: 0;
+}
+.am-card-title {
+    font-size: var(--text-secondary);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.am-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-tag);
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+}
+.am-card-tags {
+    display: flex;
+    gap: 5px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+.am-card-check {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    z-index: 1;
+}
+
+/* ── 分页 ─────────────────────────────────────────────────────────── */
+.am-pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex: none;
+    margin-top: 10px;
+    font-size: var(--text-secondary);
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+}
+.am-pager-btns { display: flex; align-items: center; gap: 6px; }
+
+/* ── 复选框：accent-color 跟随主题，深浅色都由浏览器决定 ───────────── */
+.am-check {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.am-check:focus-visible {
+    outline: none;
+    border-radius: 3px;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* ── 空态 / 加载 / 错误 ───────────────────────────────────────────── */
+.am-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex: 1;
+    min-height: 220px;
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: var(--text-body);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--panel-border);
+}
+.am-empty p { margin: 0; }
+.am-empty-icon { color: var(--text-tertiary); opacity: 0.6; }
+.am-hint { font-size: var(--text-secondary); color: var(--text-tertiary); }
+
+/* 拖拽上传高亮 */
+.am-dropzone-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: var(--text-secondary);
+}
+
+/* ── 右键菜单 ─────────────────────────────────────────────────────── */
+.am-menu {
+    position: fixed;
+    z-index: var(--z-dropdown);
+    min-width: 176px;
+}
+
+/* ── Provider 预览容器内的通用样式 ─────────────────────────────────── */
+/* 这些类由 preview-manager.js 的各个 Provider 动态创建，
+   不在组件 scoped 样式里（DOM 不是模板生成的），故放全局。 */
+.pv-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+.pv-video { max-width: 100%; max-height: 100%; background: var(--surface-solid); border-radius: var(--radius-sm); }
+.pv-audio { width: 100%; }
+.pv-wave { width: 100%; height: 90px; display: block; color: var(--text-primary); }
+.pv-model { background: transparent; }
+.pv-md {
+    width: 100%;
+    max-width: 860px;
+    height: 100%;
+    overflow: auto;
+    /* markdown-body 此前是缺失样式（知识库阅读页一直用浏览器默认样式），
+       这里首次补上：全部走 Token，与阅读页、预览页保持一致 */
+    color: var(--text-primary);
+    font-size: var(--text-body);
+    line-height: var(--line-normal);
+    text-align: left;
+}
+.pv-pdf { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px; }
+.pv-pdf-canvas {
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow);
+    /* 深色下 PDF 白底很刺眼，用反色滤镜让文字背景协调 */
+}
+[data-theme="dark"] .pv-pdf-canvas { filter: invert(0.92) hue-rotate(180deg); }
+.pv-pdf-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+/* 纯文本降级（Monaco 加载失败时） */
+.pv-plain {
+    margin: 0;
+    padding: 12px;
+    max-width: 100%;
+    max-height: 100%;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-secondary);
+    line-height: var(--line-normal);
+    color: var(--text-primary);
+    white-space: pre;
+    tab-size: 2;
+}
+/* 预览失败 / 不支持：必须说清原因与替代路径，不留空白 */
+.pv-error {
+    padding: 20px 24px;
+    max-width: 420px;
+    text-align: center;
+    font-size: var(--text-secondary);
+    color: var(--danger);
+    line-height: var(--line-relaxed);
+}
+.pv-note {
+    padding: 20px 24px;
+    max-width: 460px;
+    text-align: center;
+    color: var(--text-secondary);
+    line-height: var(--line-relaxed);
+}
+.pv-note p { margin: 0 0 6px; }
+.pv-note p:last-child { margin-bottom: 0; }

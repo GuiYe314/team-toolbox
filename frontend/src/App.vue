@@ -45,6 +45,16 @@
                     </span>
                     <span class="nav-label">知识库</span>
                 </router-link>
+                <router-link to="/assets" class="nav-item" :class="{ 'is-active': $route.path.startsWith('/assets') }">
+                    <span class="nav-icon">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 6.5h18v4H3z" />
+                            <path d="M5 10.5v8.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-8.5" />
+                            <path d="M12 13v5M9.5 15.5 12 18l2.5-2.5" />
+                        </svg>
+                    </span>
+                    <span class="nav-label">资源管理</span>
+                </router-link>
                 <router-link to="/tools" class="nav-item" :class="{ 'is-active': $route.path.startsWith('/tools') }">
                     <span class="nav-icon">
                         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">

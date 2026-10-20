@@ -27,6 +27,11 @@ const routes = [
         component: () => import('../views/DocumentEdit.vue')
     },
     {
+        path: '/assets',
+        name: 'assets',
+        component: () => import('../views/Assets.vue')
+    },
+    {
         path: '/tools',
         name: 'tools',
         component: () => import('../views/Tools.vue')

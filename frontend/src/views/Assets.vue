@@ -1,0 +1,1357 @@
+<template>
+    <div class="am-page">
+        <!-- ═══ 页头 ═══ -->
+        <header class="am-head">
+            <div>
+                <h1 class="am-title">资源管理</h1>
+                <p class="am-desc">
+                    <template v-if="trashMode">
+                        回收站 · <strong>{{ total }}</strong> 项待清理
+                    </template>
+                    <template v-else>
+                        <strong>{{ total }}</strong> 个资源<template v-if="currentFolder"> · {{ currentFolder.name }}</template>
+                    </template>
+                </p>
+            </div>
+            <div class="am-head-actions">
+                <button class="btn btn-primary" type="button" @click="pickFiles">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    上传资源
+                </button>
+                <button class="btn" type="button" @click="createFolder">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6.5h18v4H3z" />
+                        <path d="M5 10.5v8.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-8.5" />
+                    </svg>
+                    新建文件夹
+                </button>
+                <input ref="fileInput" class="am-hidden-file" type="file" multiple @change="onFilesPicked" />
+            </div>
+        </header>
+
+        <!-- ═══ 工具栏 ═══ -->
+        <div class="am-toolbar">
+            <div class="am-search">
+                <span class="am-search-icon">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="11" cy="11" r="6.5" />
+                        <line x1="16" y1="16" x2="20.5" y2="20.5" />
+                    </svg>
+                </span>
+                <input
+                    v-model="search"
+                    class="input am-search-input"
+                    type="search"
+                    placeholder="搜索名称、标签、描述…"
+                    @input="onSearchInput"
+                />
+                <button v-if="search" class="am-search-clear" type="button" aria-label="清除搜索" @click="clearSearch">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 筛选/排序变化必须显式触发重新加载：
+     v-model 只改数据，不会自动调 load()。
+     watch 也能做，但这里直接绑 @change 更直白，且能顺手重置分页。 -->
+<select v-model="typeFilter" class="am-select" aria-label="类型筛选" @change="reload">
+                <option v-for="t in TYPE_FILTERS" :key="t.value" :value="t.value">{{ t.label }}</option>
+            </select>
+
+            <select v-model="statusFilter" class="am-select" aria-label="状态筛选" @change="reload">
+                <option v-for="s in STATUS_FILTERS" :key="s.value" :value="s.value">{{ s.label }}</option>
+            </select>
+
+            <select v-model="sort" class="am-select" aria-label="排序字段" @change="reload">
+                <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">按{{ o.label }}</option>
+            </select>
+
+            <button class="btn btn-sm" type="button" @click="toggleOrder">
+                {{ order === 'asc' ? '升序' : '降序' }}
+            </button>
+
+            <span class="am-toolbar-spacer"></span>
+
+            <div class="am-segment" role="group" aria-label="视图切换">
+                <button
+                    class="am-seg-item am-seg-icon"
+                    :class="{ 'is-on': view === 'list' }"
+                    type="button"
+                    title="列表视图"
+                    aria-label="列表视图"
+                    @click="view = 'list'"
+                >
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <line x1="9" y1="6.5" x2="20" y2="6.5" /><line x1="9" y1="12" x2="20" y2="12" />
+                        <line x1="9" y1="17.5" x2="20" y2="17.5" /><circle cx="4.8" cy="6.5" r="1.2" />
+                        <circle cx="4.8" cy="12" r="1.2" /><circle cx="4.8" cy="17.5" r="1.2" />
+                    </svg>
+                </button>
+                <button
+                    class="am-seg-item am-seg-icon"
+                    :class="{ 'is-on': view === 'grid' }"
+                    type="button"
+                    title="网格视图"
+                    aria-label="网格视图"
+                    @click="view = 'grid'"
+                >
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="4" y="4" width="7" height="7" rx="1.4" />
+                        <rect x="13" y="4" width="7" height="7" rx="1.4" />
+                        <rect x="4" y="13" width="7" height="7" rx="1.4" />
+                        <rect x="13" y="13" width="7" height="7" rx="1.4" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- ═══ 批量操作条 ═══ -->
+        <div v-if="selectedIds.length > 0" class="am-selbar">
+            <span class="am-sel-count">已选择 {{ selectedIds.length }} 项</span>
+            <button class="btn btn-sm" type="button" @click="batchDownload">
+                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 4v10" /><polyline points="8 11 12 15 16 11" /><path d="M5 19h14" />
+                </svg>
+                批量下载
+            </button>
+            <button class="btn btn-sm" type="button" @click="batchMove">移动</button>
+            <button class="btn btn-sm" type="button" @click="batchTag">添加标签</button>
+            <button v-if="trashMode" class="btn btn-sm" type="button" @click="batchRestore">恢复</button>
+            <button class="btn btn-sm btn-danger" type="button" @click="trashMode ? batchPurge() : batchDelete()">
+                {{ trashMode ? '永久删除' : '删除' }}
+            </button>
+            <span class="am-sel-spacer"></span>
+            <button class="btn btn-sm btn-ghost" type="button" @click="clearSelection">取消选择</button>
+        </div>
+
+        <!-- ═══ 主体 ═══ -->
+        <div class="am-body">
+            <!-- ── 左：视图导航 + 文件夹树 ── -->
+            <aside class="am-side" aria-label="资源导航">
+                <nav class="am-nav">
+                    <button
+                        v-for="v in VIEWS"
+                        :key="v.key"
+                        class="am-nav-item"
+                        :class="{ 'is-on': viewKey === v.key && folderId === undefined }"
+                        type="button"
+                        @click="setView(v.key)"
+                    >
+                        <span class="am-nav-icon">
+                            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path v-for="(d, i) in v.paths" :key="i" :d="d" />
+                            </svg>
+                        </span>
+                        <span class="am-nav-label">{{ v.label }}</span>
+                        <span v-if="stats[v.countKey] != null" class="am-nav-count">{{ stats[v.countKey] }}</span>
+                    </button>
+                </nav>
+
+                <!-- 未分类：不属于任何文件夹的资源 -->
+                <button
+                    class="am-nav-item"
+                    :class="{ 'is-on': folderId === 'none' }"
+                    type="button"
+                    @click="showUnclassified"
+                >
+                    <span class="am-nav-icon">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 6.5h18v4H3z" />
+                            <path d="M5 10.5v8.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-8.5" />
+                            <line x1="12" y1="13.5" x2="16" y2="13.5" />
+                        </svg>
+                    </span>
+                    <span class="am-nav-label">未分类</span>
+                </button>
+
+                <div class="am-side-sep"></div>
+
+                <div class="am-side-head">
+                    <h2 class="am-side-title">文件夹</h2>
+                    <button
+                        v-hint
+                        class="am-vbtn"
+                        type="button"
+                        title="新建顶级文件夹"
+                        aria-label="新建顶级文件夹"
+                        @click="createFolder(null)"
+                    >
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="scroll-area am-tree-wrap">
+                    <p v-if="folderLoading" class="am-hint">加载中…</p>
+                    <p v-else-if="folderTree.length === 0" class="am-hint">还没有文件夹</p>
+                    <AssetFolderTree
+                        v-else
+                        :nodes="folderTree"
+                        :active-id="typeof folderId === 'number' ? folderId : null"
+                        :expanded="expandedFolders"
+                        :renaming-id="renamingFolderId"
+                        @open="openFolder"
+                        @toggle="toggleFolder"
+                        @create-child="createFolder"
+                        @menu="openFolderMenu"
+                        @rename-submit="submitFolderRename"
+                        @rename-cancel="renamingFolderId = null"
+                        @drag-over="onFolderDragOver"
+                        @drop="onFolderDrop"
+                    />
+                </div>
+
+                <button class="btn am-side-add" type="button" @click="createFolder(null)">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    新建文件夹
+                </button>
+            </aside>
+
+            <!-- ── 中：列表 / 网格 ── -->
+            <div class="am-list-wrap">
+                <div v-if="dragging" class="am-dropzone-hint">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 16V5" /><polyline points="7.5 9.5 12 5 16.5 9.5" /><path d="M4.5 19h15" />
+                    </svg>
+                    松开以上传到当前文件夹
+                </div>
+
+                <p v-if="error" class="notice notice-error am-error">
+                    {{ error }}
+                    <button class="nt-link" type="button" @click="load">重试</button>
+                </p>
+
+                <!-- 加载 / 空态 -->
+                <div v-if="loading && items.length === 0" class="am-empty">
+                    <p>加载中…</p>
+                </div>
+                <div v-else-if="items.length === 0" class="am-empty">
+                    <svg class="icon icon-lg am-empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6.5h18v4H3z" />
+                        <path d="M5 10.5v8.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-8.5" />
+                        <path d="M12 13v5M9.5 15.5 12 18l2.5-2.5" />
+                    </svg>
+                    <p v-if="search">没有匹配「{{ search }}」的资源</p>
+                    <p v-else-if="trashMode">回收站是空的</p>
+                    <p v-else>这里还没有资源</p>
+                    <p class="am-hint">点击右上角「上传资源」或把文件拖进来</p>
+                </div>
+
+                <!-- List 视图 -->
+                <div v-else-if="view === 'list'" class="am-table-wrap">
+                    <table class="am-table">
+                        <thead>
+                            <tr>
+                                <th class="am-td-check">
+                                    <input
+                                        class="am-check"
+                                        type="checkbox"
+                                        :checked="allSelected"
+                                        :indeterminate.prop="someSelected && !allSelected"
+                                        aria-label="全选"
+                                        @change="toggleSelectAll"
+                                    />
+                                </th>
+                                <th class="am-th-sortable" @click="sortBy('name')">
+                                    <span class="am-th-inner">资源名称 <span v-if="sort === 'name'" class="am-sort-mark">{{ order === 'asc' ? '↑' : '↓' }}</span></span>
+                                </th>
+                                <th>类型</th>
+                                <th class="am-td-num">大小</th>
+                                <th>版本</th>
+                                <th>状态</th>
+                                <th>上传者</th>
+                                <th class="am-th-sortable" @click="sortBy('updated_at')">
+                                    <span class="am-th-inner">更新时间 <span v-if="sort === 'updated_at'" class="am-sort-mark">{{ order === 'asc' ? '↑' : '↓' }}</span></span>
+                                </th>
+                                <th class="am-td-act"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="a in items"
+                                :key="a.id"
+                                :class="{ 'is-selected': selectedIds.includes(a.id) }"
+                                :tabindex="0"
+                                @click="onRowClick(a)"
+                                @dblclick="openPreview(a)"
+                                @contextmenu.prevent="openRowMenu(a, $event)"
+                            >
+                                <td class="am-td-check" @click.stop>
+                                    <input
+                                        class="am-check"
+                                        type="checkbox"
+                                        :checked="selectedIds.includes(a.id)"
+                                        :aria-label="'选择 ' + a.name"
+                                        @change="toggleSelect(a.id)"
+                                    />
+                                </td>
+                                <td class="am-td-name">
+                                    <span class="am-name-cell">
+                                        <span class="am-thumb">
+                                            <img
+                                                v-if="isThumbOk(a)"
+                                                :src="thumbUrl(a)"
+                                                :alt="a.name"
+                                                @error="markThumbFail(a.id)"
+                                            />
+                                            <svg v-else class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                                                <path v-for="(d, i) in typeMeta(a.type).paths" :key="i" :d="d" />
+                                            </svg>
+                                        </span>
+                                        <span class="am-name-text" :title="a.name">{{ a.name }}</span>
+                                    </span>
+                                </td>
+                                <td>{{ typeMeta(a.type).label }}</td>
+                                <td class="am-td-num">{{ formatSize(a.latestSize) }}</td>
+                                <td>
+                                    <span class="am-ver am-ver-latest" v-if="a.latestVersionNumber">v{{ a.latestVersionNumber }}</span>
+                                    <span class="am-ver am-ver-pub" v-if="a.publishedVersionNumber">发布 v{{ a.publishedVersionNumber }}</span>
+                                </td>
+                                <td>
+                                    <span class="am-ver" :class="'am-ver-' + (ASSET_STATUS[a.status]?.tone || 'neutral')">
+                                        {{ ASSET_STATUS[a.status]?.label || a.status }}
+                                    </span>
+                                </td>
+                                <td>{{ a.createdBy }}</td>
+                                <td class="am-td-num">{{ formatRelative(a.updatedAt) }}</td>
+                                <td class="am-td-act" @click.stop>
+                                    <button
+                                        v-hint
+                                        class="am-vbtn"
+                                        type="button"
+                                        title="更多操作"
+                                        aria-label="更多操作"
+                                        @click="openRowMenu(a, $event)"
+                                    >
+                                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                                            <circle cx="12" cy="5" r="1.4" />
+                                            <circle cx="12" cy="12" r="1.4" />
+                                            <circle cx="12" cy="19" r="1.4" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Grid 视图 -->
+                <div v-else class="am-grid">
+                    <div
+                        v-for="a in items"
+                        :key="a.id"
+                        class="am-card"
+                        :class="{ 'is-selected': selectedIds.includes(a.id) }"
+                        :tabindex="0"
+                        @click="onRowClick(a)"
+                        @dblclick="openPreview(a)"
+                        @contextmenu.prevent="openRowMenu(a, $event)"
+                    >
+                        <div class="am-card-media">
+                            <input
+                                class="am-check am-card-check"
+                                type="checkbox"
+                                :checked="selectedIds.includes(a.id)"
+                                :aria-label="'选择 ' + a.name"
+                                @click.stop
+                                @change="toggleSelect(a.id)"
+                            />
+                            <img
+                                v-if="isThumbOk(a)"
+                                :src="thumbUrl(a)"
+                                :alt="a.name"
+                                @error="markThumbFail(a.id)"
+                            />
+                            <svg v-else class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true">
+                                <path v-for="(d, i) in typeMeta(a.type).paths" :key="i" :d="d" />
+                            </svg>
+                            <!-- 视频加播放标志：一眼区分可播放资源 -->
+                            <span v-if="a.type === 'video'" class="am-card-play">
+                                <svg class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M8 5.5v13l11-6.5z" />
+                                </svg>
+                            </span>
+                        </div>
+                        <div class="am-card-body">
+                            <span class="am-card-title" :title="a.name">{{ a.name }}</span>
+                            <div class="am-card-meta">
+                                <span>{{ typeMeta(a.type).label }}</span>
+                                <span>{{ formatSize(a.latestSize) }}</span>
+                            </div>
+                            <div class="am-card-meta">
+                                <span class="am-ver am-ver-latest" v-if="a.latestVersionNumber">v{{ a.latestVersionNumber }}</span>
+                                <span class="am-ver am-ver-pub" v-if="a.publishedVersionNumber">发布 v{{ a.publishedVersionNumber }}</span>
+                                <span>{{ formatRelative(a.updatedAt) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 分页 -->
+                <div v-if="items.length > 0 && total > pageSize" class="am-pager">
+                    <span>第 {{ page }} / {{ totalPages }} 页 · 共 {{ total }} 项</span>
+                    <div class="am-pager-btns">
+                        <button class="btn btn-sm" type="button" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
+                        <button class="btn btn-sm" type="button" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 右：详情（窄屏由 CSS 转抽屉） ── -->
+            <AssetDetails
+                v-if="showDetail"
+                :asset="detail"
+                :versions="detailVersions"
+                :versions-loading="detailLoading"
+                :can-preview="detail ? hasPreviewProvider(detail.type) : false"
+                :is-trash-view="trashMode"
+                :busy="actionBusy"
+                @close="detailId = null"
+                @preview="openPreview"
+                @upload-new="startVersionUpload"
+                @rename="startRename"
+                @move="startMove"
+                @remove="trashMode ? confirmPurgeOne() : confirmDeleteOne()"
+                @refresh="onDetailAction"
+            />
+        </div>
+
+        <!-- 窄屏详情抽屉的遮罩 -->
+        <div v-if="showDetail && isNarrow" class="am-detail-backdrop" @click="detailId = null"></div>
+
+        <!-- ═══ 预览弹窗 ═══ -->
+        <AssetPreviewDialog
+            v-if="previewAsset"
+            :asset="previewAsset"
+            :versions="previewVersions"
+            :siblings="items"
+            @close="previewAsset = null"
+            @navigate="onPreviewNavigate"
+            @versions-loaded="previewVersions = $event"
+        />
+
+        <!-- ═══ 右键菜单 ═══ -->
+        <div v-if="menu" class="dropdown am-menu" role="menu" :style="{ top: menu.y + 'px', left: menu.x + 'px' }" @mouseleave="menu = null">
+            <button type="button" role="menuitem" @click="menuAction('preview')">预览</button>
+            <button type="button" role="menuitem" @click="menuAction('download')">下载</button>
+            <button type="button" role="menuitem" @click="menuAction('upload-new')">上传新版本</button>
+            <button type="button" role="menuitem" @click="menuAction('publish')">发布最新版本</button>
+            <button type="button" role="menuitem" @click="menuAction('rename')">重命名</button>
+            <button type="button" role="menuitem" @click="menuAction('move')">移动到…</button>
+            <div class="dd-sep"></div>
+            <button class="dd-danger" type="button" role="menuitem" @click="menuAction('delete')">
+                {{ trashMode ? '永久删除' : '移入回收站' }}
+            </button>
+        </div>
+
+        <!-- ═══ 文件夹右键菜单 ═══ -->
+        <div v-if="folderMenu" class="dropdown am-menu" role="menu" :style="{ top: folderMenu.y + 'px', left: folderMenu.x + 'px' }" @mouseleave="folderMenu = null">
+            <button type="button" role="menuitem" @click="folderMenuAction('open')">打开</button>
+            <button type="button" role="menuitem" @click="folderMenuAction('child')">新建子文件夹</button>
+            <button type="button" role="menuitem" @click="folderMenuAction('rename')">重命名</button>
+            <div class="dd-sep"></div>
+            <button class="dd-danger" type="button" role="menuitem" @click="folderMenuAction('delete')">删除文件夹</button>
+        </div>
+
+        <!-- ═══ 通用输入弹窗（重命名 / 新建文件夹 / 移动 / 标签） ═══ -->
+        <div v-if="prompt" class="overlay" @click.self="prompt = null">
+            <div class="dialog" role="dialog" aria-modal="true">
+                <h2 class="dialog-title">{{ prompt.title }}</h2>
+                <p v-if="prompt.hint" class="dialog-text">{{ prompt.hint }}</p>
+
+                <select v-if="prompt.kind === 'folder'" v-model="prompt.value" class="am-select am-prompt-select">
+                    <option :value="null">未分类（根目录）</option>
+                    <option v-for="f in folderTree" :key="f.id" :value="f.id">{{ '　'.repeat(f.depth) }}{{ f.name }}</option>
+                </select>
+                <input
+                    v-else
+                    v-model="prompt.value"
+                    class="input am-prompt-input"
+                    type="text"
+                    :placeholder="prompt.placeholder || ''"
+                    @keyup.enter="submitPrompt"
+                />
+                <p v-if="promptError" class="notice notice-error am-prompt-error">{{ promptError }}</p>
+
+                <div class="dialog-actions">
+                    <button class="btn" type="button" @click="prompt = null">取消</button>
+                    <button class="btn btn-primary" type="button" @click="submitPrompt">{{ prompt.okText || '确定' }}</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ 永久删除二次确认 ═══ -->
+        <div v-if="confirm" class="overlay" @click.self="confirm = null">
+            <div class="dialog" role="dialog" aria-modal="true">
+                <h2 class="dialog-title">{{ confirm.title }}</h2>
+                <p class="dialog-text">{{ confirm.text }}</p>
+                <p class="dialog-warn">{{ confirm.warn }}</p>
+                <div class="dialog-actions">
+                    <button class="btn" type="button" @click="confirm = null">取消</button>
+                    <button class="btn btn-danger-solid" type="button" @click="runConfirm">{{ confirm.okText || '确认' }}</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ 右下角上传任务面板 ═══ -->
+        <AssetUploadPanel
+            :items="uploadItems"
+            @cancel="cancelUpload"
+            @cancel-all="cancelAllUploads"
+            @clear-finished="clearFinishedUploads"
+            @resolve="resolveUploadConflict"
+        />
+    </div>
+</template>
+
+<script>
+import assetApi from '../api/asset-client.js';
+import {
+    typeMeta, formatSize, formatRelative, ASSET_STATUS,
+    TYPE_FILTER_ORDER, STATUS_FILTER_ORDER, SORT_OPTIONS, hasPreviewProvider
+} from '../assets/asset-meta.js';
+import UploadManager from '../assets/upload-manager.js';
+import AssetFolderTree from '../components/assets/AssetFolderTree.vue';
+import AssetDetails from '../components/assets/AssetDetails.vue';
+import AssetPreviewDialog from '../components/assets/AssetPreviewDialog.vue';
+import AssetUploadPanel from '../components/assets/AssetUploadPanel.vue';
+
+const EXPANDED_KEY = 'asset-folders-expanded';
+const PAGE_SIZE = 50;
+
+export default {
+    name: 'AssetsView',
+    components: { AssetFolderTree, AssetDetails, AssetPreviewDialog, AssetUploadPanel },
+    data() {
+        return {
+            // ── 列表状态 ──
+            items: [],
+            total: 0,
+            page: 1,
+            pageSize: PAGE_SIZE,
+            loading: false,
+            error: '',
+            stats: {},
+
+            // ── 筛选 / 排序 ──
+            search: '',
+            typeFilter: 'all',
+            statusFilter: 'all',
+            sort: 'updated_at',
+            order: 'desc',
+            viewKey: 'all',
+            /** undefined = 跨文件夹（全部）；'none' = 未分类；数字 = 指定文件夹 */
+            folderId: undefined,
+
+            // ── 视图模式 ──
+            view: localStorage.getItem('asset-view') || 'list',
+
+            // ── 选择 ──
+            selectedIds: [],
+
+            // ── 文件夹 ──
+            folderTree: [],
+            folderLoading: false,
+            expandedFolders: {},
+            renamingFolderId: null,
+
+            // ── 详情 ──
+            detailId: null,
+            detail: null,
+            detailVersions: [],
+            detailLoading: false,
+            actionBusy: false,
+
+            // ── 预览 ──
+            previewAsset: null,
+            previewVersions: [],
+
+            // ── 菜单 ──
+            menu: null,
+            folderMenu: null,
+
+            // ── 弹窗 ──
+            prompt: null,
+            promptError: '',
+            confirm: null,
+
+            // ── 上传 ──
+            uploadItems: [],
+            dragging: false,
+
+            // ── 缩略图失败缓存（避免每次渲染重试 404） ──
+            thumbFailed: {},
+
+            isNarrow: window.innerWidth <= 1180,
+            TYPE_FILTERS: [{ value: 'all', label: '全部类型' },
+                ...TYPE_FILTER_ORDER.filter((t) => t !== 'all').map((t) => ({
+                    value: t, label: typeMeta(t).label
+                }))],
+            STATUS_FILTERS: [{ value: 'all', label: '全部状态' },
+                ...STATUS_FILTER_ORDER.filter((s) => s !== 'all').map((s) => ({
+                    value: s, label: ASSET_STATUS[s].label
+                }))],
+            SORT_OPTIONS,
+            ASSET_STATUS,
+            // 左侧导航项：countKey 对应后端 stats 的字段
+            VIEWS: [
+                {
+                    key: 'all', label: '全部资源', countKey: 'active',
+                    paths: ['M4 5.5h6.5l1.5 2H20v11.5H4z']
+                },
+                {
+                    key: 'recent', label: '最近使用', countKey: null,
+                    paths: ['M12 4.5v7.5l3 2', 'M12 20.5a8 8 0 1 0 0-16 8 8 0 0 0 0 16z']
+                },
+                {
+                    key: 'mine', label: '我的上传', countKey: null,
+                    paths: ['M12 11.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z', 'M4.5 20.2a7.5 7.5 0 0 1 15 0']
+                },
+                {
+                    key: 'published', label: '已发布', countKey: 'published',
+                    paths: ['M5 12.5l4.5 4.5L19 7.5']
+                },
+                {
+                    key: 'trash', label: '回收站', countKey: 'trashed',
+                    paths: ['M4.5 6.5h15M9.5 6.5V4.8A1.3 1.3 0 0 1 10.8 3.5h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7',
+                        'M6.5 6.5l.8 12.2A1.6 1.6 0 0 0 8.9 20.2h6.2a1.6 1.6 0 0 0 1.6-1.5l.8-12.2']
+                }
+            ]
+        };
+    },
+    computed: {
+        trashMode() { return this.viewKey === 'trash'; },
+        /**
+         * 是否只看待整理的「未分类」资源。
+         * 用独立开关而不是把 folderId 设成 null —— 因为 null 在 API 层
+         * 有「未分类」的特定含义，若同时又当默认值，「看全部」会被误伤成「看未分类」。
+         */
+        unclassifiedOnly() { return this.folderId === 'none'; },
+        showDetail() { return this.detailId != null; },
+        totalPages() { return Math.max(1, Math.ceil(this.total / this.pageSize)); },
+        allSelected() {
+            return this.items.length > 0 && this.selectedIds.length === this.items.length;
+        },
+        someSelected() {
+            return this.selectedIds.length > 0 && !this.allSelected;
+        },
+        /** 面包屑用的当前文件夹名。 */
+        currentFolder() {
+            if (this.folderId == null) return null;
+            return this.flattenFolders().find((f) => f.id === this.folderId) || null;
+        }
+    },
+    created() {
+        // 上传管理器是长生命周期对象：创建一次，全组件共享，
+        // 组件卸载时必须 destroy（否则 Uppy 的事件监听会泄漏）
+        this._upload = new UploadManager({ assetApi });
+        this._unsubUpload = this._upload.subscribe((items) => {
+            this.uploadItems = items.slice();
+            // 有新资产入库时刷新列表，让用户立刻看到结果
+            if (items.some((i) => i.state === 'success')) this.load();
+            if (items.some((i) => i.state === 'needs_decision') && this._conflictShown !== items.find((i) => i.state === 'needs_decision').id) {
+                this._conflictShown = items.find((i) => i.state === 'needs_decision').id;
+            }
+        });
+        this.loadExpanded();
+    },
+    async mounted() {
+        window.addEventListener('resize', this.onResize);
+        this.loadFolders();
+        await this.loadStats();
+        await this.load();
+        if (this.detailId) await this.loadDetail();
+    },
+    beforeUnmount() {
+        window.removeEventListener('resize', this.onResize);
+        // 事件解绑：拖拽监听挂在 window 上，不摘会持续触发
+        window.removeEventListener('dragover', this.onWindowDragOver);
+        window.removeEventListener('dragleave', this.onWindowDragLeave);
+        window.removeEventListener('drop', this.onWindowDrop);
+        if (this._unsubUpload) this._unsubUpload();
+        if (this._upload) this._upload.destroy();
+    },
+    methods: {
+        typeMeta,
+        formatSize,
+        formatRelative,
+        hasPreviewProvider,
+
+        onResize() {
+            this.isNarrow = window.innerWidth <= 1180;
+        },
+
+        // ── 数据加载 ──
+        async load() {
+            this.loading = true;
+            this.error = '';
+            try {
+                const { res, body } = await assetApi.list({
+                    // folderId 三态：undefined=不限；null=未分类；数字=指定
+                    // 顶部导航视图（全部/最近/我的/已发布）都应「跨文件夹看」，
+                    // 所以传 undefined；只有点「未分类」才传 null。
+                    folderId: this.unclassifiedOnly ? null : this.folderId,
+                    search: this.search.trim(),
+                    type: this.typeFilter,
+                    status: this.statusFilter,
+                    scope: this.trashMode ? 'trash' : (this.viewKey === 'published' ? 'published' : 'all'),
+                    sort: this.sort,
+                    order: this.order,
+                    page: this.page,
+                    pageSize: this.pageSize
+                });
+                if (!res.ok) throw new Error((body && body.message) || '加载失败');
+                this.items = (body && body.items) || [];
+                this.total = (body && body.total) || 0;
+                this.pruneSelection();
+            } catch (e) {
+                this.error = e.network ? e.message : (e.message || '加载失败');
+            } finally {
+                this.loading = false;
+            }
+        },
+        async loadStats() {
+            try {
+                const { res, body } = await assetApi.stats();
+                if (res.ok) this.stats = body || {};
+            } catch {
+                // 统计失败不影响主流程，导航徽标留空即可
+            }
+        },
+        async loadDetail() {
+            if (this.detailId == null) {
+                this.detail = null;
+                this.detailVersions = [];
+                return;
+            }
+            this.detailLoading = true;
+            try {
+                const { res, body } = await assetApi.get(this.detailId);
+                if (!res.ok) throw new Error((body && body.message) || '加载详情失败');
+                this.detail = body;
+                this.detailVersions = body.versions || [];
+            } catch (e) {
+                this.error = e.message || '加载详情失败';
+                this.detailId = null;
+            } finally {
+                this.detailLoading = false;
+            }
+        },
+        async loadFolders() {
+            this.folderLoading = true;
+            try {
+                const { res, body } = await assetApi.listFolders();
+                if (res.ok) this.folderTree = this.buildTree((body && body.items) || []);
+            } catch (e) {
+                this.error = e.network ? e.message : (e.message || '文件夹加载失败');
+            } finally {
+                this.folderLoading = false;
+            }
+        },
+
+        /** 扁平行 → 嵌套树。父级缺失的行降级为顶层，避免整棵树消失。 */
+        buildTree(rows) {
+            const map = new Map();
+            for (const r of rows) map.set(r.id, { ...r, children: [] });
+            const roots = [];
+            for (const r of rows) {
+                const node = map.get(r.id);
+                const parent = r.parent_id != null ? map.get(r.parent_id) : null;
+                if (parent && parent !== node) parent.children.push(node);
+                else roots.push(node);
+            }
+            // 给每个节点标深度，供「移动到」下拉缩进显示
+            const mark = (list, depth) => list.forEach((n) => { n.depth = depth; mark(n.children, depth + 1); });
+            mark(roots, 0);
+            return roots;
+        },
+        /** 树 → 扁平，供面包屑与移动下拉使用。 */
+        flattenFolders(list = this.folderTree, out = []) {
+            for (const n of list) {
+                out.push(n);
+                this.flattenFolders(n.children, out);
+            }
+            return out;
+        },
+
+        loadExpanded() {
+            try {
+                const raw = localStorage.getItem(EXPANDED_KEY);
+                if (raw) this.expandedFolders = JSON.parse(raw) || {};
+            } catch {
+                this.expandedFolders = {};
+            }
+        },
+        saveExpanded() {
+            try { localStorage.setItem(EXPANDED_KEY, JSON.stringify(this.expandedFolders)); }
+            catch { /* 不可用时忽略，仅影响折叠记忆 */ }
+        },
+
+        // ── 视图 / 筛选 ──
+        setView(key) {
+            this.viewKey = key;
+            // 顶部视图一律跨文件夹；用 undefined 而非 null（null = 未分类）
+            this.folderId = undefined;
+            this.page = 1;
+            this.clearSelection();
+            this.load();
+        },
+        /** 只看未分类资源。 */
+        showUnclassified() {
+            this.viewKey = 'all';
+            this.folderId = 'none';
+            this.page = 1;
+            this.clearSelection();
+            this.load();
+        },
+        openFolder(node) {
+            this.folderId = node.id;
+            this.viewKey = 'all';
+            this.page = 1;
+            this.clearSelection();
+            this.load();
+        },
+        sortBy(field) {
+            if (this.sort === field) this.order = this.order === 'asc' ? 'desc' : 'asc';
+            else { this.sort = field; this.order = 'desc'; }
+            this.page = 1;
+            this.load();
+        },
+        /** 筛选/排序变化后重新加载（重置到第一页）。 */
+        reload() {
+            this.page = 1;
+            this.clearSelection();
+            this.load();
+        },
+        /** 切换升降序并重新加载。 */
+        toggleOrder() {
+            this.order = this.order === 'asc' ? 'desc' : 'asc';
+            this.reload();
+        },
+        onSearchInput() {
+            // 防抖 300ms，避免每敲一个字就打一次接口
+            clearTimeout(this._searchTimer);
+            this._searchTimer = setTimeout(() => {
+                this.page = 1;
+                this.load();
+            }, 300);
+        },
+        clearSearch() {
+            this.search = '';
+            this.page = 1;
+            this.load();
+        },
+        goPage(p) {
+            this.page = Math.min(this.totalPages, Math.max(1, p));
+            this.load();
+        },
+
+        // ── 选择 ──
+        onRowClick(a) {
+            this.detailId = a.id;
+            this.loadDetail();
+            this.toggleSelect(a.id);
+        },
+        toggleSelect(id) {
+            const i = this.selectedIds.indexOf(id);
+            if (i >= 0) this.selectedIds.splice(i, 1);
+            else this.selectedIds.push(id);
+        },
+        toggleSelectAll() {
+            this.selectedIds = this.allSelected ? [] : this.items.map((a) => a.id);
+        },
+        clearSelection() { this.selectedIds = []; },
+        pruneSelection() {
+            if (this.selectedIds.length === 0) return;
+            const visible = new Set(this.items.map((a) => a.id));
+            this.selectedIds = this.selectedIds.filter((id) => visible.has(id));
+        },
+
+        // ── 缩略图 ──
+        thumbUrl(a) {
+            return assetApi.fileUrl(a.id, 'thumbnail', 'latest');
+        },
+        isThumbOk(a) {
+            return !this.thumbFailed[a.id] && (a.type === 'image' || a.type === 'video');
+        },
+        markThumbFail(id) { this.thumbFailed[id] = true; },
+
+        // ── 右键菜单 ──
+        openRowMenu(a, ev) {
+            const rect = ev.currentTarget.getBoundingClientRect();
+            this.menu = { asset: a, x: this.clampX(rect.left, 176), y: this.clampY(rect.bottom + 4, 260) };
+            this.folderMenu = null;
+        },
+        openFolderMenu(node, ev) {
+            const rect = ev.currentTarget.getBoundingClientRect();
+            this.folderMenu = { node, x: this.clampX(rect.left, 176), y: this.clampY(rect.bottom + 4, 180) };
+            this.menu = null;
+        },
+        clampX(x, w) { return Math.max(8, Math.min(x, window.innerWidth - w - 8)); },
+        clampY(y, h) { return Math.max(8, Math.min(y, window.innerHeight - h - 8)); },
+
+        async menuAction(what) {
+            const a = this.menu && this.menu.asset;
+            this.menu = null;
+            if (!a) return;
+            if (what === 'preview') return this.openPreview(a);
+            if (what === 'download') return window.open(assetApi.fileUrl(a.id, 'original', 'latest', true), '_blank');
+            if (what === 'upload-new') return this.startVersionUpload(a);
+            if (what === 'publish') return this.doPublish(a);
+            if (what === 'rename') return this.startRename(a);
+            if (what === 'move') return this.startMove(a);
+            if (what === 'delete') {
+                if (this.trashMode) return this.confirmPurge([a]);
+                return this.confirmDelete([a]);
+            }
+        },
+        folderMenuAction(what) {
+            const node = this.folderMenu && this.folderMenu.node;
+            this.folderMenu = null;
+            if (!node) return;
+            if (what === 'open') return this.openFolder(node);
+            if (what === 'child') return this.createFolder(node.id);
+            if (what === 'rename') { this.renamingFolderId = node.id; return; }
+            if (what === 'delete') return this.confirmDeleteFolder(node);
+        },
+
+        // ── 文件夹 ──
+        toggleFolder(id) {
+            this.expandedFolders = { ...this.expandedFolders, [id]: !this.expandedFolders[id] };
+            this.saveExpanded();
+        },
+        createFolder(parentId) {
+            this.prompt = {
+                kind: 'text',
+                title: parentId ? '新建子文件夹' : '新建文件夹',
+                placeholder: '文件夹名称',
+                value: '',
+                okText: '创建',
+                onSubmit: async (name) => {
+                    const { res, body } = await assetApi.createFolder(name, parentId);
+                    if (!res.ok) throw new Error((body && body.message) || '创建失败');
+                    await this.loadFolders();
+                    if (parentId) {
+                        this.expandedFolders = { ...this.expandedFolders, [parentId]: true };
+                        this.saveExpanded();
+                    }
+                }
+            };
+        },
+        submitFolderRename(node, rawName) {
+            if (this.renamingFolderId !== node.id) return;
+            const name = String(rawName || '').trim();
+            this.renamingFolderId = null;
+            if (!name || name === node.name) return;
+            this.actionBusy = true;
+            assetApi.renameFolder(node.id, name)
+                .then(({ res }) => { if (res.ok) this.loadFolders(); })
+                .catch(() => {})
+                .finally(() => { this.actionBusy = false; });
+        },
+        confirmDeleteFolder(node) {
+            const count = this.countInFolder(node.id);
+            this.confirm = {
+                title: '删除文件夹',
+                text: `确定删除「${node.name}」吗？`,
+                // 不用 Markdown 星号：这里渲染的是纯文本，** 会原样显示
+                warn: count > 0
+                    ? `其中的 ${count} 个资源不会被删除，会变为「未分类」。`
+                    : '此操作不可撤销。',
+                okText: '删除',
+                action: async () => {
+                    const { res, body } = await assetApi.deleteFolder(node.id);
+                    if (!res.ok) throw new Error((body && body.message) || '删除失败');
+                    if (this.folderId === node.id) { this.folderId = undefined; }
+                    await this.loadFolders();
+                    await this.load();
+                }
+            };
+        },
+        countInFolder(id) {
+            let n = 0;
+            const walk = (list) => list.forEach((f) => {
+                if (f.id === id) n += f.assetCount || 0;
+                walk(f.children);
+            });
+            walk(this.folderTree);
+            return n;
+        },
+
+        // ── 详情 ──
+        async onDetailAction({ action, version }) {
+            this.actionBusy = true;
+            try {
+                if (action === 'publish' && version) {
+                    await assetApi.publish(this.detailId, version.id);
+                } else if (action === 'publish') {
+                    await assetApi.publish(this.detailId);
+                } else if (action === 'restore' && version) {
+                    // 恢复历史版本 = 复制内容生成新版本，历史不会被删
+                    await assetApi.restore(this.detailId, version.id);
+                } else if (action === 'delete-version' && version) {
+                    await assetApi.deleteVersion(this.detailId, version.id);
+                }
+                await this.loadDetail();
+                await this.load();
+                await this.loadStats();
+            } catch (e) {
+                window.alert(e.message || '操作失败');
+            } finally {
+                this.actionBusy = false;
+            }
+        },
+
+        // ── 预览 ──
+        openPreview(a, version) {
+            this.previewAsset = a;
+            this.previewVersions = version
+                ? [{ ...version, isLatest: version.isLatest }]
+                : (this.detail && this.detailId === a.id ? this.detailVersions : []);
+        },
+        onPreviewNavigate({ asset, version }) {
+            this.previewAsset = asset;
+            if (version) {
+                this.previewVersions = [version];
+            } else {
+                this.previewVersions = [];
+            }
+        },
+
+        // ── 上传 ──
+        pickFiles() { this.$refs.fileInput.click(); },
+        onFilesPicked(e) {
+            const files = e.target.files;
+            if (files && files.length) this.startUpload(files);
+            // 清空 value，否则同一个文件选第二次不会触发 change
+            e.target.value = '';
+        },
+        startUpload(files, opts = {}) {
+            // 'none' 是视图层的「未分类」标记，上传时该传 null（后端认 null=未分类）
+            const rawFolder = opts.folderId !== undefined ? opts.folderId : this.folderId;
+            const folderId = rawFolder === 'none' ? null : (rawFolder === undefined ? null : rawFolder);
+            this._upload.start(files, {
+                folderId,
+                // 「上传新版本」场景：带上 assetId 让后端走追加版本分支，
+                // 否则会被当成新资源，重名冲突弹窗就白弹了
+                assetId: opts.assetId || null,
+                comment: opts.comment || '',
+                tags: opts.tags || ''
+            });
+        },
+        startVersionUpload(a) {
+            // 记下目标资源，用户选完文件后作为它的新版本上传
+            this._versionTargetId = a.id;
+            this.pickFiles();
+        },
+        async onFilesPicked(e) {
+            const files = e.target.files;
+            if (files && files.length) {
+                const assetId = this._versionTargetId;
+                this._versionTargetId = null;
+                this.startUpload(files, assetId ? { assetId, comment: '上传新版本' } : {});
+            }
+            // 清空 value，否则同一个文件选第二次不会触发 change
+            e.target.value = '';
+        },
+        cancelUpload(id) { this._upload.cancel(id); },
+        cancelAllUploads() { this._upload.cancelAll(); },
+        clearFinishedUploads() { this._upload.clearFinished(); },
+        resolveUploadConflict(fileItemId, choice) {
+            this._upload.resolveConflict(fileItemId, choice);
+        },
+
+        // ── 拖拽上传 ──
+        onWindowDragOver(e) { e.preventDefault(); this.dragging = true; },
+        onWindowDragLeave(e) {
+            // 只有真正离开窗口才取消：relatedTarget 为 null 表示拖出了窗口
+            if (!e.relatedTarget) this.dragging = false;
+        },
+        onWindowDrop(e) {
+            e.preventDefault();
+            this.dragging = false;
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+                this.startUpload(e.dataTransfer.files);
+            }
+        },
+        onFolderDragOver(node) { this._dragFolderId = node.id; },
+        async onFolderDrop(node, ev) {
+            const ids = ev.dataTransfer.getData('text/asset-ids');
+            if (!ids) return;
+            const list = ids.split(',').map(Number).filter(Boolean);
+            if (list.length) {
+                await this.doBatchMove(list, node.id);
+                this.loadFolders();
+            }
+        },
+
+        // ── 批量操作 ──
+        batchDownload() {
+            // 不做前端打包：大型资源全部读进内存会崩浏览器。
+            // 逐个触发下载由浏览器管理并发；后续可换服务端 Streaming ZIP。
+            for (const id of this.selectedIds) {
+                window.open(assetApi.fileUrl(id, 'original', 'latest', true), '_blank');
+            }
+        },
+        batchMove() {
+            this.prompt = {
+                kind: 'folder',
+                title: `移动 ${this.selectedIds.length} 个资源`,
+                // 下拉的 value 是「文件夹 id 或 null(未分类)」；
+                // 视图层的 undefined/'none' 不是合法选项值，需归一
+                value: this.folderId === undefined || this.folderId === 'none' ? null : this.folderId,
+                okText: '移动',
+                onSubmit: (folderId) => this.doBatchMove(this.selectedIds.slice(), folderId)
+            };
+        },
+        async doBatchMove(ids, folderId) {
+            const { res, body } = await assetApi.batchMove(ids, folderId);
+            if (!res.ok) throw new Error((body && body.message) || '移动失败');
+            await this.load();
+            await this.loadFolders();
+            window.alert(`已移动 ${body.moved} 个资源`);
+        },
+        batchTag() {
+            this.prompt = {
+                kind: 'text',
+                title: `给 ${this.selectedIds.length} 个资源添加标签`,
+                hint: '多个标签用逗号分隔',
+                placeholder: '秦陵,高模,待优化',
+                value: '',
+                okText: '添加',
+                onSubmit: async (raw) => {
+                    const tags = String(raw || '').split(',').map((s) => s.trim()).filter(Boolean);
+                    if (tags.length === 0) throw new Error('请至少输入一个标签');
+                    const { res, body } = await assetApi.batchTags(this.selectedIds, tags);
+                    if (!res.ok) throw new Error((body && body.message) || '添加失败');
+                    await this.load();
+                    window.alert(`已为 ${body.updated} 个资源添加标签`);
+                }
+            };
+        },
+        confirmDelete(ids) {
+            this.confirm = {
+                title: '移入回收站',
+                text: `确定将 ${ids.length} 个资源移入回收站吗？`,
+                warn: '文件不会立即删除，可在回收站中恢复。',
+                okText: '移入回收站',
+                action: async () => {
+                    const { res, body } = await assetApi.batchDelete(ids);
+                    if (!res.ok) throw new Error((body && body.message) || '删除失败');
+                    await this.load();
+                    await this.loadStats();
+                }
+            };
+        },
+        confirmDeleteOne() { this.confirmDelete([this.detailId]); },
+        batchRestore() {
+            const { res, body } = assetApi.batchRestore(this.selectedIds.slice());
+            this.finishBatch(res, body, '恢复', () => this.load());
+        },
+        confirmPurge(ids) {
+            this.confirm = {
+                title: '永久删除',
+                text: `确定永久删除 ${ids.length} 个资源吗？`,
+                warn: '所有版本的文件会从磁盘删除，此操作不可恢复。',
+                okText: '永久删除',
+                action: async () => {
+                    const { res, body } = await assetApi.purge(ids);
+                    if (!res.ok) throw new Error((body && body.message) || '删除失败');
+                    await this.load();
+                    await this.loadStats();
+                    await this.loadFolders();
+                }
+            };
+        },
+        confirmPurgeOne() { this.confirmPurge([this.detailId]); },
+        batchDelete() { this.confirmDelete(this.selectedIds.slice()); },
+        batchPurge() { this.confirmPurge(this.selectedIds.slice()); },
+
+        async doPublish(a) {
+            try {
+                await assetApi.publish(a.id);
+                await this.load();
+                await this.loadStats();
+                if (this.detailId === a.id) await this.loadDetail();
+                window.alert(`已发布「${a.name}」的当前版本`);
+            } catch (e) {
+                window.alert(e.message || '发布失败');
+            }
+        },
+
+        // ── 弹窗 ──
+        startRename(a) {
+            this.prompt = {
+                kind: 'text',
+                title: '重命名资源',
+                value: a.name,
+                okText: '保存',
+                onSubmit: async (name) => {
+                    const { res, body } = await assetApi.rename(a.id, name);
+                    if (!res.ok) throw new Error((body && body.message) || '重命名失败');
+                    await this.load();
+                    if (this.detailId === a.id) await this.loadDetail();
+                }
+            };
+        },
+        startMove(a) {
+            this.prompt = {
+                kind: 'folder',
+                title: '移动资源',
+                value: a.folderId,
+                okText: '移动',
+                onSubmit: async (folderId) => {
+                    const { res, body } = await assetApi.moveOne(a.id, folderId);
+                    if (!res.ok) throw new Error((body && body.message) || '移动失败');
+                    await this.load();
+                    await this.loadFolders();
+                    if (this.detailId === a.id) await this.loadDetail();
+                }
+            };
+        },
+        async submitPrompt() {
+            if (!this.prompt) return;
+            this.promptError = '';
+            try {
+                await this.prompt.onSubmit(this.prompt.value);
+                this.prompt = null;
+            } catch (e) {
+                // 错误要显示出来，不能静默失败
+                this.promptError = e.message || '操作失败';
+            }
+        },
+        async runConfirm() {
+            if (!this.confirm) return;
+            try {
+                await this.confirm.action();
+                this.confirm = null;
+                this.clearSelection();
+            } catch (e) {
+                window.alert(e.message || '操作失败');
+            }
+        },
+        finishBatch(res, body, verb, after) {
+            if (!res || !res.ok) {
+                window.alert((body && body.message) || `${verb}失败`);
+                return;
+            }
+            this.clearSelection();
+            after();
+        }
+    },
+    // 拖拽上传的全局监听必须在 mounted 后绑定、unmount 时解绑
+    // （写在 created 里的话元素还没挂上）
+    watch: {
+        dragging(v) {
+            if (v) {
+                window.addEventListener('dragleave', this.onWindowDragLeave);
+                window.addEventListener('drop', this.onWindowDrop);
+            } else {
+                window.removeEventListener('dragleave', this.onWindowDragLeave);
+                window.removeEventListener('drop', this.onWindowDrop);
+            }
+        }
+    }
+};
+</script>
+
+<style scoped>
+.am-page { padding: 26px 28px 22px; }
+.am-head-actions { display: flex; gap: 8px; }
+.am-hidden-file { display: none; }
+.am-error { margin-bottom: 10px; }
+
+.am-body { gap: 12px; }
+
+/* ── 左侧导航 ── */
+.am-side {
+    flex: none;
+    width: 210px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-right: 10px;
+    border-right: 1px solid var(--panel-border);
+}
+.am-nav { display: flex; flex-direction: column; gap: 1px; flex: none; }
+.am-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 32px;
+    padding: 0 9px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: var(--text-secondary);
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.am-nav-item:hover { background: var(--hover-background); color: var(--text-primary); }
+.am-nav-item.is-on {
+    background: var(--selected-background);
+    color: var(--text-primary);
+    font-weight: var(--weight-semibold);
+}
+.am-nav-icon { display: grid; place-items: center; flex: none; color: var(--text-tertiary); }
+.am-nav-item.is-on .am-nav-icon { color: var(--accent); }
+.am-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.am-nav-count {
+    flex: none;
+    font-size: var(--text-tag);
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+}
+
+.am-side-sep { height: 1px; background: var(--panel-border); margin: 10px 0; }
+.am-side-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: none;
+    margin-bottom: 6px;
+    padding-left: 9px;
+}
+.am-side-title {
+    margin: 0;
+    font-size: var(--text-tag);
+    font-weight: var(--weight-semibold);
+    color: var(--text-tertiary);
+    text-transform: none;
+}
+.am-tree-wrap { flex: 1; min-height: 0; }
+.am-side-add { flex: none; margin-top: 8px; width: 100%; }
+
+/* 表格内的图标按钮 */
+.am-vbtn {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.am-vbtn:hover:not(:disabled) { background: var(--hover-background); color: var(--text-primary); }
+.am-vbtn:disabled { opacity: 0.35; cursor: not-allowed; }
+.am-vbtn-danger:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+
+.am-prompt-select, .am-prompt-input { width: 100%; margin-top: 10px; }
+.am-prompt-error { margin-top: 10px; }
+</style>

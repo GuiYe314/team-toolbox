@@ -346,6 +346,38 @@ describe('列表筛选 / 排序 / 分页', () => {
         assert.equal(p1.total, p2.total, 'total 应跨页一致');
         assert.notEqual(p1.items[0].id, p2.items[0].id, '两页不应重复');
     });
+
+    test('按名称排序用中文拼音序（不是码位序）', () => {
+        // 造一组中文名：拼音序应为 布/海/玉，
+        // 而码位序（SQLite 默认的字节序）会是 玉/海/布 —— 完全不同
+        const names = ['玉璧纹理.webp', '海昏侯神兽.glb', '布展规范.md'];
+        for (const n of names) {
+            makeAsset({ name: `排序测试${n}`, key: `955/1/original1-aaaaaaaaaaaaaa${30 + names.indexOf(n)}.glb` });
+        }
+        const r = store.listAssets({
+            connection: db,
+            filter: { sort: 'name', order: 'asc', pageSize: 200 }
+        });
+        const got = r.items
+            .filter((a) => a.name.startsWith('排序测试'))
+            .map((a) => a.name.replace('排序测试', ''));
+        assert.deepEqual(got, ['布展规范.md', '海昏侯神兽.glb', '玉璧纹理.webp'],
+            '中文名应按拼音序排列');
+    });
+
+    test('名称排序分页不漏行（应用层排序后仍正确切片）', () => {
+        const r1 = store.listAssets({ connection: db, filter: { sort: 'name', order: 'asc', page: 1, pageSize: 5 } });
+        const r2 = store.listAssets({ connection: db, filter: { sort: 'name', order: 'asc', page: 2, pageSize: 5 } });
+        const ids1 = r1.items.map((a) => a.id);
+        const ids2 = r2.items.map((a) => a.id);
+        assert.equal(ids1.length, 5);
+        assert.equal(ids2.length, 5);
+        assert.equal(ids1.filter((id) => ids2.includes(id)).length, 0, '两页不应有重复行');
+        // 全量按同样规则排，取第 6~10 个，应与第 2 页一致
+        const all = store.listAssets({ connection: db, filter: { sort: 'name', order: 'asc', pageSize: 200 } });
+        assert.deepEqual(ids2, all.items.slice(5, 10).map((a) => a.id),
+            '分页结果应与全量排序后切片一致');
+    });
 });
 
 describe('批量操作与元数据', () => {

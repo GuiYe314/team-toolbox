@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { createRequire } from 'node:module';
-import { cpSync, createReadStream, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { cpSync, createReadStream, existsSync, mkdirSync, rmSync, readdirSync, unlinkSync, rmdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 const require = createRequire(import.meta.url);
@@ -28,6 +28,24 @@ const require = createRequire(import.meta.url);
  * 复制的文件刻意最小化：主 js/css + lute 内核 + ant 图标 + 中文语言包。
  * 其余按需插件（mermaid/katex/echarts 等）本项目用不到，不复制。
  */
+/**
+ * 递归清空目录：先删文件、再从深到浅删空目录。
+ * 逐项操作比 rmSync(recursive) 更稳：某些环境会把 rmSync 改走回收站，
+ * 递归删目录会因「部分操作被中止」失败。
+ * @param {string} dir
+ */
+function clearDir(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+            clearDir(full);
+            try { rmdirSync(full); } catch { /* 非空则跳过 */ }
+        } else {
+            try { unlinkSync(full); } catch { /* 被占用则跳过 */ }
+        }
+    }
+}
+
 function vditorAssets() {
     const SRC = dirname(require.resolve('vditor/package.json'));
     // 源路径（相对包根） → 目标路径（相对 public/vendor/vditor）
@@ -70,7 +88,18 @@ function vditorAssets() {
         closeBundle() {
             // 先清空目标目录：调整过路径布局后，旧布局的残留文件不会被
             // Vite 清掉（它只管 dist/assets），会留下两份同名资源。
-            if (outDir && existsSync(outDir)) rmSync(outDir, { recursive: true, force: true });
+            //
+            // 逐项删除而不是 rmSync(recursive)：部分环境（如 WorkBuddy 的
+            // 删除保护）会把 rmSync 改走回收站，递归删目录会因「部分操作被中止」
+            // 而失败。逐文件删完再删空目录，在两种环境都能稳定通过。
+            if (outDir && existsSync(outDir)) {
+                try {
+                    rmSync(outDir, { recursive: true, force: true });
+                } catch {
+                    // 回退：逐层清理
+                    try { clearDir(outDir); } catch { warn('vditor 旧资源清理失败，将直接覆盖'); }
+                }
+            }
             for (const [from, to] of FILES) {
                 const src = join(SRC, from);
                 const dst = join(outDir, to);

@@ -58,6 +58,12 @@ const SORT_COLUMNS = new Map([
     ['version', 'latest_version_number']
 ]);
 
+/**
+ * 中文排序器：按拼音排序（zh-CN）。
+ * numeric=true 让 "v2" 排在 "v10" 前面；sensitivity=base 忽略大小写与音调。
+ */
+const COLLATOR = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
+
 /** 记录一条操作日志。私有函数，统一走它以保证 action 取值收敛。 */
 function logOp(db, { assetId = null, versionId = null, action, detail = '', operator = 'local' }) {
     db.prepare(`
@@ -287,8 +293,7 @@ export function listAssets({ connection: db, filter = {} }) {
     const safeSize = Math.min(200, Math.max(1, Number(pageSize) || 50));
     const offset = (safePage - 1) * safeSize;
 
-    // 关联 latest 版本以支持按大小/版本号排序，并显示当前版本号与大小
-    const rows = db.prepare(`
+    const baseSelect = `
         SELECT a.*,
             lv.version_number AS latest_version_number,
             lv.file_size      AS latest_size,
@@ -297,10 +302,31 @@ export function listAssets({ connection: db, filter = {} }) {
         FROM assets a
         LEFT JOIN asset_versions lv ON lv.id = a.latest_version_id
         LEFT JOIN asset_versions pv ON pv.id = a.published_version_id
-        ${where}
-        ORDER BY ${sortCol} ${dir}, a.id DESC
-        LIMIT ? OFFSET ?
-    `).all(...params, safeSize, offset);
+        ${where}`;
+
+    let rows;
+    if (sort === 'name') {
+        // 按名称排序走**应用层拼音序**：
+        // SQLite 只有字节序，中文名按字节排出来是码位序（看着就是乱的），
+        // 与用户期望的拼音序不符。Node 的 Intl.Collator 能按拼音排，
+        // 但它只能排「一组已知的字符串」，给不了单字排序键。
+        //
+        // 所以这里取出候选集（受当前筛选条件约束，不是全表）→ 应用层排序
+        // → 再切片分页。资源库规模在数百~数千条，一次取出完全可接受。
+        // 注意不能「先 LIMIT 再排」——那样会漏掉本该出现在本页的行。
+        const all = db.prepare(baseSelect).all(...params);
+        all.sort((x, y) => {
+            const c = COLLATOR.compare(x.name || '', y.name || '');
+            return dir === 'ASC' ? c : -c;
+        });
+        rows = all.slice(offset, offset + safeSize);
+    } else {
+        // 其余字段（时间/大小/版本）SQL 直接排，效率更高
+        rows = db.prepare(`${baseSelect}
+            ORDER BY ${sortCol} ${dir}, a.id DESC
+            LIMIT ? OFFSET ?
+        `).all(...params, safeSize, offset);
+    }
 
     // 标签一次性批量取，避免 N+1
     const tagMap = tagsForAssets(db, rows.map((r) => r.id));

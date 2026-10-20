@@ -16,6 +16,7 @@ import './styles/layout.css';
 import './styles/components.css';
 import './styles/vditor.css';
 import './styles/hint.css';
+import './styles/assets.css';
 
 // 全局指令：v-hint（延迟 1 秒的悬停提示）
 import hintDirective from './directives/hint.js';

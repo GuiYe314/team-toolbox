@@ -266,6 +266,32 @@ describe('上传与列表', () => {
         assert.match(r.body.message, /缺少上传文件/);
     });
 
+    test('中文文件名与中文表单字段不乱码', async () => {
+        // 回归点：busboy 默认按 latin1 解码 filename，
+        // 中文名会变成 "ä¸­ææµè¯" 这类乱码。必须还原成 UTF-8。
+        const r = await upload({ tags: '秦陵,高模', description: '测试描述' }, {
+            name: '海昏侯展台主模型.png', data: PNG_1PX, type: 'image/png'
+        });
+        assert.equal(r.status, 201);
+        assert.equal(r.body.name, '海昏侯展台主模型.png', '文件名不应乱码');
+        assert.deepEqual(r.body.tags.sort(), ['秦陵', '高模'], 'tags 应正确解码');
+        assert.equal(r.body.description, '测试描述');
+    });
+
+    test('纯 ASCII 文件名不被误改', async () => {
+        const r = await upload({}, { name: 'plain-ascii.png', data: PNG_1PX, type: 'image/png' });
+        assert.equal(r.status, 201);
+        assert.equal(r.body.name, 'plain-ascii.png');
+    });
+
+    test('文件名含空格与中文标点', async () => {
+        const r = await upload({}, {
+            name: '修复前后 对比（最终）.png', data: PNG_1PX, type: 'image/png'
+        });
+        assert.equal(r.status, 201);
+        assert.equal(r.body.name, '修复前后 对比（最终）.png');
+    });
+
     test('列表包含新资源', async () => {
         const r = await get('/api/assets?pageSize=50');
         assert.ok(r.body.total >= 2);
