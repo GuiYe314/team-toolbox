@@ -4,6 +4,36 @@
 
 ## 2026-10-20
 
+### 二维码分享：页面二维码与资源下载二维码（实现 + 浏览器验证，待 Codex 验收）
+
+### Added
+- `frontend/src/assets/qr-share.js`（新模块）：对外访问地址读写、分享 URL 构造、二维码 SVG 生成。
+- `frontend/src/components/assets/AssetQrDialog.vue`：二维码弹窗（页面 / 资源两用）。
+- `frontend/verify-qr-share.mjs`：18 项验收。
+- 新增依赖 `qrcode` 1.5.4。
+
+### 功能
+- **页面二维码**：主导航底部（所有页面通用）+ 资源管理页工具栏，扫后手机打开当前页面。
+- **资源下载二维码**：List 视图每行 + Grid 视图卡片悬浮，扫后手机直接下载该资源文件。
+- **对外访问地址可配置**（存 localStorage）。手机扫码必须能访问到服务器，而 `127.0.0.1` 指向手机自己 —— 未配置时 UI 明确提示「请填写本机内网 IP」，不给一个扫了没反应的码。
+
+### 实现要点
+- **用 SVG 不用 PNG**：矢量任意缩放不模糊、体积小（一段 path 而非 base64）、颜色可控能跟随主题。
+- **qrcode 动态 import**：静态 import 会进主 chunk（所有页面首屏都付 25KB）；动态 import 后 Vite 拆成独立 chunk（25.7KB），主 chunk 152.74KB → 127.14KB。
+- **深色主题前景色反转为浅色**（`#e7ecf5`）—— 深底深码扫不出来。
+- **下载地址带 `?download=1`** —— 服务端返回 `Content-Disposition: attachment`（实测含 RFC 5987 中文名编码），手机浏览器直接触发下载而非在标签页打开。
+- **资源下载二维码优先指向 published 版本** —— 对外分享应给正式发布的那版，而非仍在草稿中的最新版；未发布过才退回 latest。
+
+### 验证证据
+- 前端 `verify-qr-share` 18/18；全量回归 276/276（vditor 18 + help 17 + hint 20 + cards 18 + assets 30 + storage 32 + preview 23 + qr 18 + ui-verify 53 + batch-delete 45）。
+- 后端 `npm test` 243/243（本轮无后端改动）。
+- 生产构建通过。
+
+### Fixed
+- `verify-asset-storage.mjs` 的「工具栏有导入/导出/存储路径**三个**按钮」写死了数量，加二维码按钮后误报 —— 改为检查关键按钮都在（`NEEDED.every(...)`），不再随功能增加而误报。
+
+## 2026-10-20
+
 ### 预览管线：服务端生成缩略图与预览图（实现 + 浏览器验证，待 Codex 验收）
 
 ### Added
