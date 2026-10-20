@@ -13,7 +13,8 @@
 // conflict|constraint_failed→409 / 其他→500。
 
 import express from 'express';
-import { createReadStream, statSync, unlinkSync } from 'node:fs';
+import { createReadStream, statSync, unlinkSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve as resolvePath } from 'node:path';
 import * as store from './asset-store.js';
 import {
@@ -23,12 +24,52 @@ import {
     stageAssetFileCopy, commitStagedAssetFile, ASSET_DIR
 } from './asset-storage.js';
 import { parseUploadWithFields } from './asset-upload-parser.js';
+import {
+    getMirrorPath, setMirrorPath, mirrorAll, mirrorStats, clearMirror, normalizeMirrorPath,
+    mirrorVersion
+} from './asset-mirror.js';
+import { exportAssetsToZip, extractZip, importAssets } from './asset-transfer.js';
 import { sendError } from './api.js';
 
 /** 解析正整数 ID；非法返回 null。 */
 function parseId(value) {
     const id = Number(value);
     return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/**
+ * 把一个版本同步到镜像目录（用户设置的保存路径）。
+ *
+ * 未配置镜像时直接返回；拷贝失败只记日志不抛错 ——
+ * 外部盘掉线不应让上传失败（主存储才是权威副本）。
+ *
+ * @param {import('better-sqlite3').Database} db
+ * @param {number} assetId
+ * @param {number} versionId
+ */
+function syncToMirror(db, assetId, versionId) {
+    try {
+        const root = getMirrorPath(db);
+        if (!root) return;
+        const v = db.prepare(
+            'SELECT * FROM asset_versions WHERE id = ? AND asset_id = ?'
+        ).get(versionId, assetId);
+        if (!v) return;
+        const r = mirrorVersion(root, assetId, versionId, v);
+        if (r.failed > 0) {
+            console.warn(`[assets] 镜像同步部分失败：asset=${assetId} version=${versionId} failed=${r.failed}`);
+        }
+    } catch (e) {
+        // 失败必须留下痕迹：吞掉异常会让「同步其实一直没生效」这种问题
+        // 极难排查（曾经就因为漏 import 导致同步静默失效）。
+        console.warn('[assets] 镜像同步异常（不影响上传）:', e && e.message);
+        try {
+            db.prepare(
+                'INSERT INTO asset_operation_logs (asset_id, version_id, action, detail, operator) VALUES (?, ?, ?, ?, ?)'
+            ).run(assetId, versionId, 'mirror_failed',
+                `镜像同步失败：${(e && e.message) || '未知原因'}`, 'system');
+        } catch { /* 日志写不进去就算了 */ }
+    }
 }
 
 function clampInt(value, def, min, max) {
@@ -248,6 +289,9 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
                 WHERE id = ?
             `).run(saved.storageKey, saved.size, saved.sha256, saved.mime, versionId);
 
+            // 镜像同步：新版本也要进外部保存路径
+            syncToMirror(db, existingId, versionId);
+
             db.prepare(`
                 UPDATE assets
                 SET latest_version_id = ?,
@@ -348,6 +392,10 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
             SET original_storage_key = ?, file_size = ?, sha256 = ?, mime_type = ?
             WHERE id = ?
         `).run(saved.storageKey, saved.size, saved.sha256, saved.mime, created.versionId);
+
+        // 镜像：设置过保存路径后，新资源自动拷贝到该目录。
+        // 失败不影响主流程 —— 外部盘不可用时主存储照常工作。
+        syncToMirror(db, created.assetId, created.versionId);
 
         // 删掉建行时的占位上传日志，重写成带真实信息的
         db.prepare(`DELETE FROM asset_operation_logs WHERE asset_id = ? AND action = 'upload'`).run(created.assetId);
@@ -682,6 +730,144 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
     /** 标签列表。 */
     router.get('/asset-tags', wrap((_req, res) => {
         res.json({ items: store.listAssetTags({ connection: getDb() }) });
+    }));
+
+    // ══════════════════════════════════════════════════════════════
+    // 存储路径（镜像目录）设置
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * 读取当前保存路径设置。
+     * 返回路径 + 镜像目录的现状统计（已同步文件数、占用空间）。
+     */
+    router.get('/assets/settings/storage', wrap((_req, res) => {
+        const db = getDb();
+        const path = getMirrorPath(db);
+        res.json({
+            ...mirrorStats(path),
+            /** 主存储位置 —— 始终是服务端的权威副本，UI 要展示出来让用户知道 */
+            primaryPath: ASSET_DIR,
+            /** 目录是否存在（外部盘可能被拔掉） */
+            available: path ? existsSync(path) : null
+        });
+    }));
+
+    /**
+     * 设置保存路径。
+     *
+     * 行为：写入配置 → **立即把现有资源全量拷贝到该目录**（用户要求
+     * 「当选择路径后资源自动拷贝到指定路径」）→ 之后每次上传自动增量同步。
+     *
+     * 传空字符串则清除配置（停止镜像，不动已有文件）。
+     */
+    router.put('/assets/settings/storage', wrap((req, res) => {
+        const db = getDb();
+        const raw = (req.body && req.body.path !== undefined) ? req.body.path : '';
+        const path = setMirrorPath(db, raw);
+
+        if (!path) {
+            // 清除配置：不再镜像，但保留已拷贝的文件（用户可能还要用）
+            res.json({ ...mirrorStats(null), primaryPath: ASSET_DIR, cleared: true });
+            return;
+        }
+
+        // 全量同步现有资源
+        const sync = mirrorAll(path);
+        res.json({
+            ...mirrorStats(path),
+            primaryPath: ASSET_DIR,
+            synced: sync
+        });
+    }));
+
+    /** 手动触发一次全量同步（不改变配置）。 */
+    router.post('/assets/settings/storage/sync', wrap((_req, res) => {
+        const db = getDb();
+        const path = getMirrorPath(db);
+        if (!path) {
+            return res.status(400).json({ error: 'invalid_input', message: '尚未设置保存路径' });
+        }
+        res.json({ ...mirrorStats(path), synced: mirrorAll(path) });
+    }));
+
+    /** 校验一个路径是否可用（UI 输入时实时提示，不写入配置）。 */
+    router.post('/assets/settings/storage/validate', wrap((req, res) => {
+        const raw = (req.body && req.body.path) || '';
+        try {
+            const normalized = normalizeMirrorPath(raw);
+            res.json({ ok: true, path: normalized });
+        } catch (e) {
+            res.status(400).json({ error: 'invalid_input', message: (e && e.message) || '路径不可用' });
+        }
+    }));
+
+    /** 清空镜像目录内容（保留配置与目录本身）。 */
+    router.post('/assets/settings/storage/clear', wrap((_req, res) => {
+        const db = getDb();
+        const path = getMirrorPath(db);
+        if (!path) {
+            return res.status(400).json({ error: 'invalid_input', message: '尚未设置保存路径' });
+        }
+        res.json({ removed: clearMirror(path).removed, ...mirrorStats(path) });
+    }));
+
+    // ══════════════════════════════════════════════════════════════
+    // 导入 / 导出
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * 导出资源为 ZIP。
+     *
+     * 流式写出（archiver 边压边写），大文件不会撑爆内存 ——
+     * 这是「批量下载不能把所有文件加载进浏览器内存」的服务端正解。
+     */
+    router.post('/assets/export', wrapAsync(async (req, res) => {
+        const ids = (req.body && req.body.assetIds) || [];
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'invalid_input', message: '未选择任何资源' });
+        }
+        await exportAssetsToZip({ connection: getDb(), assetIds: ids, res });
+    }));
+
+    /**
+     * 导入资源包（ZIP）。
+     *
+     * 流程：接收 ZIP → 解压到临时目录 → 校验 manifest → 重新分配全部 id 后入库。
+     * id 重新分配保证同一个包可以重复导入，得到两份独立资源。
+     */
+    router.post('/assets/import', wrapAsync(async (req, res) => {
+        const db = getDb();
+        const uploaded = await parseUploadWithFields(req, 8 * 1024 * 1024 * 1024);
+        if (!uploaded || !uploaded.buffer) {
+            return res.status(400).json({ error: 'invalid_input', message: '缺少资源包文件' });
+        }
+
+        const tmpDir = join(tmpdir(), `tt-asset-import-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`);
+        const zipPath = join(tmpDir, 'package.zip');
+        try {
+            mkdirSync(tmpDir, { recursive: true });
+            writeFileSync(zipPath, uploaded.buffer);
+
+            const { manifest, filesDir } = await extractZip(zipPath, join(tmpDir, 'extracted'));
+            const result = importAssets({
+                connection: db,
+                manifest,
+                filesDir,
+                assetsRoot: ASSET_DIR
+            });
+
+            // 导入的资源也要进镜像目录
+            const mirror = getMirrorPath(db);
+            if (mirror) mirrorAll(mirror);
+
+            res.status(201).json({ ...result, importedAt: new Date().toISOString() });
+        } catch (e) {
+            const msg = (e && e.message) || '导入失败';
+            res.status(400).json({ error: (e && e.code) || 'invalid_input', message: msg });
+        } finally {
+            // 清理临时目录（导入的大文件不该留在临时区）
+            try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* 忽略 */ }
+        }
     }));
 
     /** 最近操作（「最近使用」视图）。 */

@@ -28,7 +28,56 @@
                     </svg>
                     新建文件夹
                 </button>
+
+                <!-- 导入 / 导出 / 存储路径 -->
+                <div class="am-io-group">
+                    <button
+                        v-hint
+                        class="btn btn-sm am-io-btn"
+                        type="button"
+                        title="导入资源包（ZIP）"
+                        aria-label="导入资源包"
+                        @click="pickImportPackage"
+                    >
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 15.5v-11" />
+                            <polyline points="7.5 8.5 12 4 16.5 8.5" />
+                            <path d="M4.5 16.5v2A2.5 2.5 0 0 0 7 21h10a2.5 2.5 0 0 0 2.5-2.5v-2" />
+                        </svg>
+                    </button>
+                    <button
+                        v-hint
+                        class="btn btn-sm am-io-btn"
+                        type="button"
+                        title="导出所选资源为 ZIP"
+                        aria-label="导出所选资源"
+                        :disabled="selectedIds.length === 0"
+                        @click="exportSelected"
+                    >
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 3.5v11" />
+                            <polyline points="7.5 10.5 12 15 16.5 10.5" />
+                            <path d="M4.5 16.5v2A2.5 2.5 0 0 0 7 21h10a2.5 2.5 0 0 0 2.5-2.5v-2" />
+                        </svg>
+                    </button>
+                    <button
+                        v-hint
+                        class="btn btn-sm am-io-btn"
+                        type="button"
+                        title="设置资源保存路径"
+                        aria-label="设置资源保存路径"
+                        @click="showStorage = true"
+                    >
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 6.5h18v4H3z" />
+                            <path d="M5 10.5v8.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-8.5" />
+                            <path d="M10 14.2h4" />
+                        </svg>
+                    </button>
+                </div>
+
                 <input ref="fileInput" class="am-hidden-file" type="file" multiple @change="onFilesPicked" />
+                <input ref="importInput" class="am-hidden-file" type="file" accept=".zip,application/zip" @change="onImportPackage" />
             </div>
         </header>
 
@@ -229,6 +278,11 @@
                 <p v-if="error" class="notice notice-error am-error">
                     {{ error }}
                     <button class="nt-link" type="button" @click="load">重试</button>
+                </p>
+
+                <!-- 导入 / 导出的结果提示 -->
+                <p v-if="ioMessage" class="notice am-io-msg" :class="ioError ? 'notice-error' : 'notice-success'">
+                    {{ ioMessage }}
                 </p>
 
                 <!-- 加载 / 空态 -->
@@ -503,6 +557,13 @@
             </div>
         </div>
 
+        <!-- ═══ 存储路径设置 ═══ -->
+        <AssetStorageSettings
+            v-if="showStorage"
+            @close="showStorage = false"
+            @changed="load"
+        />
+
         <!-- ═══ 右下角上传任务面板 ═══ -->
         <AssetUploadPanel
             :items="uploadItems"
@@ -525,13 +586,14 @@ import AssetFolderTree from '../components/assets/AssetFolderTree.vue';
 import AssetDetails from '../components/assets/AssetDetails.vue';
 import AssetPreviewDialog from '../components/assets/AssetPreviewDialog.vue';
 import AssetUploadPanel from '../components/assets/AssetUploadPanel.vue';
+import AssetStorageSettings from '../components/assets/AssetStorageSettings.vue';
 
 const EXPANDED_KEY = 'asset-folders-expanded';
 const PAGE_SIZE = 50;
 
 export default {
     name: 'AssetsView',
-    components: { AssetFolderTree, AssetDetails, AssetPreviewDialog, AssetUploadPanel },
+    components: { AssetFolderTree, AssetDetails, AssetPreviewDialog, AssetUploadPanel, AssetStorageSettings },
     data() {
         return {
             // ── 列表状态 ──
@@ -588,6 +650,14 @@ export default {
             // ── 上传 ──
             uploadItems: [],
             dragging: false,
+
+            // ── 存储路径设置 ──
+            showStorage: false,
+
+            // ── 导入 / 导出状态 ──
+            ioBusy: false,
+            ioMessage: '',
+            ioError: false,
 
             // ── 缩略图失败缓存（避免每次渲染重试 404） ──
             thumbFailed: {},
@@ -1103,6 +1173,79 @@ export default {
                 window.open(assetApi.fileUrl(id, 'original', 'latest', true), '_blank');
             }
         },
+
+        // ── 导出 / 导入 ──
+        /**
+         * 导出所选资源为 ZIP。
+         * 走服务端流式打包 —— 大文件不会整个进浏览器内存。
+         */
+        async exportSelected() {
+            if (this.selectedIds.length === 0) return;
+            this.ioBusy = true;
+            try {
+                const r = await assetApi.exportZip(this.selectedIds);
+                if (!r.ok) {
+                    window.alert(r.message || '导出失败');
+                    return;
+                }
+                // 触发浏览器下载
+                const url = URL.createObjectURL(r.blob);
+                const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `team-toolbox-assets-${stamp}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                // 立即 revoke 会让部分浏览器下载中断，延后释放
+                setTimeout(() => URL.revokeObjectURL(url), 10000);
+                this.ioMessage = `已导出 ${this.selectedIds.length} 个资源`;
+                this.ioError = false;
+                this.clearSelection();
+            } catch (e) {
+                this.ioError = true;
+                this.ioMessage = e.message || '导出失败';
+            } finally {
+                this.ioBusy = false;
+            }
+        },
+
+        /** 打开文件选择器选资源包。 */
+        pickImportPackage() {
+            if (this.$refs.importInput) this.$refs.importInput.click();
+        },
+
+        /** 导入资源包。 */
+        async onImportPackage(e) {
+            const file = e.target.files && e.target.files[0];
+            if (e.target) e.target.value = '';   // 允许重复选同一个文件
+            if (!file) return;
+
+            this.ioBusy = true;
+            this.ioMessage = '正在导入资源包…';
+            this.ioError = false;
+            try {
+                const { res, body } = await assetApi.importZip(file);
+                if (!res.ok) {
+                    this.ioError = true;
+                    this.ioMessage = (body && body.message) || '导入失败';
+                    return;
+                }
+                const n = body.assets || 0;
+                const v = body.versions || 0;
+                const skipped = body.skipped || 0;
+                this.ioMessage = `导入完成：${n} 个资源、${v} 个版本`
+                    + (skipped ? `，${skipped} 项跳过` : '');
+                await this.load();
+                await this.loadStats();
+                await this.loadFolders();
+            } catch (e) {
+                this.ioError = true;
+                this.ioMessage = e.network ? e.message : (e.message || '导入失败');
+            } finally {
+                this.ioBusy = false;
+            }
+        },
         batchMove() {
             this.prompt = {
                 kind: 'folder',
@@ -1267,9 +1410,22 @@ export default {
 
 <style scoped>
 .am-page { padding: 26px 28px 22px; }
-.am-head-actions { display: flex; gap: 8px; }
+.am-head-actions { display: flex; align-items: center; gap: 8px; }
 .am-hidden-file { display: none; }
 .am-error { margin-bottom: 10px; }
+.am-io-msg { margin-bottom: 10px; }
+/* 导入 / 导出 / 存储路径 —— 三个图标按钮成组 */
+.am-io-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--radius-sm);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
+}
+.am-io-btn { border: none; background: transparent; }
+.am-io-btn:hover:not(:disabled) { background: var(--hover-background); }
 
 .am-body { gap: 12px; }
 

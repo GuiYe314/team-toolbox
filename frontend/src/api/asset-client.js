@@ -165,6 +165,67 @@ export const assetApi = {
     logs: (assetId) => request('GET', `/assets/${assetId}/logs`),
     recentActivity: (limit = 20) => request('GET', `/assets-activity/recent?limit=${limit}`),
 
+    // ── 存储路径（镜像目录）──
+    /** 读取当前保存路径设置与镜像目录统计。 */
+    getStorageSettings: () => request('GET', '/assets/settings/storage'),
+    /** 设置保存路径；服务端会立即把现有资源全量拷贝过去。传空串清除。 */
+    setStoragePath: (path) => request('PUT', '/assets/settings/storage', { path }),
+    /** 校验路径是否可用（不写入配置）。 */
+    validateStoragePath: (path) => request('POST', '/assets/settings/storage/validate', { path }),
+    /** 手动触发一次全量同步。 */
+    syncStorage: () => request('POST', '/assets/settings/storage/sync'),
+    /** 清空镜像目录内容（保留配置）。 */
+    clearStorage: () => request('POST', '/assets/settings/storage/clear'),
+
+    // ── 导入 / 导出 ──
+    /**
+     * 导出资源为 ZIP。
+     * 不走 request()：响应是二进制流（不是 JSON），要交给浏览器下载。
+     * @param {number[]} assetIds
+     * @returns {Promise<{ok: boolean, blob?: Blob, message?: string}>}
+     */
+    exportZip: async (assetIds) => {
+        try {
+            const res = await fetch(BASE + '/assets/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assetIds })
+            });
+            if (!res.ok) {
+                let msg = '导出失败';
+                try {
+                    const body = await res.json();
+                    msg = body.message || msg;
+                } catch { /* 非 JSON 响应 */ }
+                return { ok: false, message: msg };
+            }
+            return { ok: true, blob: await res.blob() };
+        } catch {
+            return { ok: false, message: '网络请求失败，请确认后端服务已启动' };
+        }
+    },
+
+    /**
+     * 导入资源包（ZIP）。
+     * @param {File} file
+     * @returns {Promise<{res: Response, body: any}>}
+     */
+    importZip: (file) => {
+        const form = new FormData();
+        form.append('file', file, file.name || 'package.zip');
+        return fetch(BASE + '/assets/import', { method: 'POST', body: form })
+            .then(async (res) => {
+                let body = null;
+                try { body = await res.json(); } catch { /* 非 JSON */ }
+                return { res, body };
+            })
+            .catch(() => {
+                const err = new Error('导入失败，请检查网络与后端服务');
+                err.network = true;
+                throw err;
+            });
+    },
+
     /**
      * 拼一个文件字节 URL。
      *
