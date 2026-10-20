@@ -190,7 +190,7 @@
                 </div>
                 <span class="doc-time">{{ formatTime(doc.updated_at) }}</span>
                 <div class="doc-actions">
-                    <button class="mini-btn" type="button" title="编辑" aria-label="编辑文档" @click.stop="goEdit(doc.id)">
+                    <button v-hint class="mini-btn" type="button" title="编辑" aria-label="编辑文档" @click.stop="goEdit(doc.id)">
                         <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M12 20h9" />
                             <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7.5 18.5l-4 1 1-4z" />

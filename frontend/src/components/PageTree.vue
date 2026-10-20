@@ -48,6 +48,7 @@
 
                 <span v-if="renamingId !== node.id" class="tree-actions">
                     <button
+                        v-hint
                         class="tree-act"
                         type="button"
                         title="新建子页面"
@@ -60,6 +61,7 @@
                         </svg>
                     </button>
                     <button
+                        v-hint
                         class="tree-act"
                         type="button"
                         title="更多操作"

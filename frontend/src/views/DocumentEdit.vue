@@ -69,6 +69,7 @@
                 <button class="mode-btn" :class="{ active: viewMode === 'preview' }" @click="viewMode = 'preview'">预览</button>
                 <!-- 图片工具：选文件上传，或直接 Ctrl+V 粘贴剪贴板截图 -->
                 <button
+                    v-hint
                     class="mode-btn mode-btn-tool"
                     type="button"
                     :disabled="uploading"

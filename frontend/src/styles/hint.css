@@ -1,0 +1,55 @@
+/* ─────────────────────────────────────────────────────────────────
+   v-hint 悬停提示的样式（配合 directives/hint.js）
+   ─────────────────────────────────────────────────────────────────
+   为什么单独成文件而不是塞进 components.css：
+   气泡挂在 body 上，是全局浮层，不属于任何组件的作用域。
+
+   规范约束：
+   - 动效用 --dur-fast（120~180ms），不做弹跳、不做 scale 放大
+   - 只用 opacity + 极小位移（4px），避免"弹出来"的廉价感
+   - 颜色全部走 token，不硬编码
+   - 不用 backdrop-filter：它已用于大型面板，气泡再叠一层会糊且增加合成开销
+
+   定位说明：JS 用 left/top定位，气泡的transform 只负责垂直方向的微位移。
+   水平居中靠 translateX(-50%)，若气泡被视口边缘挤到需要偏移，
+   JS 会改写 --vhint-shift 变量来补偿，而不是直接动 transform，
+   否则会与 .is-in 的垂直位移互相覆盖。
+   ───────────────────────────────────────────────────────────────── */
+
+.vhint {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: var(--z-dropdown);
+
+    max-width: 260px;
+    padding: 6px 10px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-solid);
+    color: var(--text-primary);
+    font-size: var(--text-secondary);
+    line-height: var(--line-tight);
+    box-shadow: var(--shadow-overlay);
+
+    /* 气泡不能挡路：否则鼠标移向它时会再次触发 enter/leave 抖动 */
+    pointer-events: none;
+    /* 长文案（如「插入图片（也可直接粘贴截图或拖入图片）」）不撑成多行 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    /* 水平居中基准；JS 可写入 --vhint-shift 做贴边补偿 */
+    --vhint-shift: 0px;
+    transform: translate(calc(-50% + var(--vhint-shift)), 0);
+    opacity: 0;
+    will-change: opacity, transform;
+    transition: opacity var(--dur-fast) var(--ease-out),
+                transform var(--dur-fast) var(--ease-out);
+}
+
+/* 出现：仅 4px 上移 + 淡入。位移再大就显廉价了。 */
+.vhint.is-in {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--vhint-shift)), -4px);
+}

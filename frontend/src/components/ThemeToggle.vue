@@ -1,5 +1,6 @@
 <template>
     <button
+        v-hint
         class="theme-toggle"
         type="button"
         :title="theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'"

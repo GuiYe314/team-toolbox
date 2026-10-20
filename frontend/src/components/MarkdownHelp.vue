@@ -1,6 +1,7 @@
 <template>
     <!-- 触发按钮：放在文档顶栏 / 编辑工具栏 -->
     <button
+        v-hint
         class="nt-ghost help-trigger"
         :class="{ 'is-compact': compact }"
         type="button"

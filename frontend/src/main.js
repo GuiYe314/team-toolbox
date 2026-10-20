@@ -15,8 +15,15 @@ import './styles/glass.css';
 import './styles/layout.css';
 import './styles/components.css';
 import './styles/vditor.css';
+import './styles/hint.css';
+
+// 全局指令：v-hint（延迟 1 秒的悬停提示）
+import hintDirective from './directives/hint.js';
 
 // 在挂载前应用主题，避免首屏 Light → Dark 闪烁
 initTheme();
 
-createApp(App).use(router).mount('#app');
+const app = createApp(App);
+app.use(router);
+app.use(hintDirective);
+app.mount('#app');

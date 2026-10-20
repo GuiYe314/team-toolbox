@@ -61,6 +61,7 @@
                 <!-- 侧栏折叠开关：窄屏自动折叠后，仍可手动唤回 -->
                 <div class="col-toggles" v-if="onKbSection">
                     <button
+                        v-hint
                         class="mini-btn"
                         :class="{ 'is-on': !pageColHidden }"
                         :title="pageColHidden ? '显示页面栏' : '隐藏页面栏'"
@@ -84,7 +85,7 @@
         <aside v-if="onKbSection" class="sidebar glass-panel page-sidebar" :class="{ 'is-collapsed': pageColHidden }" aria-label="页面">
             <header class="side-head">
                 <h2 class="side-title">页面</h2>
-                <button class="icon-btn" type="button" title="新建页面" aria-label="新建页面" @click="createPage">
+                <button v-hint class="icon-btn" type="button" title="新建页面" aria-label="新建页面" @click="createPage">
                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                         <line x1="12" y1="5" x2="12" y2="19" />
                         <line x1="5" y1="12" x2="19" y2="12" />
