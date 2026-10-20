@@ -4,6 +4,44 @@
 
 ## 2026-10-20
 
+### 资源保存路径设置 + 资源导入导出（实现 + 浏览器验证，待 Codex 验收）
+
+### Added
+- `backend/src/asset-mirror.js`（新模块）：镜像目录管理 —— 路径校验、配置读写、全量/增量同步、统计、清空。配置存 `asset_settings` 表（迁移 005）。
+- `backend/src/asset-transfer.js`（新模块）：导入导出 —— manifest 构造、ZIP 流式读写、id 重映射导入。
+- `backend/src/asset-mirror.test.js`：23 项测试（路径校验 + 同步 + 导入导出）。
+- `backend/src/migrations/004_placeholder.sql`：编号占位（004 原拟用于拼音排序键，改用应用层排序后空出；SQLite 迁移器要求版本号连续）。
+- `frontend/src/components/assets/AssetStorageSettings.vue`：存储路径设置弹窗（展示主存储位置、路径校验、镜像统计、立即同步/清空/停止同步）。
+- `frontend/verify-asset-storage.mjs`：32 项验收。
+- 新增依赖 `archiver`（流式写 ZIP）、`yauzl`（流式读 ZIP）。
+
+### 语义说明
+- **保存路径是「镜像目录」而非主存储切换**。主存储（`data/assets/<assetId>/<versionId>/`）永远是服务端权威副本；设置路径后立即把现有资源全量拷贝过去，之后每次上传自动增量同步。外部盘掉线只影响同步，不影响主存储 —— 若允许切换主存储，存量资源的 storage_key 会全部失效且无兜底。
+- **导入会重新分配全部 id**，只保留引用关系（folder 父子、asset→version、latest/published 指针）。同一个包可重复导入，得到两份独立资源。
+
+### Security
+- 镜像路径必须**绝对路径**（相对路径随进程工作目录漂移）、必须**已存在且是目录**（不自动创建未知层级目录）。
+- 镜像路径**不得是主存储本身/其子目录/其上级目录** —— 否则全量同步会自我递归。
+- 写入时用 `relative()` 做二次边界校验，防符号链接与路径穿越。
+- 导入解压时逐条校验条目路径必须解析后仍在目标目录内，否则拒绝整个包。
+- 导出的存储文件名保持服务端生成形态（`original<时间戳>-<16位hex>.<ext>`），不采用用户提供的文件名。
+
+### Fixed
+- 漏 import `mirrorVersion` 导致镜像同步**静默失效**（异常被 catch 吞成 warn）。同步失败现在额外写一条 `mirror_failed` 操作日志。
+- 导入的资源落盘缺 `versionId` 目录层 → `resolveAssetPath` 白名单不匹配，**导入成功但文件下载 404**。
+- 导入文件名用 `Math.random().toString(16)` 长度不定（11~13 位），白名单要求恰好 16 位 hex → 同样导致 404。改用 `randomBytes(8).toString('hex')`。
+- `yauzl.open` 回调参数名 `err` 遮蔽了外层业务错误构造函数 → 异常被 Promise 吞成未处理 rejection，**接口永不返回、测试挂死**。
+- 导入时 versionId 是自增主键、插入前拿不到 → 改为「先插版本行拿 id → 再按 id 建目录落盘 → 回填 storage_key」。
+- 存储路径弹窗的校验/保存按钮改读输入框 DOM 当前值（`v-model` 同步存在时序差）。
+
+### 验证证据
+- 后端 `npm test`：227/227 全过（新增 23 项）。
+- 前端 `verify-asset-storage` 32/32；全量回归 233/233（vditor 18 + help 17 + hint 20 + cards 18 + assets 30 + storage 32 + ui-verify 53 + batch-delete 45）。
+- 实测：设置路径后立即全量同步 16 个文件，目录结构与主存储一致；新上传自动同步 16 → 17；导出包含 manifest.json + 4 个版本原文件；导入得到 1 资源 / 1 文件夹 / 4 版本且 `latest=4 published=1` 分离关系正确保留。
+- 生产构建通过。
+
+## 2026-10-20
+
 ### 知识库与首页改为文档卡片（实现 + 浏览器验证，待 Codex 验收）
 
 ### Added
