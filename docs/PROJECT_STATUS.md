@@ -1,6 +1,6 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
-- 更新日期：2026-10-20（知识库与首页改为文档卡片网格 + 列表接口返回正文摘要；后端 `npm test` 115/115、新增 `verify-cards` 18/18、回归 153/153 断言通过，待 Codex 验收；同日另含 v-hint 悬停提示 20/20）
+- 更新日期：2026-10-20（新增「资源管理」子系统：Asset/AssetVersion/Folder 数据模型 + 三栏界面 + PreviewManager 预览体系 + 上传队列与同名冲突决策；后端 `npm test` 204/204、新增 `verify-assets` 30/30、前端回归 201/201，待 Codex 验收；同日另含知识库/首页文档卡片网格 18/18 与 v-hint 悬停提示 20/20）
 - 本文件是项目进度的**唯一来源**；README 等文档只链接引用、不复制进度。更新规则见 [AGENTS](../AGENTS.md)。
 - 仓库：https://github.com/GuiYe314/team-toolbox（私有）
 
@@ -107,6 +107,8 @@
 | TASK-D02 账号与权限（延期） | 未开始 | 阶段七，依赖 TASK-010 与账号方案确认 |
 
 > 注：本次「页面树 / Notion 功能形态改造」（用户 2026-10-19 截图驱动）不属于上述编号任务，作为 TASK-005 Notion 化之上的功能性延伸，已实现 + 构建/浏览器自动化验证通过，**待 Codex 验收**；详见第 1 节与第 4 节。
+>
+> 注 3：2026-10-20 新增「资源管理」子系统（用户新增范围，独立于 TASK 编号体系）。数据模型严格按用户 spec 建 `asset_folders` / `assets` / `asset_versions` / `asset_tags` / `asset_tag_links` / `asset_operation_logs` 六张表。**三条核心不变量已用测试钉死**：① 版本独立不可变（追加版本不改既有版本文件）；② Latest 与 Published 完全独立（上传只动 latest，`publishAssetVersion()` 是唯一能移动 published 指针的入口）；③ 恢复历史版本 = 复制内容生成新版本（Latest=v7 恢复 v3 → 生成 v8，latest 只前进不后退，历史一个不少）。前端为三栏布局（导航/文件夹树 + List-Grid + 详情抽屉），预览走 PreviewManager + 8 个 Provider 架构（业务代码无 if(jpg) 分支），第三方依赖全部动态 import。**技术栈偏差已在实现中说明**：用户任务书假设为原生 HTML/CSS/JS，实际项目是 Vue 3 + Vite 6，按实际栈实现，未引入第二套框架。验证：后端 `npm test` 204/204、新增 `verify-assets` 30/30、前端回归 201/201。**待 Codex 验收**。
 >
 > 注 2：2026-10-20 的「知识库/首页文档卡片网格改造」（用户 2026-10-20 截图驱动）同属功能性延伸，不占用 TASK 编号。列表接口新增 `snippet` 字段并**停止回传 `content_md` 全文**（`SELECT d.*` → 显式字段列表 + 按 id 分批取正文生成摘要），属接口返回字段变更：前端列表页原本就不用正文（编辑页走详情接口），无兼容性影响。验证：后端 `npm test` 115/115、新增 `verify-cards` 18/18、回归 153/153。**待 Codex 验收**。
 
