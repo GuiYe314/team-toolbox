@@ -13,7 +13,7 @@ import { join } from 'node:path';
 
 const BASE = process.argv[2] || 'http://127.0.0.1:5175';
 const API = 'http://127.0.0.1:3000/api';
-const PORT = 9333;
+const PORT = Number(process.env.CDP_PORT) || 9334;
 const profile = mkdtempSync(join(tmpdir(), 'tt-bd-'));
 
 let pass = 0;
@@ -208,9 +208,12 @@ try {
     await sleep(300);
     ok(await evalJs("document.querySelector('.kb-sel-count').textContent.includes('已选 0 项')"), '「清空选择」归零');
     await evalJs(`(() => {
+        // 必须按本轮唯一 stamp 精确匹配。写死 'BD孤' 前缀会在上一轮
+        // 清理失败留下同名残留时多勾选，导致「已选 3 项」假性失败。
+        const stamp = ${JSON.stringify(String(stamp))};
         for (const r of document.querySelectorAll('.doc-row')) {
             const t = r.querySelector('.doc-title').textContent;
-            if (t.includes('BD孤')) r.querySelector('.kb-check').click();
+            if (t.includes('BD孤') && t.includes(stamp)) r.querySelector('.kb-check').click();
         }
     })()`);
     await sleep(400);

@@ -1,0 +1,307 @@
+/* ─────────────────────────────────────────────────────────────────
+   Vditor 编辑器 token 适配层
+   ─────────────────────────────────────────────────────────────────
+   为什么需要这一层：
+   Vditor 4.0.1 虽然定义了 32 个 CSS 变量（--border-color、
+   --textarea-background-color 等），但它们**全部指向硬编码色**
+   （#d1d5da、#f6f8fa、#24292e…），且作用域是全局的 `.vditor`。
+   直接引入会让编辑器成为整个界面里唯一不属于设计体系的一块，
+   深色主题下尤其刺眼。
+
+   本层的做法（按优先级从高到低）：
+     1. **重定义 Vditor 自己的 32 个变量** → 一次覆盖全编辑器，
+        包括容易遗漏的组件（上传进度条、Resize 把手、字数角标…）。
+        这是主力手段，比逐选择器 override 可靠得多。
+     2. **少量选择器补刀** → Vditor 有几处是纯硬编码、
+        连变量都没用的（表格斑马纹 #fafbfc、hr 的 #eaecef、
+        代码块的 mononoki 字体），只能按选择器改。
+
+   铁律：所有取值必须是 var(--项目token)，不出现任何字面色值。
+   这样换主题只改 tokens.css / theme.css，编辑器零改动自动跟随。
+
+   作用域：变量定义挂在 .md-editor 上（编辑器外壳）而非 :root，
+   避免污染其它组件；选择器一律以 .md-editor 前缀限定。
+
+   层级：只依赖 tokens.css / theme.css，不反向依赖 components.css；
+   且必须在 components.css 之后引入（见 main.js 注释）。
+   ───────────────────────────────────────────────────────────────── */
+
+.md-editor,
+.md-editor :is(.vditor) {
+    /* ── 变量桥接：Vditor 变量名 → 项目 token ──────────────────
+       左侧是 Vditor 的变量名（不能改，index.css 按这些名字取值），
+       右侧全是项目 token。这是唯一需要「翻译」的地方，
+       下面的选择器就能直接用 Vditor 语义而不再出现项目 token。 */
+
+    /* 描边体系 */
+    --border-color: var(--panel-border);
+    --second-color: var(--line-normal);
+
+    /* 弹层（面板 / 提示 / 大纲）：与页面浮层同源 */
+    --panel-background-color: var(--surface-solid);
+    --panel-shadow: var(--shadow-overlay);
+
+    /* 工具栏：背景贴合面板，图标用弱化文字色，hover 走 accent，
+       与页面其它按钮同一套反馈 */
+    --toolbar-background-color: var(--panel-background);
+    --toolbar-icon-color: var(--text-tertiary);
+    --toolbar-icon-hover-color: var(--accent);
+    --toolbar-height: 34px;              /* 与页面控件高度接近，避免工具栏比正文还高 */
+    --toolbar-divider-margin-top: 8px;
+
+    /* 正文区：深色主题下的白底问题就出在这里 */
+    --textarea-background-color: var(--panel-background);
+    --textarea-text-color: var(--text-primary);
+
+    /* 右下角 Resize 把手 */
+    --resize-icon-color: var(--text-tertiary);
+    --resize-background-color: var(--panel-border);
+    --resize-hover-icon-color: var(--surface-solid);
+    --resize-hover-background-color: var(--accent);
+
+    /* 字数统计角标 */
+    --count-background-color: var(--hover-background);
+
+    /* 标题下边框 / 引用块 */
+    --heading-border-color: var(--line-normal);
+    --blockquote-color: var(--text-tertiary);
+    --blockquote-border-color: var(--line-normal);
+    --blockquote-text-color: var(--text-secondary);
+
+    /* Callout（提示块）五色：统一走项目的 success / warning / danger + accent，
+       不引入 Vditor 那套 Google 配色 */
+    --callout-note-color: var(--accent);
+    --callout-tip-color: var(--success);
+    --callout-important-color: var(--accent);
+    --callout-warning-color: var(--warning);
+    --callout-caution-color: var(--danger);
+
+    /* ir 模式行内标记着色：这些色只影响源码态的一层淡染，
+       目标是「能分辨」而非「五颜六色」，故压到文字层级 + accent。 */
+    --ir-heading-color: var(--text-primary);
+    --ir-title-color: var(--text-tertiary);
+    --ir-bi-color: var(--text-primary);
+    --ir-link-color: var(--accent);
+    --ir-bracket-color: var(--text-tertiary);
+    --ir-paren-color: var(--text-secondary);
+}
+
+/* ── 补刀 1：根容器 ────────────────────────────────────────────────
+   外壳 .md-editor 已画了边框，Vditor 自带的边框会造成双层描边。 */
+.md-editor :is(.vditor) {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--textarea-text-color);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--line-relaxed);
+}
+
+/* ── 补刀 1b：抹平非当前模式隐藏块的白底 ─────────────────────────
+   Vditor 会把 sv / wysiwyg / ir / preview 四套 DOM 全部渲染出来，
+   靠自己的 inline style（display:none）藏起非当前模式。
+   问题：这些隐藏块内部全是硬编码 --panel-background-color（#fff），
+   深色主题下会漏出白块（实测 .vditor-preview 与 textarea.vditor-sv 都是纯白）。
+
+   注意不能用 display:none !important 去「关掉」它们——
+   Vditor 只给**非当前**模式加行内 display:none，
+   无差别隐藏会把当前正在用的编辑区也一起干掉。
+   正确做法：只把它们的内容背景改透明，显示与否交给 Vditor 自己管。 */
+.md-editor :is(.vditor) :is(.vditor-wysiwyg, .vditor-sv, .vditor-ir, .vditor-preview, .vditor-devtools) {
+    background: transparent;
+    color: inherit;
+}
+/* 根容器把 color 设成了 panel 背景色（白），在深色主题下会让继承链上
+   的空区域变成白色块，必须显式改回透明。 */
+.md-editor :is(.vditor) .vditor-content,
+.md-editor :is(.vditor) .vditor-panel,
+.md-editor :is(.vditor) .vditor-outline {
+    background: transparent;
+    color: inherit;
+}
+
+/* .vditor-reset 的正文色：Vditor 源码写死了 color:#24292e（不走变量），
+   深色主题下就是「深色字压深色底」。这里改回 token。 */
+.md-editor .vditor-reset {
+    color: var(--text-primary);
+}
+
+/* ── 补刀 2：正文内容盒 ────────────────────────────────────────────
+   Vditor 的正文盒固定左对齐 + 大 padding，宽屏上正文挤在左半边。
+   这里限宽居中，形成稳定的阅读列。 */
+.md-editor .vditor-content > .vditor-reset {
+    max-width: 76ch;
+    margin: 0 auto;
+    padding: var(--page-padding);
+}
+.md-editor .vditor-content .vditor-reset:focus {
+    outline: none;
+    background: transparent;
+}
+/* Vditor 默认字号偏大偏重，与页面标题体系脱节，收进项目既有的字号 token。
+   margin-left:-29px 是为上面那个 H1 角标预留的位置，角标去掉后必须一并
+   归零，否则标题会比正文左边多缩进 29px。 */
+.md-editor .vditor-reset h1 {
+    font-size: var(--text-page-title);
+    font-weight: var(--weight-bold);
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--heading-border-color);
+    margin-top: var(--gap-column);
+}
+.md-editor .vditor-reset h2 {
+    font-size: var(--text-section-title);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+    margin-top: var(--gap-column);
+}
+.md-editor .vditor-reset h3,
+.md-editor .vditor-reset h4,
+.md-editor .vditor-reset h5,
+.md-editor .vditor-reset h6 {
+    font-size: var(--text-doc-title);
+    font-weight: var(--weight-medium);
+    color: var(--text-primary);
+}
+/* 去掉 ir 模式的源码层级角标（标题左侧的「H1」「H2」…）。
+   那是给开发者对照 Markdown 源码用的，团队文档作者不需要，
+   留着反而像残留的调试信息。 */
+.md-editor .vditor-reset > :is(h1, h2, h3, h4, h5, h6)::before {
+    content: none;
+}
+/* Vditor 默认段落 / 列表边距偏大，收紧到与正文密度一致 */
+.md-editor .vditor-reset p {
+    margin: 0 0 var(--gap-column);
+}
+.md-editor .vditor-reset ul,
+.md-editor .vditor-reset ol {
+    margin: 0 0 var(--gap-column);
+    padding-left: 1.5em;
+}
+
+/* ── 补刀 3：纯硬编码处（连变量都没用的）─────────────────────────
+   以下几处 Vditor 源码直接写了色值，变量方案覆盖不到，只能改选择器。 */
+
+/* hr：Vditor 硬编码 #eaecef + height:2px，与页面 line 体系不符 */
+.md-editor .vditor-reset hr {
+    height: 1px;
+    margin: var(--gap-column) 0;
+    border: 0;
+    background: var(--border-color);
+}
+/* 表格：Vditor 用 #fafbfc / #fff 做斑马纹，深色下会变成两块白条 */
+.md-editor .vditor-reset table tr {
+    background: transparent;
+    border-top: 1px solid var(--border-color);
+}
+.md-editor .vditor-reset table tbody tr:nth-child(2n) {
+    background: var(--hover-background);
+}
+.md-editor .vditor-reset th,
+.md-editor .vditor-reset td {
+    padding: 0.4em 0.7em;
+    border: 1px solid var(--border-color);
+}
+.md-editor .vditor-reset th {
+    background: var(--hover-background);
+    font-weight: var(--weight-medium);
+}
+/* 代码：Vditor 硬编码 mononoki 字体栈且无背景变量，
+   改为项目等宽字体 + sunken 底，与页面代码块一致 */
+.md-editor .vditor-reset code {
+    padding: 0.12em 0.36em;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+}
+.md-editor .vditor-reset pre {
+    margin: 0 0 var(--gap-column);
+    padding: var(--gap-column);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    overflow: auto;
+}
+.md-editor .vditor-reset pre code {
+    padding: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: var(--text-secondary);
+}
+/* kbd：Vditor 硬编码 #24292e 深色字 */
+.md-editor .vditor-reset kbd {
+    padding: 0.15em 0.45em;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--hover-background);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+}
+/* 评论高亮（协作模式才出现，留着以防万一开启时是荧光黄） */
+.md-editor .vditor-comment--focus,
+.md-editor .vditor-comment--hover {
+    background: var(--accent-soft);
+    border-bottom: 2px solid var(--accent);
+}
+
+/* ── 补刀 4：交互反馈统一到项目动效规范 ──────────────────────────
+   Vditor 动效写死 0.15s ease-in-out，改为项目的 --dur-fast / --ease-out，
+   并把上传进度条的 Google 蓝（#4285f4）换成 accent。 */
+.md-editor .vditor-toolbar__item,
+.md-editor .vditor-panel,
+.md-editor .vditor-tip {
+    transition: background var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out),
+                box-shadow var(--dur-fast) var(--ease-out);
+}
+.md-editor .vditor-toolbar__item:hover {
+    background: var(--hover-background);
+    color: var(--toolbar-icon-hover-color);
+}
+.md-editor .vditor-toolbar__item:focus-visible {
+    outline: none;
+    background: var(--hover-background);
+    color: var(--toolbar-icon-hover-color);
+    box-shadow: 0 0 0 2px var(--focus-ring);
+}
+.md-editor .vditor-toolbar__divider {
+    background: var(--border-color);
+    height: 14px;
+    margin: 0 var(--text-body);
+}
+.md-editor .vditor-upload {
+    background: var(--accent);
+    transition: width var(--dur-fast) var(--ease-out);
+}
+.md-editor .vditor-resize > div {
+    transition: background var(--dur-fast) var(--ease-out);
+}
+.md-editor .vditor-input:focus {
+    background: var(--panel-background);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--focus-ring);
+}
+/* 菜单项 hover：与工具栏同一套手感，避免两套反馈 */
+.md-editor .vditor-menu__item:hover {
+    background: var(--hover-background);
+    color: var(--text-primary);
+}
+
+/* ── 补刀 5：焦点与选区 ──────────────────────────────────────────
+   光标跟随 accent，否则暗色主题下是系统默认黑、几乎看不见。 */
+.md-editor .vditor-content {
+    caret-color: var(--accent);
+}
+.md-editor .vditor-content ::selection {
+    background: var(--selected-background);
+    color: var(--text-primary);
+}
+/* 图片：限制最大宽并随正文圆角 */
+.md-editor .vditor-reset img {
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+}

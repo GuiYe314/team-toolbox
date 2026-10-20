@@ -63,8 +63,9 @@
             </div>
 
             <div class="edit-mode-switch" role="tablist" aria-label="编辑模式">
+                <!-- Vditor 是所见即所得编辑器，本身即渲染效果，
+                     故不再需要 textarea+预览的「分屏」模式，只保留编写/预览切换。 -->
                 <button class="mode-btn" :class="{ active: viewMode === 'write' }" @click="viewMode = 'write'">编写</button>
-                <button class="mode-btn" :class="{ active: viewMode === 'split' }" @click="viewMode = 'split'">分屏</button>
                 <button class="mode-btn" :class="{ active: viewMode === 'preview' }" @click="viewMode = 'preview'">预览</button>
                 <!-- 图片工具：选文件上传，或直接 Ctrl+V 粘贴剪贴板截图 -->
                 <button
@@ -73,7 +74,7 @@
                     :disabled="uploading"
                     :title="uploading ? '正在上传图片…' : '插入图片（也可直接粘贴截图或拖入图片）'"
                     @click="pickImage"
-                >{{ uploading ? '上传中…' : '🖼 插入图片' }}</button>
+                >{{ uploading ? '上传中…' : '插入图片' }}</button>
                 <!-- 语法速查：写正文时随手可查 -->
                 <MarkdownHelp compact />
                 <input
@@ -86,28 +87,21 @@
             </div>
             <p v-if="imageError" class="nt-state nt-state-error image-tip">{{ imageError }}</p>
 
-            <div
-                class="edit-body"
-                :class="'mode-' + viewMode"
-                @dragover.prevent="onDragOver"
-                @drop.prevent="onDrop"
-            >
+            <div class="edit-body" :class="'mode-' + viewMode">
                 <p v-if="loadError" class="nt-state nt-state-error">{{ loadError }}</p>
 
                 <template v-else>
+                    <!-- 编写态：Vditor 所见即所得编辑器（sv 模式） -->
                     <div v-show="viewMode !== 'preview'" class="pane pane-write">
-                        <textarea
+                        <MarkdownEditor
+                            ref="mdEditor"
                             v-model="form.content_md"
-                            class="md-input"
-                            spellcheck="false"
-                            placeholder="输入 Markdown 正文…"
-                            ref="mdInput"
-                            @input="onInput"
-                            @paste="onPaste"
-                        ></textarea>
+                            :uploading="uploading"
+                            @image-error="imageError = $event"
+                        />
                     </div>
+                    <!-- 预览态：仍走后端 sanitize-html 白名单净化，与阅读页一致 -->
                     <div v-show="viewMode !== 'write'" class="pane pane-preview">
-                        <!-- 预览 HTML 由后端 sanitize-html 白名单净化，可安全渲染 -->
                         <div class="markdown-body" v-html="previewHtml"></div>
                     </div>
                 </template>
@@ -132,10 +126,11 @@
 <script>
 import { api } from '../api/client.js';
 import MarkdownHelp from '../components/MarkdownHelp.vue';
+import MarkdownEditor from '../components/MarkdownEditor.vue';
 
 export default {
     name: 'DocumentEdit',
-    components: { MarkdownHelp },
+    components: { MarkdownHelp, MarkdownEditor },
     data() {
         return {
             form: { title: '', content_md: '', category_id: null, parent_id: null, tagsText: '' },
@@ -152,7 +147,7 @@ export default {
             conflictCurrent: null,
             previewHtml: '',
             draftRestored: false,
-            viewMode: 'split',
+            viewMode: 'write',
             uploading: false,
             imageError: '',
             _previewTimer: null,
@@ -222,6 +217,10 @@ export default {
             }
         }
         this.renderPreview();
+        // Vditor 实例是异步创建的（要等脚本与3.7MB lute 内核加载完），
+        // 所以把已加载的内容推进编辑器必须排到 nextTick 之后。
+        // 组件内部会先把内容排队，等实例 ready 后补灌。
+        this.$nextTick(() => this.syncEditorContent());
     },
     beforeUnmount() {
         clearTimeout(this._previewTimer);
@@ -286,31 +285,8 @@ export default {
             if (e.target) e.target.value = '';   // 允许重复选择同一文件
             if (file) this.uploadImage(file);
         },
-        onPaste(e) {
-            // 剪贴板里的图片（截图）优先于纯文本
-            const items = e.clipboardData && e.clipboardData.items;
-            if (!items) return;
-            for (const item of items) {
-                if (item.type && item.type.startsWith('image/')) {
-                    const file = item.getAsFile();
-                    if (file) {
-                        e.preventDefault();
-                        this.uploadImage(file);
-                    }
-                    return;
-                }
-            }
-        },
-        onDragOver() {
-            // 视觉反馈由 .edit-body.dragging 处理，这里仅阻止默认行为
-        },
-        onDrop(e) {
-            const files = e.dataTransfer && e.dataTransfer.files;
-            if (!files || !files.length) return;
-            const image = Array.from(files).find((f) => f.type.startsWith('image/'));
-            if (image) this.uploadImage(image);
-            else this.imageError = '拖入的文件不是图片，已忽略。';
-        },
+        // 注：粘贴截图与拖拽入图改由 Vditor 内置处理（MarkdownEditor 的
+        // uploadPaste / upload 回调），无需在此再接一遍 DOM 事件。
         async uploadImage(file) {
             if (this.uploading) return;
             this.uploading = true;
@@ -318,32 +294,28 @@ export default {
             try {
                 const { res, body } = await api.uploadImage(file);
                 if (!res.ok) throw new Error((body && body.message) || '图片上传失败');
-                // 无文件名时用 alt 空文本；文件名去掉扩展名作为 alt 更有助于无障碍与SEO
+                // 文件名去掉扩展名作为 alt，更有助于无障碍阅读
                 const alt = (file.name || '').replace(/\.[^.]+$/, '');
                 this.insertAtCursor(`\n![${alt}](${body.url})\n`);
-                this.scheduleDraft();
             } catch (err) {
                 this.imageError = err.network ? err.message : (err.message || '图片上传失败，请稍后重试');
             } finally {
                 this.uploading = false;
             }
         },
-        /** 在 textarea 光标处插入文本；若拿不到选区则追加到末尾。 */
+        /**
+         * 在编辑器光标处插入文本。
+         * 委托给 MarkdownEditor 内部的 vditor.insertValue，
+         * 由它管理选区；拿不到实例时退化为追加到末尾。
+         */
         insertAtCursor(text) {
-            const el = this.$refs.mdInput;
-            const current = this.form.content_md || '';
-            if (!el) {
-                this.form.content_md = current + text;
+            const ed = this.$refs.mdEditor;
+            if (ed && typeof ed.insertAtCursor === 'function') {
+                ed.insertAtCursor(text);
+                this.scheduleDraft();
                 return;
             }
-            const start = el.selectionStart != null ? el.selectionStart : current.length;
-            const end = el.selectionEnd != null ? el.selectionEnd : current.length;
-            this.form.content_md = current.slice(0, start) + text + current.slice(end);
-            this.$nextTick(() => {
-                const pos = start + text.length;
-                el.focus();
-                el.setSelectionRange(pos, pos);
-            });
+            this.form.content_md = (this.form.content_md || '') + text;
         },
         scheduleDraft() {
             clearTimeout(this._draftTimer);
@@ -486,6 +458,19 @@ export default {
             } else {
                 this.$router.push({ name: 'kb-detail', params: { id: this.docId } });
             }
+        },
+        /**
+         * 把 form.content_md 推入编辑器实例。
+         *
+         * 必要性：Vditor 自管内部状态，外部改 form.content_md（加载草稿、
+         * 加载冲突版本、切换父页面重载等）不会自动反映到编辑器里，
+         * 不推就会出现「页面数据已变、编辑器仍是旧内容」的错位。
+         */
+        syncEditorContent() {
+            const ed = this.$refs.mdEditor;
+            if (!ed || typeof ed.setContent !== 'function') return;
+            // 已在编辑中时不要打断用户：只在内容确实不同时才覆盖
+            ed.setContent(this.form.content_md || '');
         }
     },
     watch: {
@@ -624,38 +609,32 @@ export default {
     margin: 6px 0 0;
 }
 
-/* 编辑区 */
-.edit-body.mode-split {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    overflow: hidden;
+/* 编辑区：Vditor 已是所见即所得，没有左右分栏，只剩单栏容器。
+   高度给足，编辑器内部自行滚动。 */
+.edit-body {
+    margin-top: 14px;
+    /* 用视口相对高度而不是 100vh：100vh 会超出玻璃面板的可视区并把
+       顶部标题与工具栏顶出屏幕（旧的 min-height:100vh 就有这个毛病）。
+       这里让编辑区占满「面板剩余高度」，内部滚动。 */
+    height: calc(100vh - 320px);
+    min-height: 460px;
 }
 .pane {
-    min-height: 420px;
+    min-height: 460px;
 }
+/* 编写态必须是 flex 列且有确定高度：.md-editor 用的是 height:100%，
+   若父级只有 min-height（高度不確定），子级的 100% 会解析成内容高度，
+   编辑器就会塌成一行。给了 100% 后由 .edit-body 的高度向下传递。 */
 .pane-write {
-    border-right: 1px solid var(--panel-border);
-}
-.md-input {
-    width: 100%;
+    display: flex;
+    flex-direction: column;
     height: 100%;
-    min-height: 420px;
-    border: none;
-    outline: none;
-    resize: none;
-    padding: 18px;
-    background: var(--panel-background);
-    color: var(--text-primary);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 14px;
-    line-height: 1.7;
 }
 .pane-preview {
     padding: 18px;
     background: var(--panel-background);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-md);
     overflow: auto;
     max-height: 640px;
 }
@@ -766,13 +745,9 @@ export default {
 }
 
 @media (max-width: 1340px) {
-    /* 主内容区变窄时分栏退化为上下，避免两栏各自被压到不可输入 */
-    .edit-body.mode-split {
-        grid-template-columns: 1fr;
-    }
-    .pane-write {
-        border-right: none;
-        border-bottom: 1px solid var(--panel-border);
+    /* 主内容区变窄时编辑器容器跟着收窄即可，无需切换布局 */
+    .pane {
+        min-height: 380px;
     }
 }
 </style>
