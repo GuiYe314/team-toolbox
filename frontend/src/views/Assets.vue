@@ -74,6 +74,22 @@
                             <path d="M10 14.2h4" />
                         </svg>
                     </button>
+                    <!-- 页面二维码：扫后用手机打开当前页面 -->
+                    <button
+                        v-hint
+                        class="btn btn-sm am-io-btn"
+                        type="button"
+                        title="生成二维码，在手机上打开本页"
+                        aria-label="生成页面二维码"
+                        @click="qrMode = 'page'"
+                    >
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3.5" y="3.5" width="7" height="7" rx="1" />
+                            <rect x="13.5" y="3.5" width="7" height="7" rx="1" />
+                            <rect x="3.5" y="13.5" width="7" height="7" rx="1" />
+                            <path d="M14 14v3M14 20.5h.01M17.5 14h3v3h-3zM17.5 20.5h.01M20.5 17.5h.01" />
+                        </svg>
+                    </button>
                 </div>
 
                 <input ref="fileInput" class="am-hidden-file" type="file" multiple @change="onFilesPicked" />
@@ -383,6 +399,22 @@
                                 <td>{{ a.createdBy }}</td>
                                 <td class="am-td-num">{{ formatRelative(a.updatedAt) }}</td>
                                 <td class="am-td-act" @click.stop>
+                                    <!-- 资源二维码：扫后手机直接下载该文件 -->
+                                    <button
+                                        v-hint
+                                        class="am-vbtn"
+                                        type="button"
+                                        title="生成下载二维码"
+                                        aria-label="生成下载二维码"
+                                        @click="openQr(a)"
+                                    >
+                                        <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                                            <rect x="3.5" y="3.5" width="7" height="7" rx="1" />
+                                            <rect x="13.5" y="3.5" width="7" height="7" rx="1" />
+                                            <rect x="3.5" y="13.5" width="7" height="7" rx="1" />
+                                            <path d="M14 14v3M14 20.5h.01M17.5 14h3v3h-3zM17.5 20.5h.01M20.5 17.5h.01" />
+                                        </svg>
+                                    </button>
                                     <button
                                         v-hint
                                         class="am-vbtn"
@@ -439,6 +471,22 @@
                                     <path d="M8 5.5v13l11-6.5z" />
                                 </svg>
                             </span>
+                            <!-- 悬浮操作：扫码下载 -->
+                            <button
+                                v-hint
+                                class="am-card-qr"
+                                type="button"
+                                title="生成下载二维码"
+                                aria-label="生成下载二维码"
+                                @click.stop="openQr(a)"
+                            >
+                                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                                    <rect x="3.5" y="3.5" width="7" height="7" rx="1" />
+                                    <rect x="13.5" y="3.5" width="7" height="7" rx="1" />
+                                    <rect x="3.5" y="13.5" width="7" height="7" rx="1" />
+                                    <path d="M14 14v3M14 20.5h.01M17.5 14h3v3h-3zM17.5 20.5h.01M20.5 17.5h.01" />
+                                </svg>
+                            </button>
                         </div>
                         <div class="am-card-body">
                             <span class="am-card-title" :title="a.name">{{ a.name }}</span>
@@ -568,6 +616,16 @@
             @changed="load"
         />
 
+        <!-- ═══ 二维码分享 ═══ -->
+        <AssetQrDialog
+            v-if="qrMode"
+            :mode="qrMode"
+            :asset-id="qrAsset ? qrAsset.id : null"
+            :asset-name="qrAsset ? qrAsset.name : ''"
+            :pointer="qrPointer"
+            @close="qrMode = null; qrAsset = null"
+        />
+
         <!-- ═══ 右下角上传任务面板 ═══ -->
         <AssetUploadPanel
             :items="uploadItems"
@@ -591,13 +649,14 @@ import AssetDetails from '../components/assets/AssetDetails.vue';
 import AssetPreviewDialog from '../components/assets/AssetPreviewDialog.vue';
 import AssetUploadPanel from '../components/assets/AssetUploadPanel.vue';
 import AssetStorageSettings from '../components/assets/AssetStorageSettings.vue';
+import AssetQrDialog from '../components/assets/AssetQrDialog.vue';
 
 const EXPANDED_KEY = 'asset-folders-expanded';
 const PAGE_SIZE = 50;
 
 export default {
     name: 'AssetsView',
-    components: { AssetFolderTree, AssetDetails, AssetPreviewDialog, AssetUploadPanel, AssetStorageSettings },
+    components: { AssetFolderTree, AssetDetails, AssetPreviewDialog, AssetUploadPanel, AssetStorageSettings, AssetQrDialog },
     data() {
         return {
             // ── 列表状态 ──
@@ -657,6 +716,13 @@ export default {
 
             // ── 存储路径设置 ──
             showStorage: false,
+
+            // ── 二维码分享 ──
+            // qrMode: null | 'page' | 'asset'
+            qrMode: null,
+            qrAsset: null,
+            // 下载哪个版本：已发布优先（对外正式版本），否则最新
+            qrPointer: 'latest',
 
             // ── 导入 / 导出状态 ──
             ioBusy: false,
@@ -973,6 +1039,17 @@ export default {
             const rect = ev.currentTarget.getBoundingClientRect();
             this.menu = { asset: a, x: this.clampX(rect.left, 176), y: this.clampY(rect.bottom + 4, 260) };
             this.folderMenu = null;
+        },
+        /**
+         * 打开资源下载二维码。
+         *
+         * 下载哪个版本：优先「已发布版本」—— 对外分享应该给正式发布的那版，
+         * 而不是还在草稿中的最新版。资源没发布过才退回 latest。
+         */
+        openQr(a) {
+            this.qrAsset = a;
+            this.qrPointer = a.publishedVersionNumber ? 'published' : 'latest';
+            this.qrMode = 'asset';
         },
         openFolderMenu(node, ev) {
             const rect = ev.currentTarget.getBoundingClientRect();

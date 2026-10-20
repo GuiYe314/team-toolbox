@@ -85,6 +85,22 @@
                     </button>
                 </div>
                 <ThemeToggle />
+                <!-- 页面二维码：扫后用手机打开当前页面（所有页面通用） -->
+                <button
+                    v-hint
+                    class="mini-btn"
+                    type="button"
+                    title="生成二维码，在手机上打开本页"
+                    aria-label="生成页面二维码"
+                    @click="showQr = true"
+                >
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="3.5" y="3.5" width="7" height="7" rx="1" />
+                        <rect x="13.5" y="3.5" width="7" height="7" rx="1" />
+                        <rect x="3.5" y="13.5" width="7" height="7" rx="1" />
+                        <path d="M14 14v3M14 20.5h.01M17.5 14h3v3h-3zM17.5 20.5h.01M20.5 17.5h.01" />
+                    </svg>
+                </button>
                 <span class="version-tag">
                     <span class="dot"></span>v0.1 MVP
                 </span>
@@ -166,6 +182,13 @@
             </div>
         </div>
 
+        <!-- 页面二维码（所有页面通用） -->
+        <AssetQrDialog
+            v-if="showQr"
+            mode="page"
+            @close="showQr = false"
+        />
+
     </div>
 </template>
 
@@ -173,12 +196,13 @@
 import { api } from './api/client.js';
 import PageTree from './components/PageTree.vue';
 import ThemeToggle from './components/ThemeToggle.vue';
+import AssetQrDialog from './components/assets/AssetQrDialog.vue';
 
 const EXPANDED_KEY = 'kb-tree-expanded';
 
 export default {
     name: 'App',
-    components: { PageTree, ThemeToggle },
+    components: { PageTree, ThemeToggle, AssetQrDialog },
     data() {
         return {
             treeRows: [],
@@ -193,7 +217,9 @@ export default {
             deleteError: '',
             deleting: false,
             // 响应式折叠（仅页面树一栏）
-            pageColHidden: false
+            pageColHidden: false,
+            // 页面二维码弹窗
+            showQr: false
         };
     },
     computed: {

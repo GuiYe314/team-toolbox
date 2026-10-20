@@ -149,7 +149,11 @@ const ui = await evalJs(`JSON.stringify({
   labels: [...document.querySelectorAll('.am-io-btn')].map(b=>b.getAttribute('aria-label'))
 })`);
 const u = JSON.parse(ui);
-check('工具栏有导入/导出/存储路径三个按钮', u.ioBtns === 3, JSON.stringify(u.labels));
+// 注意：不写死数量 —— 工具栏后来又加了「生成页面二维码」，
+// 硬编码「三个」会随功能增加而误报。改为检查关键按钮都在。
+const NEEDED = ['导入资源包', '导出所选资源', '设置资源保存路径'];
+check('工具栏有导入/导出/存储路径按钮',
+    NEEDED.every(n => u.labels.includes(n)), JSON.stringify(u.labels));
 check('按钮有可访问名称', u.labels.every(l => !!l), JSON.stringify(u.labels));
 
 // ── 2. 存储路径设置接口 ──
