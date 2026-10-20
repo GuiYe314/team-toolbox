@@ -104,19 +104,37 @@ function listFiles(dir, base = '') {
 const asset = await upload(STAMP + '存储测试.glb', makeGlb(2048));
 const assetId = asset.body.id;
 
+/**
+ * 清理本脚本创建的全部资源。
+ *
+ * 两个坑：
+ * 1. 本脚本一共上传了 3 个带 STAMP 前缀的资源（存储测试 / 自动同步 / 不再同步），
+ *    只删第一个会留下垃圾数据污染演示库。
+ * 2. 只按**当前** STAMP 搜还不够 —— 上一轮运行失败残留的旧 STAMP 资源
+ *    也会一直留在库里。所以这里按通用前缀 'ST' 搜，把历次残留一起清掉。
+ */
 const cleanup = async () => {
     await fetch(URL_BASE + '/api/assets/settings/storage', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: '' })
     }).catch(() => {});
-    await fetch(URL_BASE + '/api/assets/batch-delete', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetIds: [assetId] })
-    }).catch(() => {});
-    await fetch(URL_BASE + '/api/assets/purge?confirm=1', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetIds: [assetId] })
-    }).catch(() => {});
+    try {
+        // 搜 'ST' 会误伤正常资源（名称里含 ST 的），所以按
+        // 「以 ST + 数字开头」这一特征精确挑出本脚本造出来的探针。
+        const found = await api('/api/assets?pageSize=200&search=' + encodeURIComponent('ST'));
+        const ids = (found.body.items || [])
+            .filter((a) => /^ST\d{4,}/.test(a.name))
+            .map((a) => a.id);
+        if (ids.length === 0) return;
+        await fetch(URL_BASE + '/api/assets/batch-delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assetIds: ids })
+        }).catch(() => {});
+        await fetch(URL_BASE + '/api/assets/purge?confirm=1', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assetIds: ids })
+        }).catch(() => {});
+    } catch { /* 清理失败不应影响主流程 */ }
     try { rmSync(MIRROR, { recursive: true, force: true }); } catch { /* 忽略 */ }
 };
 process.on('exit', cleanup);

@@ -484,6 +484,32 @@ export function deleteVersionDir(assetId, versionId) {
 }
 
 /**
+ * 删除资源级目录（永久删除资源时用）。
+ *
+ * 版本目录删光后，<assetId>/ 这一层会剩下一个空壳目录。
+ * 元数据已被 purge（数据库里查无此资源），这个空目录就成了
+ * 无法回收的孤儿 —— 磁盘上会堆积越来越多无主的空目录。
+ * 所以删完所有版本目录后，必须再删掉父目录。
+ *
+ * @param {number} assetId
+ * @returns {boolean} 是否确实删掉了（目录本来就不存在时返回 false）
+ */
+export function deleteAssetDir(assetId) {
+    const abs = resolvePath(join(ASSET_DIR, String(assetId)));
+    const rel = relative(ASSET_DIR, abs);
+    if (!rel || rel.startsWith('..') || isAbsolute(rel)) return false;
+    if (!existsSync(abs)) return false;
+    try {
+        // 只删空目录：若里面还有文件说明有残留，宁可留着也不能误删数据
+        if (readdirSync(abs).length > 0) return false;
+        rmSync(abs, { recursive: true, force: true });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * 统计磁盘占用（详情页「资产统计」用）。
  * @param {number} assetId
  * @returns {{ total: number, versions: number }}

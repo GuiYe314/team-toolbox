@@ -235,6 +235,45 @@ describe('存储路径设置：配置读写与同步', () => {
     });
 });
 
+describe('永久删除的磁盘清理', () => {
+    test('删除资源后不留空目录（回归点：曾残留 51 个空壳目录）', async () => {
+        const up = await upload('目录清理测试.glb', makeGlb(2048));
+        assert.equal(up.status, 201);
+        const id = up.body.id;
+
+        // 资源目录此时应存在
+        const assetDir = join(ASSET_DIR, String(id));
+        assert.ok(existsSync(assetDir), '上传后资源目录应存在');
+
+        // 软删除 → 永久删除
+        await api('/api/assets/batch-delete', { method: 'POST', body: { assetIds: [id] } });
+        const purge = await api('/api/assets/purge?confirm=1', {
+            method: 'POST', body: { assetIds: [id] }
+        });
+        assert.equal(purge.status, 200);
+
+        // 元数据没了，磁盘目录也必须没有 ——
+        // 否则会堆积无主空目录（数据库里已查无此资源，永远不会被回收）
+        assert.equal(existsSync(assetDir), false, '资源目录应被一并删除');
+    });
+
+    test('删除单个版本时，若资源还有其他版本则不删资源目录', async () => {
+        const up = await upload('多版本目录.glb', makeGlb(2048));
+        const id = up.body.id;
+        await upload('多版本目录.glb', makeGlb(4096), { assetId: id });
+
+        const versions = (await api(`/api/assets/${id}/versions`)).body.items;
+        const v1 = versions.find((v) => v.versionNumber === 1);
+
+        const r = await api(`/api/assets/${id}/versions/${v1.id}`, { method: 'DELETE' });
+        assert.equal(r.status, 200);
+
+        // 还有 v2 在，资源目录必须保留
+        const assetDir = join(ASSET_DIR, String(id));
+        assert.ok(existsSync(assetDir), '还有其他版本时资源目录应保留');
+    });
+});
+
 describe('导入导出', () => {
     test('导出为 ZIP，含 manifest.json', async () => {
         const up = await upload('导出测试.glb', makeGlb(4096));

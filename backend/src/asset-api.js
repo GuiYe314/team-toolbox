@@ -19,7 +19,7 @@ import { join, resolve as resolvePath } from 'node:path';
 import * as store from './asset-store.js';
 import {
     saveAssetFile, saveDerivedFile, deleteAssetFile,
-    deleteVersionDir, resolveAssetPath, assetMimeOf, classifyAsset,
+    deleteVersionDir, deleteAssetDir, resolveAssetPath, assetMimeOf, classifyAsset,
     isViewableType, assetDiskUsage, MAX_ASSET_BYTES,
     stageAssetFileCopy, commitStagedAssetFile, ASSET_DIR
 } from './asset-storage.js';
@@ -554,6 +554,9 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
             if (v.preview_storage_key) deleteAssetFile(v.preview_storage_key);
             if (v.thumbnail_storage_key) deleteAssetFile(v.thumbnail_storage_key);
             deleteVersionDir(assetId, versionId);
+            // 若这是最后一个版本，顺带清掉空的资源目录
+            //（deleteAssetDir 内部只删空目录，有其他版本时不会误删）
+            deleteAssetDir(assetId);
         }
         res.json(result);
     }));
@@ -704,6 +707,9 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
         // 元数据已清，磁盘文件随后清理；个别文件删不掉也不回滚
         //（已无元数据指向它，留孤儿文件也比回滚数据更可接受）
         for (const [assetId, versionId] of dirTargets) deleteVersionDir(assetId, versionId);
+        // 版本目录删光后 <assetId>/ 会剩空壳，必须一并删掉 ——
+        // 否则磁盘上会堆积无主的空目录（元数据已 purge，再也无法回收）
+        for (const assetId of r.assetIds) deleteAssetDir(assetId);
         res.json(r);
     }));
 
@@ -724,6 +730,7 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
 
         const r = store.purgeAssets({ connection: db, assetIds: ids });
         for (const [assetId, versionId] of dirTargets) deleteVersionDir(assetId, versionId);
+        for (const assetId of r.assetIds) deleteAssetDir(assetId);
         res.json(r);
     }));
 
