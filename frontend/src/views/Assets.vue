@@ -637,7 +637,10 @@
         </Teleport>
 
         <!-- ═══ 通用输入弹窗（重命名 / 新建文件夹 / 移动 / 标签） ═══ -->
-        <div v-if="prompt" class="overlay" @click.self="prompt = null">
+        <!-- Teleport 到 body：.main-content 上的 backdrop-filter 会创建包含块，
+             使 position: fixed 相对该元素而非视口定位，遮罩就只盖住主内容区。 -->
+        <Teleport to="body">
+            <div v-if="prompt" class="overlay" @click.self="prompt = null">
             <div class="dialog" role="dialog" aria-modal="true">
                 <h2 class="dialog-title">{{ prompt.title }}</h2>
                 <p v-if="prompt.hint" class="dialog-text">{{ prompt.hint }}</p>
@@ -661,10 +664,12 @@
                     <button class="btn btn-primary" type="button" @click="submitPrompt">{{ prompt.okText || '确定' }}</button>
                 </div>
             </div>
-        </div>
+            </div>
+        </Teleport>
 
         <!-- ═══ 永久删除二次确认 ═══ -->
-        <div v-if="confirm" class="overlay" @click.self="confirm = null">
+        <Teleport to="body">
+            <div v-if="confirm" class="overlay" @click.self="confirm = null">
             <div class="dialog" role="dialog" aria-modal="true">
                 <h2 class="dialog-title">{{ confirm.title }}</h2>
                 <p class="dialog-text">{{ confirm.text }}</p>
@@ -674,7 +679,8 @@
                     <button class="btn btn-danger-solid" type="button" @click="runConfirm">{{ confirm.okText || '确认' }}</button>
                 </div>
             </div>
-        </div>
+            </div>
+        </Teleport>
 
         <!-- ═══ 存储路径设置 ═══ -->
         <AssetStorageSettings

@@ -2,7 +2,14 @@
     <!--
       大型预览弹窗（占页面 88%）。
       右侧详情只做快速预览；双击资源或点「预览」进入这里。
+
+      Teleport 到 body —— 这是**必须的**，不是 DOM 扁平化：
+      资源页的 .main-content 上有 backdrop-filter（玻璃拟态），
+      按 CSS 规范它会创建包含块，使后代的 position: fixed
+      改为相对该元素定位而非相对视口。弹窗本该占视口 88%，
+      留在原地会变成「主内容区的 88%」，且整体右移 250px。
     -->
+    <Teleport to="body">
     <div class="am-modal" role="dialog" aria-modal="true" :aria-label="'预览 ' + (asset ? asset.name : '')" @click.self="close">
         <header class="am-modal-head">
             <div class="am-modal-titles">
@@ -95,6 +102,7 @@
             <span class="am-hint">{{ asset ? `${typeLabel(asset.type)} · ${asset.mimeType}` : '' }}</span>
         </footer>
     </div>
+    </Teleport>
 </template>
 
 <script>

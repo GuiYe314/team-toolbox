@@ -10,55 +10,57 @@
       127.0.0.1 手机是访问不到的（那指向手机自己），所以要让用户
       填内网 IP 或域名。没填时给出明确提示，而不是给一个扫了没反应的码。
     -->
-    <div class="overlay" @click.self="$emit('close')">
-        <div class="dialog am-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="am-qr-title">
+        <Teleport to="body">
+            <div class="overlay" @click.self="$emit('close')">
+            <div class="dialog am-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="am-qr-title">
             <h2 class="dialog-title" id="am-qr-title">{{ title }}</h2>
 
             <!-- 二维码本体 -->
             <div class="am-qr-body">
-                <div class="am-qr-frame" :class="{ 'is-loading': loading }">
-                    <!-- v-html：内容是 qrcode 库生成的 SVG（自绘 path，无脚本） -->
-                    <div v-if="svg" class="am-qr-svg" v-html="svg"></div>
-                    <div v-else-if="loading" class="am-qr-loading">生成中…</div>
-                    <div v-else class="am-qr-failed">二维码生成失败</div>
-                </div>
+            <div class="am-qr-frame" :class="{ 'is-loading': loading }">
+            <!-- v-html：内容是 qrcode 库生成的 SVG（自绘 path，无脚本） -->
+            <div v-if="svg" class="am-qr-svg" v-html="svg"></div>
+            <div v-else-if="loading" class="am-qr-loading">生成中…</div>
+            <div v-else class="am-qr-failed">二维码生成失败</div>
+            </div>
 
-                <p class="am-qr-hint">{{ hint }}</p>
+            <p class="am-qr-hint">{{ hint }}</p>
 
-                <!-- 地址与内容 -->
-                <div class="am-qr-meta">
-                    <label class="am-qr-label" :for="originInputId">对外访问地址</label>
-                    <div class="am-qr-origin-row">
-                        <input
-                            :id="originInputId"
-                            v-model="originInput"
-                            class="input am-qr-origin"
-                            type="text"
-                            placeholder="http://192.168.1.10:5205"
-                            spellcheck="false"
-                            @keyup.enter="applyOrigin"
-                        />
-                        <button class="btn btn-sm" type="button" @click="applyOrigin">应用</button>
-                    </div>
-                    <p class="am-qr-origin-hint">{{ originHint }}</p>
-                </div>
+            <!-- 地址与内容 -->
+            <div class="am-qr-meta">
+            <label class="am-qr-label" :for="originInputId">对外访问地址</label>
+            <div class="am-qr-origin-row">
+            <input
+            :id="originInputId"
+            v-model="originInput"
+            class="input am-qr-origin"
+            type="text"
+            placeholder="http://192.168.1.10:5205"
+            spellcheck="false"
+            @keyup.enter="applyOrigin"
+            />
+            <button class="btn btn-sm" type="button" @click="applyOrigin">应用</button>
+            </div>
+            <p class="am-qr-origin-hint">{{ originHint }}</p>
+            </div>
 
-                <!-- 二维码内容（可复制） -->
-                <div class="am-qr-meta">
-                    <label class="am-qr-label">{{ contentLabel }}</label>
-                    <div class="am-qr-url-row">
-                        <code class="am-qr-url" :title="targetUrl">{{ targetUrl }}</code>
-                        <button class="btn btn-sm" type="button" @click="copyUrl">复制</button>
-                    </div>
-                </div>
+            <!-- 二维码内容（可复制） -->
+            <div class="am-qr-meta">
+            <label class="am-qr-label">{{ contentLabel }}</label>
+            <div class="am-qr-url-row">
+            <code class="am-qr-url" :title="targetUrl">{{ targetUrl }}</code>
+            <button class="btn btn-sm" type="button" @click="copyUrl">复制</button>
+            </div>
+            </div>
             </div>
 
             <div class="am-qr-foot">
-                <span v-if="copied" class="am-qr-copied">已复制</span>
-                <button class="btn" type="button" @click="$emit('close')">关闭</button>
+            <span v-if="copied" class="am-qr-copied">已复制</span>
+            <button class="btn" type="button" @click="$emit('close')">关闭</button>
             </div>
-        </div>
-    </div>
+            </div>
+            </div>
+        </Teleport>
 </template>
 
 <script>

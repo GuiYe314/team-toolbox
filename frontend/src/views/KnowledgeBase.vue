@@ -211,7 +211,10 @@
         </div>
 
         <!-- ═══ 批量删除二次确认 ═══ -->
-        <div v-if="showDeleteConfirm" class="overlay" @click.self="closeDeleteConfirm">
+        <!-- Teleport 到 body：.main-content 上的 backdrop-filter 会创建包含块，
+             使 position: fixed 相对该元素而非视口定位，遮罩就只盖住主内容区。 -->
+        <Teleport to="body">
+            <div v-if="showDeleteConfirm" class="overlay" @click.self="closeDeleteConfirm">
             <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="kb-del-title">
                 <h2 class="dialog-title" id="kb-del-title">确认批量删除</h2>
                 <p class="dialog-text">
@@ -234,7 +237,8 @@
                     </button>
                 </div>
             </div>
-        </div>
+            </div>
+        </Teleport>
     </div>
 </template>
 

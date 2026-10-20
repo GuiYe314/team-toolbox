@@ -104,20 +104,42 @@ const versions = (await api(`/api/assets/${assetId}/versions`)).body.items;
 const v1 = versions.find(v => v.versionNumber === 1);
 await api(`/api/assets/${assetId}/publish`, { method: 'POST', body: { versionId: v1.id } });
 
-const cleanup = async () => {
-    for (const id of [assetId, a2.body.id]) {
-        await fetch(`${URL_BASE}/api/assets/batch-delete`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ assetIds: [id] })
-        }).catch(() => {});
-        await fetch(`${URL_BASE}/api/assets/purge?confirm=1`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ assetIds: [id] })
-        }).catch(() => {});
-    }
-    await fetch(`${URL_BASE}/api/asset-folders/${folderId}`, { method: 'DELETE' }).catch(() => {});
-};
-process.on('exit', cleanup);
+/**
+ * 清理本脚本造出来的全部资源。
+ *
+ * 两个坑：
+ * 1. 只按本轮的 [assetId, a2.body.id] 删不够 —— 脚本若中途被 SIGTERM
+ *    打断，exit 处理器里的 async fetch 不会跑完，资源就留在库里了。
+ * 2. 所以按**名称特征**（/^AM\d{4,}/）搜索，把历次残留一起清掉。
+ */
+async function cleanup() {
+    try {
+        const found = await api('/api/assets?pageSize=200&search=' + encodeURIComponent('AM'));
+        const ids = (found.body.items || [])
+            .filter((a) => /^AM\d{4,}/.test(a.name))
+            .map((a) => a.id);
+        if (ids.length > 0) {
+            await fetch(`${URL_BASE}/api/assets/batch-delete`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assetIds: ids })
+            }).catch(() => {});
+            await fetch(`${URL_BASE}/api/assets/purge?confirm=1`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assetIds: ids })
+            }).catch(() => {});
+        }
+    } catch { /* 清理失败不应影响主流程 */ }
+    // 测试文件夹同理：按名称特征删
+    try {
+        const fs = await api('/api/asset-folders');
+        for (const f of (fs.body.items || [])) {
+            if (/^AM\d{4,}/.test(f.name)) {
+                await fetch(`${URL_BASE}/api/asset-folders/${f.id}`, { method: 'DELETE' }).catch(() => {});
+            }
+        }
+    } catch { /* 忽略 */ }
+}
+process.on('exit', () => { cleanup(); });
 
 await goto(`${URL_BASE}/assets`);
 await evalJs(`(() => { try { localStorage.setItem('tt-theme','light'); } catch(e){} location.reload(); return 1; })()`);

@@ -7,89 +7,91 @@
         - 这里设置的是**镜像目录**：资源会**自动拷贝**一份过去
         - 设置后立即全量同步已有资源，之后每次上传自动增量同步
     -->
-    <div class="overlay" @click.self="$emit('close')">
-        <div class="dialog am-storage-dialog" role="dialog" aria-modal="true" aria-labelledby="am-storage-title">
+        <Teleport to="body">
+            <div class="overlay" @click.self="$emit('close')">
+            <div class="dialog am-storage-dialog" role="dialog" aria-modal="true" aria-labelledby="am-storage-title">
             <h2 class="dialog-title" id="am-storage-title">资源保存路径</h2>
 
             <!-- 主存储位置（只读，说明性） -->
             <div class="am-primary">
-                <span class="am-primary-label">主存储（服务端权威副本）</span>
-                <code class="am-primary-path" :title="settings.primaryPath">{{ settings.primaryPath || '加载中…' }}</code>
+            <span class="am-primary-label">主存储（服务端权威副本）</span>
+            <code class="am-primary-path" :title="settings.primaryPath">{{ settings.primaryPath || '加载中…' }}</code>
             </div>
 
             <p class="am-storage-hint">
-                设置后，资源会<strong>自动拷贝</strong>到指定目录 —— 适合把素材同步到 Unity 项目目录、
-                NAS 或同步盘。主存储始终保留，外部磁盘不可用时不影响正常使用。
+            设置后，资源会<strong>自动拷贝</strong>到指定目录 —— 适合把素材同步到 Unity 项目目录、
+            NAS 或同步盘。主存储始终保留，外部磁盘不可用时不影响正常使用。
             </p>
 
             <!-- 路径输入 -->
             <div class="am-path-row">
-                <input
-                    ref="pathInput"
-                    v-model="pathInput"
-                    class="input am-path-input"
-                    type="text"
-                    placeholder="例如 D:\UnityProjects\Museum\Assets 或 /mnt/nas/assets"
-                    spellcheck="false"
-                    @keyup.enter="apply"
-                />
-                <button class="btn btn-sm" type="button" :disabled="checking" @click="checkPath">
-                    {{ checking ? '校验中…' : '校验' }}
-                </button>
+            <input
+            ref="pathInput"
+            v-model="pathInput"
+            class="input am-path-input"
+            type="text"
+            placeholder="例如 D:\UnityProjects\Museum\Assets 或 /mnt/nas/assets"
+            spellcheck="false"
+            @keyup.enter="apply"
+            />
+            <button class="btn btn-sm" type="button" :disabled="checking" @click="checkPath">
+            {{ checking ? '校验中…' : '校验' }}
+            </button>
             </div>
 
             <p v-if="pathMessage" class="am-path-msg" :class="pathOk ? 'is-ok' : 'is-err'">
-                {{ pathMessage }}
+            {{ pathMessage }}
             </p>
 
             <!-- 当前镜像状态 -->
             <div v-if="settings.configured" class="am-mirror-state">
-                <div class="am-mirror-row">
-                    <span class="am-mirror-label">已同步文件</span>
-                    <span class="am-mirror-value">{{ settings.files }} 个</span>
-                </div>
-                <div class="am-mirror-row">
-                    <span class="am-mirror-label">占用空间</span>
-                    <span class="am-mirror-value">{{ formatSize(settings.bytes) }}</span>
-                </div>
-                <div class="am-mirror-row" v-if="settings.available === false">
-                    <span class="am-mirror-label">目录状态</span>
-                    <span class="am-mirror-value is-err">路径不存在（外部盘可能已断开）</span>
-                </div>
+            <div class="am-mirror-row">
+            <span class="am-mirror-label">已同步文件</span>
+            <span class="am-mirror-value">{{ settings.files }} 个</span>
+            </div>
+            <div class="am-mirror-row">
+            <span class="am-mirror-label">占用空间</span>
+            <span class="am-mirror-value">{{ formatSize(settings.bytes) }}</span>
+            </div>
+            <div class="am-mirror-row" v-if="settings.available === false">
+            <span class="am-mirror-label">目录状态</span>
+            <span class="am-mirror-value is-err">路径不存在（外部盘可能已断开）</span>
+            </div>
             </div>
 
             <p v-if="error" class="notice notice-error am-storage-error">{{ error }}</p>
 
             <div class="dialog-actions am-storage-actions">
-                <button
-                    v-if="settings.configured"
-                    class="btn btn-sm btn-ghost"
-                    type="button"
-                    :disabled="busy"
-                    @click="syncNow"
-                >立即同步</button>
-                <button
-                    v-if="settings.configured"
-                    class="btn btn-sm btn-ghost"
-                    type="button"
-                    :disabled="busy"
-                    @click="clearMirror"
-                >清空镜像</button>
-                <span class="am-sel-spacer"></span>
-                <button class="btn" type="button" @click="$emit('close')">关闭</button>
-                <button
-                    v-if="settings.configured"
-                    class="btn btn-danger"
-                    type="button"
-                    :disabled="busy"
-                    @click="clearConfig"
-                >停止同步</button>
-                <button class="btn btn-primary" type="button" :disabled="busy" @click="apply">
-                    {{ busy ? '处理中…' : '保存并同步' }}
-                </button>
+            <button
+            v-if="settings.configured"
+            class="btn btn-sm btn-ghost"
+            type="button"
+            :disabled="busy"
+            @click="syncNow"
+            >立即同步</button>
+            <button
+            v-if="settings.configured"
+            class="btn btn-sm btn-ghost"
+            type="button"
+            :disabled="busy"
+            @click="clearMirror"
+            >清空镜像</button>
+            <span class="am-sel-spacer"></span>
+            <button class="btn" type="button" @click="$emit('close')">关闭</button>
+            <button
+            v-if="settings.configured"
+            class="btn btn-danger"
+            type="button"
+            :disabled="busy"
+            @click="clearConfig"
+            >停止同步</button>
+            <button class="btn btn-primary" type="button" :disabled="busy" @click="apply">
+            {{ busy ? '处理中…' : '保存并同步' }}
+            </button>
             </div>
-        </div>
-    </div>
+            </div>
+            </div>
+        </Teleport>
 </template>
 
 <script>

@@ -18,87 +18,89 @@
     </button>
 
     <!-- 语法速查弹窗 -->
-    <div v-if="show" class="overlay" @click.self="close">
-        <div
+        <Teleport to="body">
+            <div v-if="show" class="overlay" @click.self="close">
+            <div
             class="dialog dialog-lg"
             role="dialog"
             aria-modal="true"
             aria-labelledby="md-help-title"
-        >
+            >
             <div class="help-head">
-                <div class="help-head-text">
-                    <h2 class="dialog-title" id="md-help-title">Markdown 语法速查</h2>
-                    <p class="help-sub">点击任意一行复制语法 · 括号内是对应的工具栏按钮</p>
-                </div>
-                <button class="help-close" type="button" aria-label="关闭" @click="close">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                </button>
+            <div class="help-head-text">
+            <h2 class="dialog-title" id="md-help-title">Markdown 语法速查</h2>
+            <p class="help-sub">点击任意一行复制语法 · 括号内是对应的工具栏按钮</p>
+            </div>
+            <button class="help-close" type="button" aria-label="关闭" @click="close">
+            <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+            </button>
             </div>
 
             <div class="help-body">
-                <section v-for="g in GROUPS" :key="g.title" class="help-group">
-                    <h3 class="help-group-title">{{ g.title }}</h3>
-                    <ul class="help-list">
-                        <li v-for="it in g.items" :key="it.syntax" class="help-row">
-                            <button class="help-item" type="button" @click="copy(it)">
-                                <code class="help-syntax">{{ it.syntax }}</code>
-                                <span class="help-desc">
-                                    {{ it.desc }}
-                                    <span v-if="it.btn" class="help-btn">工具栏：{{ it.btn }}</span>
-                                </span>
-                            </button>
-                        </li>
-                    </ul>
-                </section>
+            <section v-for="g in GROUPS" :key="g.title" class="help-group">
+            <h3 class="help-group-title">{{ g.title }}</h3>
+            <ul class="help-list">
+            <li v-for="it in g.items" :key="it.syntax" class="help-row">
+            <button class="help-item" type="button" @click="copy(it)">
+            <code class="help-syntax">{{ it.syntax }}</code>
+            <span class="help-desc">
+            {{ it.desc }}
+            <span v-if="it.btn" class="help-btn">工具栏：{{ it.btn }}</span>
+            </span>
+            </button>
+            </li>
+            </ul>
+            </section>
 
-                <!-- 半可用：编辑期看着正常，保存后阅读页丢效果。
-                     这类最坑——用户以为成功了，所以必须单独成组说明。 -->
-                <section class="help-group">
-                    <h3 class="help-group-title help-group-partial">编辑期可用，但阅读页会丢效果</h3>
-                    <p class="help-warn-text">
-                        以下语法在<b>编辑器里能看到</b>，但保存后在阅读页<b>不显示对应效果</b>。原因：阅读页渲染走的是后端白名单，比编辑器严格。
-                    </p>
-                    <ul class="help-list">
-                        <li v-for="it in PARTIAL" :key="it.syntax" class="help-row">
-                            <div class="help-item is-static">
-                                <code class="help-syntax">{{ it.syntax }}</code>
-                                <span class="help-desc">
-                                    {{ it.desc }}
-                                    <span class="help-btn">工具栏：{{ it.btn }}</span>
-                                </span>
-                            </div>
-                        </li>
-                    </ul>
-                </section>
+            <!-- 半可用：编辑期看着正常，保存后阅读页丢效果。
+            这类最坑——用户以为成功了，所以必须单独成组说明。 -->
+            <section class="help-group">
+            <h3 class="help-group-title help-group-partial">编辑期可用，但阅读页会丢效果</h3>
+            <p class="help-warn-text">
+            以下语法在<b>编辑器里能看到</b>，但保存后在阅读页<b>不显示对应效果</b>。原因：阅读页渲染走的是后端白名单，比编辑器严格。
+            </p>
+            <ul class="help-list">
+            <li v-for="it in PARTIAL" :key="it.syntax" class="help-row">
+            <div class="help-item is-static">
+            <code class="help-syntax">{{ it.syntax }}</code>
+            <span class="help-desc">
+            {{ it.desc }}
+            <span class="help-btn">工具栏：{{ it.btn }}</span>
+            </span>
+            </div>
+            </li>
+            </ul>
+            </section>
 
-                <section class="help-group">
-                    <h3 class="help-group-title help-group-warn">不生效的写法</h3>
-                    <p class="help-warn-text">
-                        以下写法在其他编辑器里常见，但本工具<b>不会生效</b>，写进正文只会显示原始符号：
-                    </p>
-                    <ul class="help-list">
-                        <li v-for="it in UNSUPPORTED" :key="it.syntax" class="help-row">
-                            <div class="help-item is-static">
-                                <code class="help-syntax">{{ it.syntax }}</code>
-                                <span class="help-desc">{{ it.desc }}</span>
-                            </div>
-                        </li>
-                    </ul>
-                    <p class="help-warn-text help-warn-tail">
-                        另外，行内 HTML（如 <code>&lt;div&gt;</code>）会被安全过滤掉，请改用 Markdown 语法。
-                    </p>
-                </section>
+            <section class="help-group">
+            <h3 class="help-group-title help-group-warn">不生效的写法</h3>
+            <p class="help-warn-text">
+            以下写法在其他编辑器里常见，但本工具<b>不会生效</b>，写进正文只会显示原始符号：
+            </p>
+            <ul class="help-list">
+            <li v-for="it in UNSUPPORTED" :key="it.syntax" class="help-row">
+            <div class="help-item is-static">
+            <code class="help-syntax">{{ it.syntax }}</code>
+            <span class="help-desc">{{ it.desc }}</span>
+            </div>
+            </li>
+            </ul>
+            <p class="help-warn-text help-warn-tail">
+            另外，行内 HTML（如 <code>&lt;div&gt;</code>）会被安全过滤掉，请改用 Markdown 语法。
+            </p>
+            </section>
             </div>
 
             <div class="dialog-actions help-actions">
-                <span class="help-tip">{{ copied ? '已复制到剪贴板' : '' }}</span>
-                <button class="btn" type="button" @click="close">关闭</button>
+            <span class="help-tip">{{ copied ? '已复制到剪贴板' : '' }}</span>
+            <button class="btn" type="button" @click="close">关闭</button>
             </div>
-        </div>
-    </div>
+            </div>
+            </div>
+        </Teleport>
 </template>
 
 <script>

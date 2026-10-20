@@ -164,7 +164,10 @@
         </div>
 
         <!-- 删除确认（提示将连带删除子页面） -->
-        <div v-if="deleteTarget" class="overlay" @click.self="cancelDelete">
+        <!-- Teleport 到 body：.main-content 上的 backdrop-filter 会创建包含块，
+             使 position: fixed 相对该元素而非视口定位，遮罩就只盖住主内容区。 -->
+        <Teleport to="body">
+            <div v-if="deleteTarget" class="overlay" @click.self="cancelDelete">
             <div class="dialog" role="dialog" aria-modal="true" aria-label="删除页面">
                 <h2 class="dialog-title">删除页面</h2>
                 <p class="dialog-text">确定要删除「<strong>{{ deleteTarget.title }}</strong>」吗？</p>
@@ -180,7 +183,8 @@
                     </button>
                 </div>
             </div>
-        </div>
+            </div>
+        </Teleport>
 
         <!-- 页面二维码（所有页面通用） -->
         <AssetQrDialog
