@@ -10,6 +10,7 @@ import { existsSync, statSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
 import { getDefaultDatabase, closeDefaultDatabase, DB_PATH, PROJECT_ROOT } from './db.js';
 import { registerApi } from './api.js';
+import { registerAssetApi } from './asset-api.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number(process.env.PORT) || 3000;
@@ -20,6 +21,9 @@ app.use(express.json({ limit: '16mb' }));
 
 // 业务接口（TASK-003）：文档 / 分类 / 标签的 CRUD 与关联读写
 registerApi(app, { getDb: getDefaultDatabase });
+
+// 资源管理接口（独立子系统）：Asset / AssetVersion / Folder / 标签 / 操作记录
+registerAssetApi(app, { getDb: getDefaultDatabase });
 
 // 健康检查：返回 DB 路径与可达性
 app.get('/api/health', (_req, res) => {

@@ -12,7 +12,7 @@
     "dev": "node --watch src/index.js",
     "migrate": "node src/migrate.js",
     "rebuild": "npm rebuild better-sqlite3",
-    "test": "node --test src/store.test.js src/api.test.js"
+    "test": "node --test src/store.test.js src/api.test.js src/asset-store.test.js src/asset-api.test.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.5.0",
