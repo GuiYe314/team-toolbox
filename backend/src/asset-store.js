@@ -195,6 +195,10 @@ function toAsset(row, tags = []) {
         latestVersionNumber: row.latest_version_number ?? null,
         publishedVersionNumber: row.published_version_number ?? null,
         latestSize: row.latest_size ?? 0,
+        /** 最新版本的预览状态：none/pending/processing/ready/failed */
+        previewStatus: row.preview_status || 'none',
+        /** 是否有可显示的缩略图（列表里直接用，避免加载失败的空图） */
+        hasThumbnail: !!row.thumbnail_storage_key,
         status: row.status,
         description: row.description,
         tags,
@@ -297,6 +301,9 @@ export function listAssets({ connection: db, filter = {} }) {
         SELECT a.*,
             lv.version_number AS latest_version_number,
             lv.file_size      AS latest_size,
+            lv.preview_status AS preview_status,
+            lv.thumbnail_storage_key AS thumbnail_storage_key,
+            lv.preview_storage_key    AS preview_storage_key,
             pv.version_number AS published_version_number,
             (SELECT COUNT(*) FROM asset_versions av WHERE av.asset_id = a.id) AS version_count
         FROM assets a

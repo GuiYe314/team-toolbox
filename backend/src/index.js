@@ -11,6 +11,7 @@ import { resolve as resolvePath } from 'node:path';
 import { getDefaultDatabase, closeDefaultDatabase, DB_PATH, PROJECT_ROOT } from './db.js';
 import { registerApi } from './api.js';
 import { registerAssetApi } from './asset-api.js';
+import { backfillPreviews } from './asset-preview.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number(process.env.PORT) || 3000;
@@ -60,6 +61,24 @@ const server = app.listen(PORT, HOST, () => {
     console.log(`[server] listening on http://${HOST}:${PORT}`);
     console.log(`[server] db path: ${resolvePath(DB_PATH)}`);
     console.log(`[server] node: ${process.version}`);
+
+    // 补生成存量资源的预览。
+    //
+    // 预览管线只在上传时触发，管线接入之前就已存在的资源会永远停在
+    // preview_status='pending'，前端就一直显示「正在生成预览」——
+    // 实际是没人管。启动时扫一遍补上。
+    //
+    // 刻意不 await：预览生成可能耗时（模型解析），不该拖慢服务启动。
+    (async () => {
+        try {
+            const s = await backfillPreviews({ connection: getDefaultDatabase() });
+            if (s.scanned > 0) {
+                console.log(`[assets] 补生成存量预览：扫描 ${s.scanned}，就绪 ${s.ready}，失败 ${s.failed}，无预览 ${s.none}`);
+            }
+        } catch (e) {
+            console.warn('[assets] 补生成存量预览失败（不影响服务）:', e && e.message);
+        }
+    })();
 });
 
 function shutdown(signal) {

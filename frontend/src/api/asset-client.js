@@ -243,7 +243,19 @@ export const assetApi = {
             : pointer === 'latest' ? 'latest'
                 : String(pointer);
         return `${BASE}/assets/files/${assetId}/${kind}/${p}` + (download ? '?download=1' : '');
-    }
+    },
+
+    /**
+     * 重新生成某个版本的预览与缩略图。
+     * 用于预览失败后重试（例如服务器后来装上了 ffmpeg）。
+     * @param {number} assetId
+     * @param {number} versionId
+     */
+    regeneratePreview: (assetId, versionId) =>
+        request('POST', `/assets/${assetId}/versions/${versionId}/preview`),
+
+    /** 当前服务器支持哪些预览类型（诊断用） */
+    previewProcessors: () => request('GET', '/assets/preview/processors')
 };
 
 export default assetApi;

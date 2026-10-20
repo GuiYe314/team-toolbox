@@ -17,7 +17,12 @@
             <!-- 头部：缩略图 + 名称 + 关闭 -->
             <header class="am-detail-head">
                 <div class="am-detail-thumb">
-                    <img v-if="thumbUrl" :src="thumbUrl" :alt="asset.name" @error="$event.target.style.display='none'" />
+                    <img
+                        v-if="hasThumb"
+                        :src="thumbUrl"
+                        :alt="asset.name"
+                        @error="thumbFailed = true"
+                    />
                     <svg v-else class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true">
                         <path v-for="(d, i) in typeIcon" :key="i" :d="d" />
                     </svg>
@@ -35,7 +40,33 @@
                         <span class="am-ver am-ver-pending" v-else-if="asset.latestVersionNumber">
                             未发布
                         </span>
+                        <!-- 预览状态：生成中 / 失败可重试 -->
+                        <span
+                            v-if="previewStatus === 'pending' || previewStatus === 'processing'"
+                            class="am-ver am-ver-preview"
+                        >
+                            正在生成预览
+                        </span>
+                        <span
+                            v-else-if="previewStatus === 'failed'"
+                            class="am-ver am-ver-preview-fail"
+                            :title="previewError || '预览生成失败'"
+                        >
+                            预览失败
+                            <button
+                                class="am-link-btn"
+                                type="button"
+                                :disabled="retrying"
+                                @click="retryPreview"
+                            >重试</button>
+                        </span>
                     </div>
+                    <!-- 失败原因要说清楚，不能只显示「失败」 -->
+                    <p v-if="previewStatus === 'failed' && previewError" class="am-preview-err">
+                        {{ previewError }}
+                    </p>
+                    <!-- 手动重试的错误（重试请求本身失败） -->
+                    <p v-if="retryError" class="am-preview-err">{{ retryError }}</p>
                 </div>
                 <button
                     v-hint
@@ -270,6 +301,14 @@ export default {
         return {
             tab: 'info',
             statusBusy: false,
+            /** 缩略图加载失败（404 等）→ 退回类型图标 */
+            thumbFailed: false,
+            /** 正在重新生成预览 */
+            retrying: false,
+            /** 手动重试失败的错误信息（与接口返回的 previewError 分开） */
+            retryError: '',
+            /** 预览状态轮询计时器 */
+            pollTimer: null,
             TABS: [
                 { key: 'info', label: '详情' },
                 { key: 'versions', label: '版本历史' },
@@ -298,13 +337,116 @@ export default {
             // 不预先探测（多一次请求），而是给 <img> 挂 @error 隐藏自己，
             // 外层容器自然透出下方的类型图标。
             return assetApi.fileUrl(this.asset.id, 'thumbnail', 'latest');
+        },
+        /**
+         * 是否真的能显示缩略图。
+         *
+         * 优先看服务端给的 hasThumbnail（列表接口有，详情接口没有），
+         * 没有就退回「最新版本有 thumbnail_storage_key」。
+         * 都没有就不显示 <img>，避免每次都发一个注定 404 的请求。
+         */
+        hasThumb() {
+            if (this.thumbFailed) return false;
+            if (!this.asset) return false;
+            if (this.asset.hasThumbnail) return true;
+            const latest = this.latestVersion;
+            return !!(latest && latest.thumbnailStorageKey);
+        },
+        /** 最新版本对象（详情接口的 versions 数组） */
+        latestVersion() {
+            if (!this.asset) return null;
+            if (!this.versions || this.versions.length === 0) return null;
+            return this.versions.find((v) => v.isLatest) || this.versions[0] || null;
+        },
+        /**
+         * 预览状态：none/pending/processing/ready/failed
+         *
+         * 优先看**最新版本**的状态 —— 预览是按版本生成的，
+         * asset 顶层的 previewStatus 是列表接口的聚合值，
+         * 在详情页不可靠（这里的 asset 对象来自详情接口，顶层没有该字段）。
+         */
+        previewStatus() {
+            if (!this.asset) return 'none';
+            const latest = this.latestVersion;
+            if (latest && latest.previewStatus) return latest.previewStatus;
+            return this.asset.previewStatus || 'none';
+        },
+        /** 预览失败原因（同样优先取最新版本） */
+        previewError() {
+            if (!this.asset) return '';
+            const latest = this.latestVersion;
+            if (latest && latest.previewError) return latest.previewError;
+            return this.asset.previewError || '';
         }
+    },
+    watch: {
+        /**
+         * 预览状态变化时管理轮询。
+         *
+         * 预览是后台异步生成的，前端必须自己跟进状态 ——
+         * 否则用户会一直看到「正在生成预览」，直到手动刷新页面。
+         */
+        previewStatus: {
+            immediate: true,
+            handler(st) {
+                this.stopPoll();
+                if (st === 'pending' || st === 'processing') this.startPoll();
+            }
+        }
+    },
+    mounted() {
+        this.stopPoll();
+        if (this.previewStatus === 'pending' || this.previewStatus === 'processing') this.startPoll();
+    },
+    beforeUnmount() {
+        // 组件销毁必须停掉定时器，否则会持续发请求（且对已卸载组件 setState）
+        this.stopPoll();
     },
     methods: {
         formatSize,
         formatRelative,
         formatDateTime,
         actionLabel(a) { return ACTION_LABELS[a] || a; },
+        /** 开始轮询预览状态 */
+        startPoll() {
+            this.stopPoll();
+            this.pollTimer = setInterval(() => {
+                // 用 refresh 事件让父组件重新拉数据（父组件已有 loadDetail/load）
+                this.$emit('refresh', { action: 'preview-poll' });
+            }, 1500);
+        },
+        /** 停止轮询 */
+        stopPoll() {
+            if (this.pollTimer) {
+                clearInterval(this.pollTimer);
+                this.pollTimer = null;
+            }
+        },
+        /**
+         * 重新生成预览。
+         *
+         * 典型场景：服务器后来装上了 ffmpeg，或首次生成时临时故障。
+         * 不必重新上传原始文件。
+         */
+        async retryPreview() {
+            if (!this.asset || this.retrying) return;
+            const v = this.latestVersion;
+            if (!v) return;
+            this.retrying = true;
+            try {
+                const { res, body } = await assetApi.regeneratePreview(this.asset.id, v.id);
+                if (!res.ok) throw new Error((body && body.message) || '生成失败');
+                this.thumbFailed = false;
+                this.$emit('refresh', { action: 'preview' });
+            } catch (e) {
+                // 失败必须让用户看到。
+                // 注意不能写 this.previewError —— 那是 computed（只读），
+                // 赋值会被 Vue 警告且不生效。用独立的 retryError 字段。
+                this.retryError = e.message || '生成失败';
+            } finally {
+                this.retrying = false;
+            }
+        },
         download() {
             if (!this.asset) return;
             window.open(assetApi.fileUrl(this.asset.id, 'original', 'latest', true), '_blank');

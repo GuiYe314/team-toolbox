@@ -300,6 +300,7 @@
 
 /* 缩略图：优先真实图片，否则类型图标 */
 .am-thumb {
+    position: relative;   /* 角标定位需要 */
     flex: none;
     display: grid;
     place-items: center;
@@ -321,6 +322,23 @@
     position: absolute;
     right: 2px;
     bottom: 2px;
+}
+/* 预览生成中：在缩略图右下角转一个小圈。
+   不用「图片没出来」来暗示 —— 用户会以为图裂了，
+   转圈明确表示「后台正在处理，稍等」。 */
+.am-thumb-spin {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--accent);
+    border-top-color: transparent;
+    animation: am-spin 720ms linear infinite;
+}
+@keyframes am-spin {
+    to { transform: rotate(360deg); }
 }
 
 /* 版本标记：v8 / 已发布 v6 */
@@ -344,6 +362,38 @@
     color: var(--warning);
     background: var(--warning-soft);
     border-color: var(--warning);
+}
+/* 预览生成中：中性色 + 不抢眼（这是进行态，不是错误） */
+.am-ver-preview {
+    color: var(--text-secondary);
+    background: var(--hover-background);
+    border-color: var(--panel-border);
+}
+/* 预览失败：danger 描边，且必须能让用户看到原因 + 重试入口 */
+.am-ver-preview-fail {
+    color: var(--danger);
+    background: var(--danger-soft);
+    border-color: var(--danger);
+    gap: 5px;
+}
+/* 徽标里的重试按钮：小字、继承 danger 色，不用按钮底色（太重） */
+.am-link-btn {
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: var(--weight-semibold);
+    text-decoration: underline;
+    cursor: pointer;
+}
+.am-link-btn:disabled { opacity: 0.5; cursor: default; }
+/* 预览失败原因：单独一行，字号小但要能读清 */
+.am-preview-err {
+    margin: 5px 0 0;
+    font-size: var(--text-secondary);
+    line-height: var(--line-tight);
+    color: var(--danger);
 }
 
 /* ── Grid 视图 ────────────────────────────────────────────────────── */

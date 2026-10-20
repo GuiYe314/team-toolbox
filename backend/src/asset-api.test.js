@@ -673,16 +673,18 @@ describe('下载与错误处理', () => {
         assert.ok(r.status === 404 || r.status === 400, `应拒绝，实际 ${r.status}`);
     });
 
-    test('预览文件未生成时 → 404 且 previewStatus 可辨', async () => {
+    test('预览文件自动生成后可访问（预览管线接入后行为变化）', async () => {
+        // 预览管线接入前，这里断言的是「未生成 → 404」。
+        // 现在上传 PNG 会自动生成预览与缩略图，因此应返回 200。
+        // 「未生成 → 404」这条路径改由 asset-preview.test.js 用
+        // 不会产生预览的类型（zip → status=none）覆盖。
         const r = await fetch(`${baseUrl}/api/assets/files/${assetId}/preview/latest`);
-        assert.equal(r.status, 404);
-        const body = await r.json();
-        assert.match(body.message, /预览/);
+        assert.equal(r.status, 200, '图片上传后应自动有预览图');
     });
 
-    test('缩略图未生成 → 404', async () => {
+    test('缩略图自动生成后可访问', async () => {
         const r = await fetch(`${baseUrl}/api/assets/files/${assetId}/thumbnail/latest`);
-        assert.equal(r.status, 404);
+        assert.equal(r.status, 200, '图片上传后应自动有缩略图');
     });
 
     test('上传派生文件后 preview 可访问', async () => {

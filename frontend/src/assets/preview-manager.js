@@ -157,20 +157,35 @@ export const ImagePreviewProvider = {
     id: 'image',
     canHandle: (asset) => asset?.type === 'image',
     async mount(container, ctx) {
-        const { asset, version, fileUrl } = ctx;
+        const { asset, version, fileUrl, previewUrl } = ctx;
         const img = document.createElement('img');
-        img.src = fileUrl(asset.id, 'original', version?.versionNumber || 'latest');
+        // 优先用服务端生成的预览图。
+        //
+        // 为什么不能直接加载原图：一张 8000×6000 的 TIFF 有 140MB，
+        // 浏览器解码会直接卡死主线程。服务端已按最长边 1600px 转好 WebP，
+        // 那才是网页该加载的东西（用户需求：不要 Grid 直接加载原图）。
+        const src = previewUrl || fileUrl(asset.id, 'original', version?.versionNumber || 'latest');
+        img.src = src;
         img.alt = asset.name;
         img.className = 'pv-image';
         // 加载失败要有明确反馈，不能留一片空白
         img.addEventListener('error', () => {
+            // 竞态守卫：切换预览时上一个 img 可能还在加载中被移除，
+            // 它的 error 事件会晚到一步。若不检查「我是否还在 DOM 里」，
+            // 就会在新预览已就绪的情况下又插一个错误框。
+            if (!img.isConnected) return;
             img.remove();
             const box = document.createElement('div');
             box.className = 'pv-error';
-            box.textContent = '图片加载失败，文件可能已被清理';
+            // 预览图与原图都失败，说明文件真的没了；要说清是哪个
+            box.textContent = previewUrl
+                ? '预览图加载失败，可尝试下载原文件'
+                : '图片加载失败，文件可能已被清理';
             container.appendChild(box);
         });
-        img.addEventListener('load', () => container.appendChild(img));
+        // 先插入 DOM 再等 load —— 顺序反了的话某些浏览器不会触发 load 事件
+        // （未插入文档的 img 可能立即走「无源」路径），表现为「图片一直不显示」。
+        container.appendChild(img);
         // 返回清理函数：显式置空 src 触发浏览器释放解码资源
         return () => { img.src = ''; img.remove(); };
     },
@@ -199,6 +214,9 @@ export const VideoPreviewProvider = {
         container.appendChild(video);
 
         const onErr = () => {
+            // 竞态守卫：切换预览时上一个 video 可能还在加载中被移除，
+            // 它的 error 事件会晚到一步。此时不应再插错误框。
+            if (!video.isConnected) return;
             video.remove();
             const box = document.createElement('div');
             box.className = 'pv-error';
@@ -362,6 +380,9 @@ export const ModelPreviewProvider = {
         // 不处理的话，错误只会出现在控制台，用户看到的是一个空白的黑框 ——
         // 必须显式捕获并给出说明。
         const onError = () => {
+            // 竞态守卫：切换预览时上一个 model-viewer 可能还在加载中被移除，
+            // 它的 error 事件会晚到一步。此时不应再插错误框。
+            if (!mv.isConnected) return;
             mv.remove();
             const box = document.createElement('div');
             box.className = 'pv-error';

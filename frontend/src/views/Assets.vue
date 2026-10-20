@@ -351,17 +351,21 @@
                                 </td>
                                 <td class="am-td-name">
                                     <span class="am-name-cell">
-                                        <span class="am-thumb">
-                                            <img
-                                                v-if="isThumbOk(a)"
-                                                :src="thumbUrl(a)"
-                                                :alt="a.name"
-                                                @error="markThumbFail(a.id)"
-                                            />
-                                            <svg v-else class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
-                                                <path v-for="(d, i) in typeMeta(a.type).paths" :key="i" :d="d" />
-                                            </svg>
-                                        </span>
+                        <span class="am-thumb">
+                            <img
+                                v-if="isThumbOk(a)"
+                                :src="thumbUrl(a)"
+                                :alt="a.name"
+                                @error="markThumbFail(a.id)"
+                            />
+                            <svg v-else class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                                <path v-for="(d, i) in typeMeta(a.type).paths" :key="i" :d="d" />
+                            </svg>
+                            <!-- 预览生成中：角标提示，避免用户以为「图裂了」 -->
+                            <span v-if="a.previewStatus === 'pending' || a.previewStatus === 'processing'"
+                                  class="am-thumb-spin"
+                                  title="正在生成预览"></span>
+                        </span>
                                         <span class="am-name-text" :title="a.name">{{ a.name }}</span>
                                     </span>
                                 </td>
@@ -951,8 +955,16 @@ export default {
         thumbUrl(a) {
             return assetApi.fileUrl(a.id, 'thumbnail', 'latest');
         },
+        /**
+         * 是否显示缩略图。
+         *
+         * 判断依据是**服务端是否真的生成了缩略图**（hasThumbnail），
+         * 而不是「类型是不是图片」—— 后者在预览管线接入前会让
+         * 每个图片都发起一次注定 404 的请求。
+         */
         isThumbOk(a) {
-            return !this.thumbFailed[a.id] && (a.type === 'image' || a.type === 'video');
+            if (this.thumbFailed[a.id]) return false;
+            return !!(a.hasThumbnail || a.thumbnailStorageKey);
         },
         markThumbFail(id) { this.thumbFailed[id] = true; },
 
@@ -1060,6 +1072,12 @@ export default {
 
         // ── 详情 ──
         async onDetailAction({ action, version }) {
+            // 预览状态轮询：静默刷新，不弹错误框、不卡按钮
+            if (action === 'preview-poll') {
+                await this.loadDetail();
+                await this.load();
+                return;
+            }
             this.actionBusy = true;
             try {
                 if (action === 'publish' && version) {
