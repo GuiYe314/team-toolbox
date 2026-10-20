@@ -65,6 +65,11 @@
     /* 代码块等少量实底区域 */
     --surface-solid: rgba(255, 255, 255, 0.82);
     --surface-sunken: rgba(228, 233, 242, 0.55);
+
+    /* 二维码专用色：必须**不透明**，半透明背景会让扫码识别率下降。
+       Light 下前景近黑、背景纯白；Dark 下前景近白、背景深蓝灰。 */
+    --qr-foreground: #0b1220;
+    --qr-background: #ffffff;
 }
 
 [data-theme="dark"] {
@@ -115,4 +120,8 @@
 
     --surface-solid: rgba(18, 25, 37, 0.88);
     --surface-sunken: rgba(0, 0, 0, 0.24);
+
+    /* 二维码专用色：不透明。深色下前景用近白，否则深底深码扫不出来 */
+    --qr-foreground: #e7ecf5;
+    --qr-background: #101827;
 }

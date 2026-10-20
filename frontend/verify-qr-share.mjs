@@ -208,6 +208,26 @@ const darkFg = await evalJs(`(() => {
     return (r + g + b) / 3 > 128 ? 'light' : 'dark';
 })()`);
 check('深色主题下二维码前景为浅色（否则扫不出）', darkFg === 'light', darkFg || '未取到颜色');
+// 颜色必须来自 CSS 变量（--qr-foreground/--qr-background），
+// 不能在组件里硬编码 —— 主题切换时变量变了 SVG 不会自动更新，
+// 所以还额外用 MutationObserver 监听 data-theme 重绘
+const qrToken = await evalJs(`(() => {
+  const cs = getComputedStyle(document.documentElement);
+  return { fg: cs.getPropertyValue('--qr-foreground').trim(),
+           bg: cs.getPropertyValue('--qr-background').trim() };
+})()`);
+const qt = typeof qrToken === 'string' ? {} : qrToken;
+check('二维码颜色走 CSS 变量（--qr-foreground/--qr-background）',
+    !!qt.fg && !!qt.bg, `fg=${qt.fg} bg=${qt.bg}`);
+// 前景色确实取自变量（与变量值一致）
+const fgMatches = await evalJs(`(() => {
+  const ps = document.querySelectorAll('.am-qr-svg svg path');
+  if (ps.length < 2) return 'no-svg';
+  const used = (ps[1].getAttribute('stroke') || ps[1].getAttribute('fill') || '').toLowerCase();
+  const token = getComputedStyle(document.documentElement).getPropertyValue('--qr-foreground').trim().toLowerCase();
+  return used === token ? 'match' : 'mismatch:' + used + ' vs ' + token;
+})()`);
+check('二维码前景色与 --qr-foreground 一致', fgMatches === 'match', String(fgMatches));
 await evalJs(`document.querySelector('.am-qr-foot .btn')?.click()`);
 await sleep(400);
 

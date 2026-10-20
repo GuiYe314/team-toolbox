@@ -118,11 +118,6 @@ export default {
                 return '未设置时使用当前浏览器地址。若当前是 127.0.0.1，手机扫码无法访问，请填写本机内网 IP。';
             }
             return '二维码与复制链接均使用该地址。';
-        },
-        /** 深色主题下前景要变浅，否则扫不出来 */
-        isDark() {
-            return document.documentElement.getAttribute('data-theme') === 'dark'
-                || document.body.classList.contains('theme-dark');
         }
     },
     watch: {
@@ -131,15 +126,35 @@ export default {
             handler() { this.render(); }
         }
     },
+    mounted() {
+        this.detect();
+        // 主题切换时重绘：SVG 是字符串，CSS 变量变了不会自动生效
+        this._themeObserver = new MutationObserver(() => this.render());
+        this._themeObserver.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-theme']
+        });
+    },
+    beforeUnmount() {
+        if (this._themeObserver) {
+            this._themeObserver.disconnect();
+            this._themeObserver = null;
+        }
+    },
     methods: {
         async render() {
             this.loading = true;
             this.svg = '';
             try {
+                // 前景/背景色走 CSS 变量（--qr-foreground / --qr-background），
+                // 随主题自动切换：深色下前景近白，否则深底深码扫不出来。
+                // 不用 JS 判断主题 —— 主题一变就该重绘，用变量则天然跟随。
+                const cs = getComputedStyle(document.documentElement);
+                // 兜底用 currentColor / transparent，不写字面色值：
+                // 变量读不到时仍能出图，且不违反「组件内禁止硬编码色值」。
                 this.svg = await toQrSvg(this.targetUrl, {
-                    // 深色主题用浅前景、深背景；浅色主题相反
-                    dark: this.isDark ? '#e7ecf5ff' : '#0b1220ff',
-                    light: this.isDark ? '#101827ff' : '#ffffffff',
+                    dark: cs.getPropertyValue('--qr-foreground').trim() || 'currentColor',
+                    light: cs.getPropertyValue('--qr-background').trim() || 'transparent',
                     width: 220
                 });
             } catch (e) {
@@ -168,9 +183,6 @@ export default {
             const a = await detectLanAddress();
             if (a) this.originInput = a;
         }
-    },
-    mounted() {
-        this.detect();
     }
 };
 </script>

@@ -3,6 +3,25 @@
    性能约定：backdrop-filter 只出现在 .glass-panel 这一类「大型容器」上；
    列表项、按钮、输入框一律使用半透明背景色，不叠加模糊，
    避免几十层 backdrop-filter 造成 GPU 占用飙升。
+
+   ⚠ 重要：backdrop-filter 会创建**包含块**
+   ─────────────────────────────────────────────────────────────────────
+   按 CSS 规范，backdrop-filter / filter / transform 都会让元素成为
+   后代的**包含块**。后果是：本文件里 .glass-panel 的后代若用
+   `position: fixed`，它将相对 **.glass-panel** 定位，而不是相对视口。
+
+   实测（本项目 2026-10-20）：
+     - 资源页预览弹窗按视口算出 left=1397px，实际渲染在 1648px
+       （差值 = .main-content 的 250px 左偏移），整块跑到视口外
+     - .overlay 遮罩用 inset:0，本应铺满视口，实际只盖住主内容区
+
+   因此本项目的硬约束：
+     **任何 position:fixed 的浮层（弹窗 / 下拉菜单 / 浮层提示）
+       必须用 <Teleport to="body"> 挂到 body 下。**
+   需要覆盖玻璃容器时，改为在 body 下重新声明玻璃样式，
+   而不是把浮层留在 .glass-panel 内部。
+
+   验收：frontend/verify-overlay-position.mjs（16 项断言）
    ========================================================================== */
 
 .glass-panel {

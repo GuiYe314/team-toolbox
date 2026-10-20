@@ -17,6 +17,39 @@
 
 11. **WorkBuddy 调用报告**：每次模型任务结束，报告实际使用模型、执行结果与消耗积分。积分未返回时写“积分未提供，无法确认”；不能用 Token 或美元费用当作积分，不把管理查询重复算作模型请求。
 
+## 前端约定
+
+本项目前端为 Vue 3 + Vite。以下为硬约束，违反即为缺陷，不是风格偏好。
+
+1. **浮层必须 Teleport 到 body**：任何 `position: fixed` 的浮层（弹窗、下拉菜单、浮层提示）必须用 `<Teleport to="body">` 挂到 body 下。原因是 `.glass-panel` 上的 `backdrop-filter` 会创建包含块，使后代 fixed 改为相对该容器而非视口定位（详见 [styles/glass.css](frontend/src/styles/glass.css) 顶部说明）。验收见 `frontend/verify-overlay-position.mjs`。
+2. **颜色一律走 CSS 变量**：组件内禁止硬编码色值（含 rgba/hex）。主题差异只在 `theme.css` 声明，量值（字号/圆角/间距/动效时长）只在 `tokens.css` 声明；样式文件按 `tokens → theme → glass → layout → components → 业务样式` 单向依赖，后一层只许引用前一层变量。
+3. **深色背景不用纯黑**：大面积底色用 `#090f18` 一类深蓝灰，保证玻璃高光与模糊有可感知层次。
+4. **动效时长**：微交互 120~180ms，主题切换 200~300ms；禁止弹跳、大幅缩放、强发光。
+5. **图标统一 Lucide 风格**：内联 SVG，`stroke-width` 1.7~1.9；禁止 Emoji 图标、3D 图标、混用多套图标库。
+6. **backdrop-filter 不层层嵌套**：只允许大型容器（`.glass-panel` / `.overlay` / `.dialog`）使用；列表项、按钮、输入框一律用半透明背景色。
+7. **响应式逐级折叠**，不整体缩放页面；`.app-layout` 保持 `min-width: 1280px`（窄屏横向滚动而非缩放）。
+8. **浮层定位先测量后落位**：菜单类浮层应先渲染、测量真实尺寸再夹取到视口内，不硬编码宽度；菜单用 `ref` 取元素而非 `querySelector`（同类浮层会取错）。
+9. **破坏性操作需二次确认**：永久删除、清空回收站等不可逆操作必须经用户显式确认（`?confirm=1` 或前端确认弹窗），且失败原因要写进操作日志，不得静默吞掉。
+10. **验收脚本自造数据必须按特征全量回收**：清理时按名称特征（如 `/^AM\d{4,}/`）搜索并删除，**不得只硬编码本轮的 id** —— 脚本被中断时 exit 处理器里的异步请求不会跑完，只删本轮 id 会留下垃圾数据污染演示库。
+
+### 验收脚本索引
+
+前端 `frontend/verify-*.mjs`（真实浏览器 + CDP 自动化），改动对应功能后必须重跑：
+
+| 脚本 | 覆盖 | 对应约定 |
+|---|---|---|
+| `verify-overlay-position.mjs` | 浮层定位、遮罩铺满视口、弹窗居中 | 1、8 |
+| `verify-qr-share.mjs` | 二维码内容、颜色走 CSS 变量、主题切换 | 2、4 |
+| `verify-batch-mode.mjs` | 批量模式开关、菜单落在视口内 | 1、8 |
+| `verify-asset-preview.mjs` | 预览管线、缩略图、失败原因可见 | — |
+| `verify-assets.mjs` | 资源列表、筛选排序、版本历史 | 9、10 |
+| `verify-asset-storage.mjs` | 存储路径、导入导出 | — |
+| `verify-vditor.mjs` / `verify-help.mjs` / `verify-hint.mjs` | 编辑器、帮助、悬停提示 | 4 |
+| `verify-cards.mjs` | 文档卡片布局、响应式降列 | 7 |
+| `ui-verify.mjs` | 既有页面通用断言 | 3、5 |
+| `verify-batch-delete.mjs` | 知识库批量删除 | 9 |
+
+
 ## 变更流程
 
 - 修改规格：同步更新 FUNCTIONAL_SPEC 的特性条目与覆盖矩阵，保持特性与任务双向覆盖。
