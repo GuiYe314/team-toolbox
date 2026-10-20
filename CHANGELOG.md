@@ -4,6 +4,47 @@
 
 ## 2026-10-20
 
+### 预览管线：服务端生成缩略图与预览图（实现 + 浏览器验证，待 Codex 验收）
+
+### Added
+- `backend/src/asset-preview.js`（新模块）：预览管线，采用「处理器注册表」架构 —— 管线调度与具体处理分离，新增资源类型只需加一项处理器。
+- `backend/src/asset-preview.test.js`：14 项测试（处理器注册、图片预览、GLB 统计、文本预览、失败处理、重新生成）。
+- `frontend/verify-asset-preview.mjs`：23 项验收（缩略图真实显示、预览走预览图端点、状态徽标、失败原因可见、重试入口）。
+- 新增依赖 `sharp`（图片解码/缩放/编码，预编译二进制）。
+
+### 处理器
+| 类型 | 产出 | 说明 |
+|---|---|---|
+| 图片 | preview(≤1600px WebP) + thumbnail(256×256 cover) | 统一转 WebP：JPEG 对含透明通道的 PNG 会丢透明，WebP 体积又小 60~80% |
+| 3D 模型 | 统计元数据 | 解析 GLB 的 JSON chunk（gltf 直接读 JSON），得出 meshes/vertices/triangles/materials/textures/animations/nodes/generator |
+| 文本 | 截断的纯文本预览 | 上限 64KB，截断点落在多字节字符中间时切掉残缺尾巴；JSON 自动格式化 |
+| 音频 | 基础信息 | WAV 头解析时长/声道/采样率，其余格式仅给文件大小 |
+| 视频 | —— | **当前服务器未安装 ffmpeg，如实标记为 failed 并说明原因**，处理器位置保留，装上 ffmpeg 即可实现抽帧 |
+
+### 行为约定
+- **每个版本独立**：派生文件落在 `<assetId>/<versionId>/` 下，绝不与其它版本共享 —— 满足「所有历史版本共享 Latest 预览」的反面要求。
+- **失败不影响原件**：处理器抛错只把 `preview_status` 置为 `failed` 并记录 `preview_error`，原始文件与元数据完好。
+- **异步不阻塞上传**：上传落盘后置 `pending`，后台处理完改终态；前端轮询（1.5s）跟进状态。
+- **三态区分**：`none`（该类型本就不做预览，不算失败）/ `failed`（真出错，附原因）/ `ready`。
+- **存量补生成**：管线只在上传时触发，接入前已存在的资源会永远停在 `pending`；服务启动时 `backfillPreviews` 扫一遍补跑。
+
+### Fixed
+- 图片 PreviewProvider 未使用服务端生成的 preview 图，直接加载**原图** —— 8000×6000 的 TIFF 有 140MB，浏览器解码会卡死主线程。
+- 图片 `load` 事件监听顺序错误（先设 src 等 load 再 append 到 DOM）—— 未插入文档的 img 在部分浏览器不触发 load，表现为「图片一直不显示」。改为先 append。
+- **error 回调竞态**：切换预览时上一个 img/video/model-viewer 仍在加载中被移除，其 error 事件晚到一步，导致在新预览已就绪的情况下又插入一个错误框。三个 Provider 均加 `isConnected` 守卫。
+- 详情面板 `previewStatus` 取错层级（优先用了 asset 顶层的聚合值，详情接口里该字段不存在、恒为 `none`）—— 改为优先取最新版本的状态。
+- 详情面板重试失败时写 `this.previewError`（computed，只读）—— Vue 会警告且不生效，改用独立的 `retryError` 字段。
+- 列表缩略图判断依据从「类型是不是图片」改为「服务端是否真的生成了」—— 前者会让每个图片都发起一次注定 404 的请求。
+- `asset-api.test.js` 两条断言因行为变化过时（「预览未生成 → 404」在管线接入后不成立）—— 改为验证自动生成，并在 `asset-preview.test.js` 用 zip（status=none）补测 404 路径。
+
+### 验证证据
+- 后端 `npm test`：243/243 全过（新增 14 项）。
+- 前端 `verify-asset-preview` 23/23；全量回归 258/258（vditor 18 + help 17 + hint 20 + cards 18 + assets 30 + storage 32 + preview 23 + ui-verify 53 + batch-delete 45）。
+- 实测：542KB PNG → 缩略图 6.4KB（84×）、预览图 13KB（42×）；派生文件格式为 WebP，尺寸 256×256 与原图等比。
+- 生产构建通过。
+
+## 2026-10-20
+
 ### 资源保存路径设置 + 资源导入导出（实现 + 浏览器验证，待 Codex 验收）
 
 ### Added
