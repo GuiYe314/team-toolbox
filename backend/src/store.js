@@ -17,6 +17,9 @@
 //   供阅读页面包屑、子页面列表与删除确认使用。
 
 import { errorMap } from './errors.js';
+import {
+    FTS_TABLE, buildMatchExpr, isFtsAvailable, indexDocument, removeDocument
+} from './search-index.js';
 
 // ─────────────────────────────────────────────────
 // 校验函数（内部使用）
@@ -238,6 +241,14 @@ export function createDocument({ connection: db, title, content_md = '', categor
         if (vTags.value.length > 0) {
             replaceDocumentTags(db, docId, vTags.value);
         }
+
+        // 同步全文索引（FTS5）。放在同一事务里 —— 索引与主表要么都成功要么都回滚，
+        // 不会出现「文档写进去了但搜不到」的中间态。
+        try {
+            indexDocument(db, docId, vTitle.value, vContent.value);
+        } catch (e) {
+            // 索引失败不该阻断文档创建（搜索会退回 LIKE 降级）
+        }
     });
 
     try {
@@ -457,9 +468,19 @@ function makeSnippet(content, keyword, maxLen = 120) {
 }
 
 /**
- * 关键词搜索（F-KB-006）：标题或正文包含关键词（不区分大小写，参数化 LIKE）。
- * 关键词中的 LIKE 通配符（%、_、\）会被转义为字面量，防止意外通配与注入。
- * 结果按 updated_at 倒序、分页返回，附带摘要片段 snippet。
+ * 关键词搜索（F-KB-006）：标题或正文包含关键词。
+ *
+ * 实现：FTS5 全文索引（见 search-index.js）。
+ *
+ * 为什么从 LIKE 换成 FTS5：
+ *   1. **子串匹配**。LIKE '%kw%' 是全表扫描，且「部属」搜不到「部署指南」；
+ *      FTS5 配 bigram 分词后中文能按 2-gram 子串命中。
+ *   2. **相关性排序**。LIKE 只能按 updated_at 排，命中度高的不一定靠前；
+ *      FTS5 的 BM25 按匹配质量打分。
+ *   3. **长文档不拖慢**。LIKE 要扫全文，文档多了就是全表 IO。
+ *
+ * 降级：若当前 SQLite 构建不含 FTS5（极少见），退回 LIKE 实现，
+ * 保证搜索功能可用（只是没有相关性排序与子串能力）。
  *
  * @param {object} config
  * @param {import('better-sqlite3').Database} config.connection
@@ -471,8 +492,111 @@ function makeSnippet(content, keyword, maxLen = 120) {
 export function searchDocuments({ connection: db, keyword, limit = 20, offset = 0 }) {
     const kw = (keyword || '').trim();
     if (!kw) return { total: 0, items: [] };
+
+    const matchExpr = buildMatchExpr(kw);
+    if (!matchExpr) return { total: 0, items: [] };
+
+    if (!isFtsAvailable(db)) {
+        return searchDocumentsByLike({ connection: db, keyword: kw, limit, offset });
+    }
+
+    try {
+        // FTS5 匹配与主表详情**分两段查**。
+        //
+        // 关键约束：bm25() 是 FTS5 的辅助函数，只能在 FTS5 表的查询上下文里用。
+        // 一旦把 FTS 表 JOIN 上 documents 再 GROUP BY（收集标签），
+        // SQLite 报 "unable to use function bm25 in the requested context"。
+        //
+        // 这个异常很隐蔽：它被 catch 吞掉后降级到 LIKE，搜索「git」会
+        // 因 LIKE 的子串语义误命中别的文档 —— 行为悄悄变回旧样子。
+        //
+        // 所以：第一段在纯 FTS 上下文里取 doc_id + rank（无 GROUP BY），
+        //       第二段用 IN 拿主表详情与标签。
+        const total = db.prepare(`
+            SELECT COUNT(*) as n
+            FROM ${FTS_TABLE}
+            WHERE tokens MATCH ?
+        `).get(matchExpr).n;
+
+        // 第一段：FTS 匹配 + BM25 打分。
+        // 刻意**只查 FTS 表**，不 JOIN documents —— bm25() 在 FTS5 的辅助函数，
+        // 一旦 JOIN 上别的表再配 GROUP BY，SQLite 报
+        // "unable to use function bm25 in the requested context"。
+        // 二级排序（相关度相同时按更新时间倒序）放到 JS 里做，避开这个限制。
+        const matched = db.prepare(`
+            SELECT doc_id AS did, bm25(${FTS_TABLE}, 0.0, 10.0) AS rank
+            FROM ${FTS_TABLE}
+            WHERE ${FTS_TABLE} MATCH ?
+            ORDER BY rank ASC
+        `).all(matchExpr);
+
+        if (!matched.length) return { total: 0, items: [] };
+
+        // 第二段：按匹配 id 取主表详情与标签
+        const ids = matched.map((m) => m.did);
+        const placeholders = ids.map(() => '?').join(',');
+        const rows = db.prepare(`
+            SELECT d.*, c.name as category_name,
+                GROUP_CONCAT(t.name, ',') as tag_names
+            FROM documents d
+            LEFT JOIN categories c ON c.id = d.category_id
+            LEFT JOIN document_tags dt ON dt.document_id = d.id
+            LEFT JOIN tags t ON t.id = dt.tag_id
+            WHERE d.id IN (${placeholders})
+            GROUP BY d.id
+        `).all(...ids);
+
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        // 相关度相同时按更新时间倒序（与旧版 LIKE 实现的排序习惯一致，
+        // 避免行为回退让用户觉得「搜索坏了」）
+        const ordered = matched
+            .map((m) => ({ row: byId.get(m.did), rank: m.rank }))
+            .filter((x) => x.row)
+            .sort((a, b) => {
+                if (a.rank !== b.rank) return a.rank - b.rank;
+                return String(b.row.updated_at).localeCompare(String(a.row.updated_at));
+            })
+            .slice(offset, offset + limit);
+
+        const items = ordered.map(({ row, rank }) => ({
+            ...toSearchItem(row, kw),
+            rank
+        }));
+        return { total, items };
+    } catch (e) {
+        // MATCH 语法错误等异常 → 退回 LIKE，绝不让搜索直接不可用
+        return searchDocumentsByLike({ connection: db, keyword: kw, limit, offset });
+    }
+}
+
+/**
+ * 搜索结果的统一映射（附摘要片段）。
+ * @param {object} row
+ * @param {string} kw 原始关键词
+ */
+function toSearchItem(row, kw) {
+    return {
+        ...row,
+        tags: row.tag_names ? row.tag_names.split(',') : [],
+        snippet: makeSnippet(row.content_md, kw)
+    };
+}
+
+/**
+ * LIKE 降级实现：FTS5 不可用时使用。
+ *
+ * 保留是因为 SQLite 极少数构建不带 FTS5，此时搜索仍应可用
+ * （只是没有子串匹配与相关性排序）。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @param {string} config.keyword
+ * @param {number} config.limit
+ * @param {number} config.offset
+ */
+function searchDocumentsByLike({ connection: db, keyword, limit, offset }) {
     // 转义 LIKE 通配符，使其按字面量匹配（配合 ESCAPE '\'）
-    const escaped = kw
+    const escaped = keyword
         .replace(/\\/g, '\\\\')
         .replace(/%/g, '\\%')
         .replace(/_/g, '\\_');
@@ -494,12 +618,7 @@ export function searchDocuments({ connection: db, keyword, limit = 20, offset = 
         LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
 
-    const items = raw.map((row) => ({
-        ...row,
-        tags: row.tag_names ? row.tag_names.split(',') : [],
-        snippet: makeSnippet(row.content_md, kw)
-    }));
-    return { total, items };
+    return { total, items: raw.map((row) => toSearchItem(row, keyword)) };
 }
 
 /**
@@ -643,6 +762,15 @@ export function updateDocument({ connection: db, id, version, title, content_md,
             if (!vTags.valid) throw errorMap(new Error(vTags.message), '(store)', 'invalid_input');
             replaceDocumentTags(db, id, vTags.value);
         }
+
+        // 同步全文索引：用**更新后**的完整内容重建该文档的索引行。
+        // 放在同一事务内，与主表更新原子生效。
+        try {
+            const after = db.prepare('SELECT title, content_md FROM documents WHERE id = ?').get(id);
+            if (after) indexDocument(db, id, after.title, after.content_md);
+        } catch (e) {
+            // 索引失败不阻断更新（搜索会退回 LIKE 降级）
+        }
     });
 
     try {
@@ -673,7 +801,16 @@ export function deleteDocument({ connection: db, id }) {
     }
 
     // document_tags 有 ON DELETE CASCADE，删除文档自动清理关联
-    db.prepare('DELETE FROM documents WHERE id = ?').run(id);
+    // 全文索引没有 CASCADE（FTS5 虚表不支持外键），需手动清理
+    const tx = db.transaction(() => {
+        db.prepare('DELETE FROM documents WHERE id = ?').run(id);
+        try {
+            removeDocument(db, id);
+        } catch (e) {
+            // 索引表不存在时忽略
+        }
+    });
+    tx();
 }
 
 /**
@@ -726,16 +863,25 @@ export function deleteDocuments({ connection: db, ids }) {
 
         // 连带删除的子孙页数：递归 CTE 求 alive 集合的完整后代
         const placeholders = alive.map(() => '?').join(',');
-        const cascadeCount = db.prepare(`
+        const cascadeRows = db.prepare(`
             WITH RECURSIVE sub(id) AS (
                 SELECT id FROM documents WHERE id IN (${placeholders})
                 UNION ALL
                 SELECT d.id FROM documents d JOIN sub ON d.parent_id = sub.id
             )
-            SELECT COUNT(*) AS n FROM sub
-        `).get(...alive).n;
+            SELECT id FROM sub
+        `).all(...alive);
+        const cascadeCount = cascadeRows.length;
 
         for (const id of alive) deleteStmt.run(id);
+
+        // 清理全文索引：主文档与被连带删除的子孙页都要清
+        // （FTS5 虚表没有 ON DELETE CASCADE，必须手动删）
+        try {
+            for (const row of cascadeRows) removeDocument(db, row.id);
+        } catch (e) {
+            // 索引表不存在时忽略
+        }
 
         return {
             deleted: alive.length,

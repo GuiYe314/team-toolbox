@@ -120,6 +120,20 @@
 - **完成条件**：端到端往返演练通过（真实 HTTP 导出 → 恢复到独立库 → 逐项比对），
   后端测试与前端回归全绿。
 
+### TASK-014 全文检索升级 FTS5（中文子串 + 相关性排序）
+- **交付物**：`backend/src/search-index.js`（自研分词 + 索引维护）、`backend/src/migrations/006_search_index.sql`、
+  `backend/src/search-index.test.js`（26 项）、`frontend/verify-search.mjs`（11 项）；
+  `searchDocuments` 改为 FTS5 查询。
+- **覆盖特性**：F-KB-006（搜索）。
+- **依赖**：TASK-005（文档 CRUD）、TASK-007（搜索接口）。
+- **验证**：
+  1) 中文子串可搜：搜「海昏」能命中标题为「10月」、正文含「海昏侯」的文档；
+  2) 英文按词边界匹配：搜「git」不误命中「digital」；
+  3) 标题命中排在正文命中之前；
+  4) 索引与主表漂移时启动自动重建；
+  5) FTS5 不可用时降级到 LIKE，搜索不中断。
+- **完成条件**：以上 5 条均有测试覆盖且全绿；前后端回归全绿。
+
 ## 3. 依赖关系（人工核对无环）
 
 - TASK-001 → TASK-002 → TASK-003
@@ -129,6 +143,7 @@
 - TASK-005 → { TASK-006，TASK-007，TASK-008 }
 - { TASK-005 ~ TASK-009 } → TASK-010
 - TASK-009 + TASK-012 → TASK-013
+- TASK-005 + TASK-007 → TASK-014
 - 延期：TASK-D02 依赖 TASK-010；TASK-D01 依赖 TASK-D02，两者均需届时完成对应方案决策。
 
 ## 4. 延期任务（不计入 MVP 门槛）

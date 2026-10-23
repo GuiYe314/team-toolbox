@@ -15,6 +15,7 @@ import { registerApi } from './api.js';
 import { registerAssetApi } from './asset-api.js';
 import { backfillPreviews } from './asset-preview.js';
 import { runMigrations } from './migrate.js';
+import { ensureIndexSynced } from './search-index.js';
 
 // ESM 没有 __dirname，手工取当前模块目录。
 // 用于定位 frontend/dist —— 发布包内前端产物与后端同级目录结构：
@@ -137,6 +138,21 @@ async function start() {
         console.log(`[server] listening on http://${HOST}:${PORT}`);
         console.log(`[server] db path: ${resolvePath(DB_PATH)}`);
         console.log(`[server] node: ${process.version}`);
+
+        // 全文索引与主表同步检查。
+        //
+        // 索引在应用层维护（中文 bigram 分词需 JS，FTS5 自定义 tokenizer 要 C 扩展），
+        // 因此存在漂移的可能：直接改库、异常中断、迁移后新增文档等。
+        // 启动时比对行数，不一致就全量重建 —— 搜索结果错漏比慢几秒更糟。
+        try {
+            const s = ensureIndexSynced(getDefaultDatabase());
+            if (s.rebuilt) {
+                console.log(`[search] 全文索引已重建：${s.indexed} 篇文档`);
+            }
+        } catch (e) {
+            // 索引不可用不阻断服务：searchDocuments 会退回 LIKE 实现
+            console.warn('[search] 全文索引同步失败（搜索将退回基础模式）:', e && e.message);
+        }
 
         // 补生成存量资源的预览。
         //
