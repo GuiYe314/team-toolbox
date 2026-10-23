@@ -1,6 +1,6 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
-- 更新日期：2026-10-23（**v0.1.0 首次正式发布**：建立完整发布体系 —— 版本策略 `docs/VERSION_POLICY.md`、发布说明 `docs/releases/V0_1.0.0.md`、验收报告 `docs/acceptance/V0_1.0.0_RELEASE_2026-10-23.md`、打包脚本 `scripts/build_release.ps1`、安装包定义 `installer/team-toolbox.iss`；产出便携包 ZIP + 安装包 EXE + SHA256 校验清单三份资产；便携包在独立目录解压后实际启动验证通过。同时修掉 5 个真问题：后端不托管前端、`/assets` 路由与构建产物目录同名冲突致资源页 404、`DB_PATH` 环境变量完全失效、后端启动不自动迁移、缓存头正则写错。后端 `npm test` 246/246（新增 `db.test.js` 3 项）、前端回归 315/315）
+- 更新日期：2026-10-23（**v0.1.0 首次正式发布已完成**：Release 已发布为 https://github.com/GuiYe314/team-toolbox/releases/tag/v0.1.0 ，非草稿非预发布，`latest` 指向 v0.1.0，三份资产远端字节与 SHA256 核对一致。：建立完整发布体系 —— 版本策略 `docs/VERSION_POLICY.md`、发布说明 `docs/releases/V0_1.0.0.md`、验收报告 `docs/acceptance/V0_1.0.0_RELEASE_2026-10-23.md`、打包脚本 `scripts/build_release.ps1`、安装包定义 `installer/team-toolbox.iss`；产出便携包 ZIP + 安装包 EXE + SHA256 校验清单三份资产；便携包在独立目录解压后实际启动验证通过。同时修掉 5 个真问题：后端不托管前端、`/assets` 路由与构建产物目录同名冲突致资源页 404、`DB_PATH` 环境变量完全失效、后端启动不自动迁移、缓存头正则写错。后端 `npm test` 246/246（新增 `db.test.js` 3 项）、前端回归 315/315）
 - 更新日期：2026-10-20（新增「资源管理」子系统：Asset/AssetVersion/Folder 数据模型 + 三栏界面 + PreviewManager 预览体系 + 上传队列与同名冲突决策 + **资源保存路径（镜像目录）设置** + **资源导入导出**；后端 `npm test` 227/227、新增 `verify-assets` 30/30 与 `verify-asset-storage` 32/32、前端回归 233/233，待 Codex 验收；同日另含知识库/首页文档卡片网格 18/18 与 v-hint 悬停提示 20/20）
 - 本文件是项目进度的**唯一来源**；README 等文档只链接引用、不复制进度。更新规则见 [AGENTS](../AGENTS.md)。
 - 仓库：https://github.com/GuiYe314/team-toolbox（私有）

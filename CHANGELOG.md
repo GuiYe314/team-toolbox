@@ -36,6 +36,12 @@ TravelMap 用 PyInstaller 把 Python 后端冻结成单文件 EXE。本项目后
 - 便携包解压到**独立目录**实际启动：自动迁移 5 个版本、12 张业务表建成、数据库落在包内 `data/`、首页与 5 条 SPA 深链全部 200、4 个 API 端点 200、浏览器渲染正常且控制台 0 错误。
 - 发布包**不含任何用户数据**：`data/` 在包内为空，演示库（18 资源/21 版本/7 文档）不进入发布资产。
 
+### 发布状态
+- 源码标签 `v0.1.0` 指向提交 `ce0fb84`（annotated tag 对象 `e82f3df`，远端与本地一致）。
+- GitHub Release 非草稿、非预发布，`latest` 返回 `v0.1.0`；三份资产远端字节大小与本地一致。
+- 远端下载安装包核对 SHA256，与清单声明及本地原始文件三者一致。
+- 正式下载：https://github.com/GuiYe314/team-toolbox/releases/tag/v0.1.0
+
 ### 环境事实
 - Inno Setup 6.7.3 经 `winget` 安装于用户级路径（本地 AppData 下的 `Programs/Inno Setup 6/ISCC.exe`）。
 - 本机**无 pwsh**（只有 Windows PowerShell 5.1），`.ps1` 与 `.iss` 必须带 UTF-8 BOM，否则中文按 OEM 代码页解读而解析失败。
