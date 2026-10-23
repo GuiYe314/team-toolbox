@@ -78,8 +78,31 @@ export const api = {
     // exportBackupGzip 直接返回原始 gzip 字节（Content-Type: application/gzip，
     // 不设 Content-Encoding，故不会被自动解压），调用方自行打包成 .gz 文件。
     exportBackupGzip: () => fetch(BASE + '/backup/export?format=gz').then((res) => res.arrayBuffer()),
+    // exportFullBackup 返回原始 ZIP 字节（Content-Type: application/zip）。
+    // 全量备份包含文档 + 文档图片 + 资源文件 —— 「仅文档」导出不含这三项。
+    exportFullBackup: () => fetch(BASE + '/backup/full-export').then(async (res) => {
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.message || '全量备份导出失败');
+        }
+        return res.arrayBuffer();
+    }),
     // importBackup 传解析后的快照对象；合并模式，不删除既有数据
     importBackup: (snapshot) => request('POST', '/backup/import', snapshot),
+    // importFullBackup 上传全量备份 ZIP（multipart）。
+    // 刻意不走 request() —— 它会把 payload JSON 序列化，而 FormData 必须
+    // 原样交给浏览器设置 multipart/form-data 边界。
+    importFullBackup: (formData) => fetch(BASE + '/backup/full-import', { method: 'POST', body: formData })
+        .then(async (res) => {
+            let body = null;
+            try { body = await res.json(); } catch { /* 非 JSON 响应 */ }
+            return { res, body };
+        })
+        .catch((networkErr) => {
+            const err = new Error('网络请求失败，请确认后端服务已启动且网络连通');
+            err.network = true;
+            throw err;
+        }),
 
     // ── 图片上传（TASK-012）──
     // 走 multipart/form-data，字段名固定为 image；不使用 request() 以免被 JSON 序列化

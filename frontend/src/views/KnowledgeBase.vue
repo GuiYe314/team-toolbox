@@ -71,13 +71,17 @@
                         </svg>
                     </button>
                     <div v-if="exportMenu" class="dropdown kb-io-dropdown">
+                        <button type="button" @click="doExport('full')">
+                            <span class="dd-title">全量备份（.zip）</span>
+                            <span class="dd-desc">含文档、图片与资源文件 — 推荐用于完整备份</span>
+                        </button>
                         <button type="button" @click="doExport('json')">
-                            <span class="dd-title">JSON 文件（.json）</span>
+                            <span class="dd-title">仅文档 JSON（.json）</span>
                             <span class="dd-desc">体积与数据库相当，内容可直接阅读</span>
                         </button>
                         <button type="button" @click="doExport('gzip')">
-                            <span class="dd-title">压缩文件（.json.gz）</span>
-                            <span class="dd-desc">体积约为 JSON 的 1%，推荐用于备份归档</span>
+                            <span class="dd-title">仅文档压缩（.json.gz）</span>
+                            <span class="dd-desc">体积约为 JSON 的 1%，不含图片与资源文件</span>
                         </button>
                     </div>
                 </div>
@@ -93,7 +97,7 @@
                     ref="fileInput"
                     class="kb-io-file"
                     type="file"
-                    accept="application/json,.json,.gz,application/gzip"
+                    accept="application/json,.json,.gz,application/gzip,application/zip,.zip"
                     @change="onImportFile"
                 />
             </div>
@@ -466,23 +470,31 @@ export default {
             try {
                 let blob;
                 let counts = {};
-                if (format === 'gzip') {
+                let fileName;
+                if (format === 'full') {
+                    // 全量备份：ZIP，含文档 + 文档图片 + 资源文件
+                    const buf = await api.exportFullBackup();
+                    blob = new Blob([buf], { type: 'application/zip' });
+                    fileName = 'team-toolbox-full-backup';
+                } else if (format === 'gzip') {
                     const res = await fetch('/api/backup/export?format=gz');
                     if (!res.ok) throw new Error('导出失败');
                     const buf = await res.arrayBuffer();   // 原始 gzip 字节
                     blob = new Blob([buf], { type: 'application/gzip' });
+                    fileName = 'team-toolbox-backup';
                 } else {
                     const { res, body } = await api.exportBackup();
                     if (!res.ok) throw new Error((body && body.message) || '导出失败');
                     counts = (body && body.counts) || {};
                     blob = new Blob([JSON.stringify(body, null, 2)], { type: 'application/json' });
+                    fileName = 'team-toolbox-backup';
                 }
                 const url = URL.createObjectURL(blob);
                 const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-                const ext = format === 'gzip' ? '.json.gz' : '.json';
+                const ext = format === 'full' ? '.zip' : (format === 'gzip' ? '.json.gz' : '.json');
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `team-toolbox-backup-${stamp}${ext}`;
+                a.download = `${fileName}-${stamp}${ext}`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -490,10 +502,15 @@ export default {
                 setTimeout(() => URL.revokeObjectURL(url), 10000);
                 this.ioError = false;
                 const sizeKb = (blob.size / 1024).toFixed(1);
-                this.ioMessage = format === 'gzip'
-                    ? `已导出压缩包（${sizeKb} KB）：全部分类与页面。导入时直接选择该 .gz 文件即可。`
-                    : `已导出 ${counts.documents || 0} 个文档、${counts.categories || 0} 个分类（${sizeKb} KB）。`;
-                if (format !== 'gzip' && (counts.documents || 0) > 500) {
+                if (format === 'full') {
+                    this.ioMessage = `已导出全量备份包（${sizeKb} KB）：包含文档、文档内图片与资源库文件。导入时直接选择该 .zip 文件即可。`;
+                } else if (format === 'gzip') {
+                    this.ioMessage = `已导出压缩包（${sizeKb} KB）：全部分类与页面。导入时直接选择该 .gz 文件即可。`;
+                } else {
+                    this.ioMessage = `已导出 ${counts.documents || 0} 个文档、${counts.categories || 0} 个分类（${sizeKb} KB）。`;
+                    this.ioMessage += ' 注意：此格式不含图片与资源文件，完整备份请用「全量备份（.zip）」。';
+                }
+                if (format === 'json' && (counts.documents || 0) > 500) {
                     this.ioMessage += ' 数据量较大，可改用「导出 ▾ → 压缩文件」以显著减小体积。';
                 }
             } catch (e) {
@@ -516,9 +533,19 @@ export default {
             if (e.target) e.target.value = '';
             if (!file) return;
 
+            const buf = await file.arrayBuffer();
+            const head = new Uint8Array(buf.slice(0, 4));
+
+            // ZIP 魔数 PK\x03\x04 → 全量备份包（文档 + 图片 + 资源文件）
+            const isZip = head[0] === 0x50 && head[1] === 0x4b
+                && (head[2] === 0x03 || head[2] === 0x05 || head[2] === 0x07);
+            if (isZip) {
+                await this.importFullBackup(file);
+                return;
+            }
+
             let snapshot;
             try {
-                const buf = await file.arrayBuffer();
                 // 按魔数判断而非扩展名：文件可能被改名，也可能扩展名是 .json 但内容其实是 gzip
                 const isGzip = buf.byteLength > 2 && new Uint8Array(buf)[0] === 0x1f && new Uint8Array(buf)[1] === 0x8b;
                 const text = isGzip ? await gunzip(buf) : new TextDecoder().decode(buf);
@@ -527,7 +554,7 @@ export default {
                 this.ioError = true;
                 this.ioMessage = err && err.__isGzip
                     ? '压缩文件已损坏或格式不正确，无法解压。'
-                    : '备份文件不是合法的 JSON，请选择由本页导出的 .json 或 .json.gz 文件。';
+                    : '备份文件不是合法的 JSON，请选择由本页导出的 .json / .json.gz 或全量备份 .zip 文件。';
                 return;
             }
             if (!snapshot || !Array.isArray(snapshot.documents)) {
@@ -555,6 +582,46 @@ export default {
             } catch (e) {
                 this.ioError = true;
                 this.ioMessage = e.network ? e.message : (e.message || '导入失败，请稍后重试');
+            } finally {
+                this.ioBusy = '';
+            }
+        },
+        /**
+         * 导入全量备份包（.zip）：含文档、文档图片与资源文件。
+         *
+         * 与「仅文档」导入走不同端点：/api/backup/full-import 是 multipart 上传，
+         * 服务端解压后把三部分分别交给既有导入逻辑。
+         */
+        async importFullBackup(file) {
+            if (!window.confirm(
+                '即将恢复全量备份包（文档 + 图片 + 资源文件）。\n\n'
+                + '合并模式：不会删除现有数据，同名页面与资源会跳过或重新分配 id。\n'
+                + '是否继续？'
+            )) {
+                return;
+            }
+
+            this.ioBusy = 'import';
+            this.ioMessage = '';
+            try {
+                const form = new FormData();
+                form.append('file', file, file.name);
+                const { res, body } = await api.importFullBackup(form);
+                if (!res.ok) throw new Error((body && body.message) || '恢复失败');
+                this.ioError = false;
+                const docs = body.documents || {};
+                const assets = body.assets || {};
+                this.ioMessage = `恢复完成：页面新增 ${docs.imported || 0} 个（跳过 ${docs.skipped || 0} 个），`
+                    + `资源新增 ${assets.assets || 0} 个，图片 ${body.uploads || 0} 个。`;
+                await this.loadTags();
+                await this.loadPageMap();
+                this.load();
+                window.dispatchEvent(new Event('kb-changed'));
+                // 资源库也要刷新
+                window.dispatchEvent(new Event('assets-changed'));
+            } catch (e) {
+                this.ioError = true;
+                this.ioMessage = e.network ? e.message : (e.message || '恢复失败，请稍后重试');
             } finally {
                 this.ioBusy = '';
             }

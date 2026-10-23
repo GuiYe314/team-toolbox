@@ -39,6 +39,7 @@
 | 脚本 | 覆盖 | 对应约定 |
 |---|---|---|
 | `verify-overlay-position.mjs` | 浮层定位、遮罩铺满视口、弹窗居中 | 1、8 |
+| `verify-full-backup.mjs` | 全量备份：菜单明示范围、包结构完整、非法包被拒 | 9 |
 | `verify-qr-share.mjs` | 二维码内容、颜色走 CSS 变量、主题切换 | 2、4 |
 | `verify-batch-mode.mjs` | 批量模式开关、菜单落在视口内 | 1、8 |
 | `verify-asset-preview.mjs` | 预览管线、缩略图、失败原因可见 | — |

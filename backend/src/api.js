@@ -17,9 +17,14 @@
 
 import express from 'express';
 import { gzipSync } from 'node:zlib';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import * as store from './store.js';
 import { renderMarkdown } from './markdown.js';
 import { saveImage, resolveUploadPath, mimeOf, parseUploadFile } from './uploads.js';
+import { exportFullBackup } from './full-backup.js';
+import { extractFullBackup, restoreFullBackup, writeBackupBuffer, cleanupBackupTemp } from './full-backup-restore.js';
+import { ASSET_DIR } from './asset-storage.js';
 
 // 业务错误码 → HTTP 状态码
 const STATUS_MAP = {
@@ -320,6 +325,64 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
         const stats = store.importSnapshot({ connection: getDb(), snapshot: req.body });
         res.json(stats);
     }));
+
+    // ───────────────────── 全量备份（文档 + 图片 + 资源） ─────────────────────
+    //
+    // 为什么单独一个端点：
+    //   /backup/export 只含文档数据，资源文件与文档图片都不在里面。
+    //   用户点「导出备份」以为数据安全了，实际只保住了文字 ——
+    //   这不是功能缺失，是**数据保护漏洞**。
+    //
+    // 全量备份包结构：manifest.json + documents.json + uploads/ + assets/
+    // 详见 backend/src/full-backup.js。
+
+    // 导出全量备份：ZIP 流式下载
+    const rawFullExport = async (req, res) => {
+        const name = `team-toolbox-full-backup-${stamp()}.zip`;
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${name}"; filename*=UTF-8''${encodeURIComponent(name)}`
+        );
+        const result = await exportFullBackup({ connection: getDb(), res });
+        console.log(
+            `[backup] 全量备份导出完成：文档 ${result.manifest.counts.documents}，`
+            + `资源 ${result.manifest.counts.assets}，文件 ${result.manifest.counts.asset_files}，`
+            + `图片 ${result.manifest.counts.uploads}，字节 ${result.bytes}`
+        );
+    };
+    router.get('/backup/full-export', wrapAsync(rawFullExport));
+
+    // 恢复全量备份：multipart 上传 ZIP，合并模式
+    const rawFullImport = async (req, res) => {
+        const uploaded = await parseUploadFile(req, 8 * 1024 * 1024 * 1024);
+        if (!uploaded || !uploaded.buffer) {
+            return res.status(400).json({ error: 'invalid_input', message: '缺少备份包文件（字段名应为 file）' });
+        }
+
+        const tmpDir = join(tmpdir(), `tt-full-restore-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`);
+        try {
+            const zipPath = writeBackupBuffer(uploaded.buffer, tmpDir);
+            const extracted = await extractFullBackup(zipPath, join(tmpDir, 'extracted'));
+            const result = restoreFullBackup({
+                connection: getDb(),
+                extractTo: join(tmpDir, 'extracted'),
+                extracted,
+                assetsRoot: ASSET_DIR
+            });
+            res.status(201).json({
+                ...result,
+                restoredAt: new Date().toISOString()
+            });
+        } catch (e) {
+            const msg = (e && e.message) || '恢复失败';
+            res.status(400).json({ error: (e && e.code) || 'invalid_input', message: msg });
+        } finally {
+            // 清理临时目录（备份包可能很大，不该留在临时区）
+            cleanupBackupTemp(tmpDir);
+        }
+    };
+    router.post('/backup/full-import', wrapAsync(rawFullImport));
 
     // ───────────────────── 图片附件 ─────────────────────
     // TASK-012。图片落盘到 data/uploads/，Markdown 正文存 ![](/api/uploads/xxx.png) 链接。
