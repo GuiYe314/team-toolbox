@@ -41,6 +41,7 @@
 | `verify-overlay-position.mjs` | 浮层定位、遮罩铺满视口、弹窗居中 | 1、8 |
 | `verify-full-backup.mjs` | 全量备份：菜单明示范围、包结构完整、非法包被拒 | 9 |
 | `verify-search.mjs` | 全文检索：中文子串命中、英文词边界、空状态、清除恢复 | — |
+| `verify-asset-reference.mjs` | 文档引用资源：插入、落库、渲染、失效降级 | — |
 | `verify-qr-share.mjs` | 二维码内容、颜色走 CSS 变量、主题切换 | 2、4 |
 | `verify-batch-mode.mjs` | 批量模式开关、菜单落在视口内 | 1、8 |
 | `verify-asset-preview.mjs` | 预览管线、缩略图、失败原因可见 | — |

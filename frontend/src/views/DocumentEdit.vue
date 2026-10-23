@@ -76,6 +76,14 @@
                     :title="uploading ? '正在上传图片…' : '插入图片（也可直接粘贴截图或拖入图片）'"
                     @click="pickImage"
                 >{{ uploading ? '上传中…' : '插入图片' }}</button>
+                <!-- 资源引用：从资源库选一个资源插入正文 -->
+                <button
+                    v-hint
+                    class="mode-btn mode-btn-tool"
+                    type="button"
+                    title="从资源库插入资源引用"
+                    @click="showAssetPicker = true"
+                >插入资源</button>
                 <!-- 语法速查：写正文时随手可查 -->
                 <MarkdownHelp compact />
                 <input
@@ -103,7 +111,7 @@
                     </div>
                     <!-- 预览态：仍走后端 sanitize-html 白名单净化，与阅读页一致 -->
                     <div v-show="viewMode !== 'write'" class="pane pane-preview">
-                        <div class="markdown-body" v-html="previewHtml"></div>
+                        <MarkdownBody :html="previewHtml" />
                     </div>
                 </template>
             </div>
@@ -121,6 +129,13 @@
             <p v-if="saveError && !conflict" class="nt-state nt-state-error">{{ saveError }}</p>
             <p v-if="savedOk" class="nt-state nt-state-ok">已保存，正在跳转…</p>
         </div>
+
+        <!-- 资源引用选择器（从资源库选资源插入正文） -->
+        <AssetReferencePicker
+            v-if="showAssetPicker"
+            @close="showAssetPicker = false"
+            @pick="onAssetPicked"
+        />
     </div>
 </template>
 
@@ -128,10 +143,12 @@
 import { api } from '../api/client.js';
 import MarkdownHelp from '../components/MarkdownHelp.vue';
 import MarkdownEditor from '../components/MarkdownEditor.vue';
+import MarkdownBody from '../components/MarkdownBody.vue';
+import AssetReferencePicker from '../components/assets/AssetReferencePicker.vue';
 
 export default {
     name: 'DocumentEdit',
-    components: { MarkdownHelp, MarkdownEditor },
+    components: { MarkdownHelp, MarkdownEditor, MarkdownBody, AssetReferencePicker },
     data() {
         return {
             form: { title: '', content_md: '', category_id: null, parent_id: null, tagsText: '' },
@@ -151,6 +168,8 @@ export default {
             viewMode: 'write',
             uploading: false,
             imageError: '',
+            /** 资源引用选择器是否打开 */
+            showAssetPicker: false,
             _previewTimer: null,
             _draftTimer: null
         };
@@ -317,6 +336,33 @@ export default {
                 return;
             }
             this.form.content_md = (this.form.content_md || '') + text;
+        },
+        /**
+         * 插入资源引用。
+         *
+         * 生成的是**标准 Markdown 图片语法**：
+         *   ![资源名](/api/assets/files/<资产id>/<kind>/auto)
+         *
+         * 为什么用标准语法而不是自定义标记：
+         *   1. 服务端渲染零改动 —— sanitize-html 白名单已放行 img，
+         *      不需要为引用引入新的解析路径；
+         *   2. Vditor 里直接显示成图片，所见即所得；
+         *   3. 纯文本可读、可手改、可粘到别处，语义不依赖本工具。
+         *
+         * kind 的选择：图片用 preview（缩略后的预览图，避免正文里塞几百 MB 的原图），
+         * 其他类型用 original（模型、纹理等本就是要下载使用的）。
+         *
+         * pointer 用 auto：有发布版就用发布版，没有则退回最新版 ——
+         * 资源发布新版后，文档里的引用自动跟进到正式版。
+         */
+        onAssetPicked(a) {
+            this.showAssetPicker = false;
+            if (!a || !a.id) return;
+            const kind = a.type === 'image' ? 'preview' : 'original';
+            const url = `/api/assets/files/${a.id}/${kind}/auto`;
+            // alt 用资源名；图片的 alt 里不要带方括号等会破坏语法的字符
+            const alt = String(a.name || '资源').replace(/[\[\]]/g, '');
+            this.insertAtCursor(`\n![${alt}](${url})\n`);
         },
         scheduleDraft() {
             clearTimeout(this._draftTimer);

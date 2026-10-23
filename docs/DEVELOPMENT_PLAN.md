@@ -134,6 +134,21 @@
   5) FTS5 不可用时降级到 LIKE，搜索不中断。
 - **完成条件**：以上 5 条均有测试覆盖且全绿；前后端回归全绿。
 
+### TASK-015 文档引用资源库（打通两个子系统）
+- **交付物**：`frontend/src/components/assets/AssetReferencePicker.vue`（资源选择器）、
+  `frontend/src/components/MarkdownBody.vue`（Markdown 渲染容器 + 图片失效降级）；
+  资源文件端点新增 `auto` 版本指针；`backend/src/asset-reference.test.js`（9 项）、
+  `frontend/verify-asset-reference.mjs`（18 项）。
+- **覆盖特性**：F-KB-009。
+- **依赖**：TASK-005（文档编辑）、TASK-010（资源管理子系统）。
+- **验证**：
+  1) 编辑器可选资源并插入引用，保存后正文含标准 Markdown 引用语法；
+  2) 阅读页有效引用显示为图片且实际加载成功；
+  3) 失效引用降级为占位块，保留原 alt 文本并说明原因；
+  4) 引用 URL 是相对路径，渲染仍走既有 sanitize-html 白名单；
+  5) `auto` 指针：有发布版取发布版，无发布版退回最新版。
+- **完成条件**：以上 5 条均有测试覆盖且全绿；前后端回归全绿。
+
 ## 3. 依赖关系（人工核对无环）
 
 - TASK-001 → TASK-002 → TASK-003
@@ -144,6 +159,7 @@
 - { TASK-005 ~ TASK-009 } → TASK-010
 - TASK-009 + TASK-012 → TASK-013
 - TASK-005 + TASK-007 → TASK-014
+- TASK-005 + TASK-010 → TASK-015
 - 延期：TASK-D02 依赖 TASK-010；TASK-D01 依赖 TASK-D02，两者均需届时完成对应方案决策。
 
 ## 4. 延期任务（不计入 MVP 门槛）

@@ -765,6 +765,17 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
                     message: '该资源尚未发布任何版本'
                 });
             }
+        } else if (pointer === 'auto') {
+            // auto：有发布版就用发布版，没有则退回最新版。
+            //
+            // 为什么不直接用 published：演示库与多数团队的早期资源都没发布过，
+            // 文档里写死 published 会大面积裂图。auto 让「引用」总能显示，
+            // 且资源一旦发布，文档引用的内容自动跟进到正式版 ——
+            // 这正是版本管理该有的语义。
+            const preferred = asset.published_version_id || asset.latest_version_id;
+            version = preferred
+                ? db.prepare('SELECT * FROM asset_versions WHERE id = ?').get(preferred)
+                : null;
         } else {
             const num = parseId(pointer);
             version = num

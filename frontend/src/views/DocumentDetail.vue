@@ -33,7 +33,7 @@
                 </div>
 
                 <!-- 渲染 HTML 由后端 sanitize-html 白名单净化，可安全渲染 -->
-                <article class="markdown-body" v-html="renderedHtml"></article>
+                <MarkdownBody :html="renderedHtml" />
 
                 <!-- 子页面（二级页面列表：不进入左侧导航，展示在本文档下方） -->
                 <div class="child-pages">
@@ -88,10 +88,11 @@
 import { api } from '../api/client.js';
 import DocIcon from '../components/DocIcon.vue';
 import MarkdownHelp from '../components/MarkdownHelp.vue';
+import MarkdownBody from '../components/MarkdownBody.vue';
 
 export default {
     name: 'DocumentDetail',
-    components: { DocIcon, MarkdownHelp },
+    components: { DocIcon, MarkdownHelp, MarkdownBody },
     data() {
         return {
             doc: null,
