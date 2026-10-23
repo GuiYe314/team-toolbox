@@ -50,6 +50,11 @@ Thumbs.db
 .idea/
 .vscode/
 
+# ---- 验收截图（临时产物，不入库）----
+*.png
+!frontend/src/**/*.png
+!data/**/*.png
+
 # ---- 本地工作区（记忆日志、验证脚本、截图，不入库）----
 .workbuddy/
 
