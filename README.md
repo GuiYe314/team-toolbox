@@ -17,6 +17,8 @@
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构：模块、数据、冲突处理与待决策清单 |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 用户指南（预期操作流程，当前功能未实现） |
 | [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) | 项目状态（唯一状态源） |
+| [docs/VERSION_POLICY.md](docs/VERSION_POLICY.md) | 版本划分与发布约定 |
+| [docs/releases/](docs/releases/) | 各版本发布说明 |
 | [CHANGELOG.md](CHANGELOG.md) | 变更记录（只追加） |
 | [AGENTS.md](AGENTS.md) | 协作代理工作规则 |
 

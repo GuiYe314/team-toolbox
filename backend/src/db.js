@@ -118,10 +118,17 @@ export function createTestingDatabase(config = {}) {
 
 // 保留向后兼容：默认单例连接（供 index.js 的 /api/health 使用）
 // 新代码应使用 createDatabase() 显式获取连接。
+//
+// 必须显式传 DB_PATH —— createDatabase() 的默认参数是硬编码的
+// 'data/team-toolbox.sqlite3'，**不读环境变量**。
+// 之前这里调 createDatabase() 不传参，导致 DB_PATH / DB_PATH_RAW
+// 环境变量完全失效：日志打印的是环境变量指定的路径，
+// 实际打开的却是项目默认库。发布包验证时因此一度对不上账 ——
+// 「迁移日志没打印、表却都在」的怪象就是这么来的。
 let _defaultDb = null;
 export function getDefaultDatabase() {
     if (!_defaultDb) {
-        _defaultDb = createDatabase();
+        _defaultDb = createDatabase({ path: DB_PATH_RAW });
     }
     return _defaultDb;
 }

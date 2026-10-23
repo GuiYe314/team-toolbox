@@ -139,7 +139,17 @@ export default defineConfig(({ mode }) => {
         build: {
             outDir: 'dist',
             sourcemap: false,
-            target: 'es2020'
+            target: 'es2020',
+            // 产物目录不能叫 assets/。
+            //
+            // 原因：前端有一条路由是 /assets（资源管理页），而 Vite 默认把
+            // JS/CSS/字体产物输出到 dist/assets/。发布包里由后端同源托管前端，
+            // express.static 优先于 SPA 回退，于是 GET /assets 会被当成静态
+            // 目录请求 → 301 到 /assets/ → 该目录下无 index.html → 404，
+            // 资源管理页直接打不开。
+            //
+            // 改成 static/ 与任何前端路由都不冲突，语义也更清楚。
+            assetsDir: 'static'
         }
     };
 });

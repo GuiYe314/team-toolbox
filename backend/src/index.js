@@ -8,10 +8,18 @@ import 'dotenv/config';
 import express from 'express';
 import { existsSync, statSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import { getDefaultDatabase, closeDefaultDatabase, DB_PATH, PROJECT_ROOT } from './db.js';
 import { registerApi } from './api.js';
 import { registerAssetApi } from './asset-api.js';
 import { backfillPreviews } from './asset-preview.js';
+import { runMigrations } from './migrate.js';
+
+// ESM 没有 __dirname，手工取当前模块目录。
+// 用于定位 frontend/dist —— 发布包内前端产物与后端同级目录结构：
+//   <包根>/backend/src/index.js  →  <包根>/frontend/dist
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number(process.env.PORT) || 3000;
@@ -52,34 +60,112 @@ app.get('/api/health', (_req, res) => {
     });
 });
 
-// 静态资源：阶段二开始提供前端构建产物；TASK-001 暂不挂载。
-// app.use('/', express.static(resolvePath(__dirname, '..', '..', 'frontend', 'dist')));
-
-app.use((_req, res) => res.status(404).json({ error: 'not_found' }));
-
-const server = app.listen(PORT, HOST, () => {
-    console.log(`[server] listening on http://${HOST}:${PORT}`);
-    console.log(`[server] db path: ${resolvePath(DB_PATH)}`);
-    console.log(`[server] node: ${process.version}`);
-
-    // 补生成存量资源的预览。
-    //
-    // 预览管线只在上传时触发，管线接入之前就已存在的资源会永远停在
-    // preview_status='pending'，前端就一直显示「正在生成预览」——
-    // 实际是没人管。启动时扫一遍补上。
-    //
-    // 刻意不 await：预览生成可能耗时（模型解析），不该拖慢服务启动。
-    (async () => {
-        try {
-            const s = await backfillPreviews({ connection: getDefaultDatabase() });
-            if (s.scanned > 0) {
-                console.log(`[assets] 补生成存量预览：扫描 ${s.scanned}，就绪 ${s.ready}，失败 ${s.failed}，无预览 ${s.none}`);
+// 静态资源：托管前端生产构建产物。
+//
+// 生产部署（发布包 / 内网部署）下，前端与 API 必须**同源** ——
+// 前端调用的是相对路径 '/api/xxx'，若前端与后端不同源会直接跨域失败。
+// 因此发布包里后端同时承担静态托管，单端口即可访问整个应用。
+//
+// 开发期不启用：dev server（Vite）已托管前端并把 /api 代理到本服务。
+const frontendDist = resolvePath(__dirname, '..', '..', 'frontend', 'dist');
+if (existsSync(frontendDist)) {
+    // 带哈希的构建产物可长期缓存；index.html 必须每次校验，否则前端更新后
+    // 浏览器仍加载旧的 chunk 引用。
+    app.use(express.static(frontendDist, {
+        index: false,
+        setHeaders(res, filePath) {
+            if (filePath.endsWith('index.html')) {
+                res.setHeader('Cache-Control', 'no-cache');
+            } else if (/-[A-Za-z0-9_-]{8}\.(js|css|mjs|woff2?|ttf|png|jpg|jpeg|webp|gif|svg|ico)$/i.test(filePath)) {
+                // Vite 的产物名是「名称-内容哈希」形式（形如 Assets-5pQFi4kJ.js），
+                // 内容变了文件名就变，因此可以放心长期缓存。
+                // 注意哈希段在**扩展名之前**，且含 base64 字符（非纯 hex）。
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            } else {
+                // vendor/ 下的第三方资源（vditor 内核等）文件名不带哈希，
+                // 保守起见给短缓存，避免升级后拿到旧文件。
+                res.setHeader('Cache-Control', 'public, max-age=3600');
             }
-        } catch (e) {
-            console.warn('[assets] 补生成存量预览失败（不影响服务）:', e && e.message);
         }
-    })();
-});
+    }));
+
+    // SPA 回退：前端用 history 模式（createWebHistory），
+    // 刷新 /kb/12 这类深链时服务端收到的是该路径而非静态文件，
+    // 不回退到 index.html 就会 404 —— 用户按 F5 就白屏。
+    //
+    // 注意 index.html 是经 sendFile 发送的，**不经过** express.static 的
+    // setHeaders，必须在这里单独设 no-cache —— 否则浏览器会长期缓存
+    // index.html，前端发版后仍加载旧的 chunk 引用（页面直接白屏）。
+    app.get(/^(?!\/api\/).*/, (_req, res, next) => {
+        res.setHeader('Cache-Control', 'no-cache');
+        res.sendFile(resolvePath(frontendDist, 'index.html'), (err) => {
+            if (err) next();
+        });
+    });
+}
+
+// 兜底 404：仅 API 未命中时返回 JSON
+app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
+
+/**
+ * 启动流程：先迁移数据库，再监听端口。
+ *
+ * 为什么迁移必须放在 listen 之前：
+ * 发布包首次运行时数据库文件还不存在，若先监听再迁移，
+ * 会有一个时间窗口内 /api/* 全部因「表不存在」而 500。
+ * 用户看到的是「程序启动了但一进去就报错」，比启动失败更难排查。
+ *
+ * 迁移失败必须**直接退出**而不是继续服务 —— schema 不对的服务
+ * 比启动失败更危险：数据可能写坏或写错位置。
+ */
+async function start() {
+    try {
+        const r = await runMigrations({ connection: getDefaultDatabase() });
+        if (r.applied > 0) {
+            console.log(`[migrate] 已应用 ${r.applied} 个迁移，版本=[${r.versions.join(', ')}]`);
+        }
+        if (r.errors && r.errors.length > 0) {
+            console.error('[migrate] 迁移失败:', r.errors.join('; '));
+            process.exit(1);
+        }
+    } catch (err) {
+        console.error('[migrate] 迁移异常，服务未启动:', err && err.message);
+        process.exit(1);
+    }
+
+    const server = app.listen(PORT, HOST, () => {
+        console.log(`[server] listening on http://${HOST}:${PORT}`);
+        console.log(`[server] db path: ${resolvePath(DB_PATH)}`);
+        console.log(`[server] node: ${process.version}`);
+
+        // 补生成存量资源的预览。
+        //
+        // 预览管线只在上传时触发，管线接入之前就已存在的资源会永远停在
+        // preview_status='pending'，前端就一直显示「正在生成预览」——
+        // 实际是没人管。启动时扫一遍补上。
+        //
+        // 刻意不 await：预览生成可能耗时（模型解析），不该拖慢服务启动。
+        (async () => {
+            try {
+                const s = await backfillPreviews({ connection: getDefaultDatabase() });
+                if (s.scanned > 0) {
+                    console.log(`[assets] 补生成存量预览：扫描 ${s.scanned}，就绪 ${s.ready}，失败 ${s.failed}，无预览 ${s.none}`);
+                }
+            } catch (e) {
+                console.warn('[assets] 补生成存量预览失败（不影响服务）:', e && e.message);
+            }
+        })();
+    });
+
+    server.on('error', (err) => {
+        console.error('[server] 启动失败:', err && err.message);
+        process.exit(1);
+    });
+
+    return server;
+}
+
+const server = await start();
 
 function shutdown(signal) {
     console.log(`[server] received ${signal}, shutting down`);

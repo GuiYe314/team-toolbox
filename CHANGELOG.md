@@ -2,6 +2,46 @@
 
 格式：日期 + 类型 + 条目。**只追加，不改写历史。**当前进度以 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) 为唯一来源，本文件不承载状态。
 
+## 2026-10-23
+
+### v0.1.0 首次正式发布（实现 + 发布包实际启动验证，待 Codex 验收）
+
+### Added
+- `docs/VERSION_POLICY.md`：版本划分与发布约定（大版本归属、三份资产形态、七条封版规则、数据位置与身份）。
+- `docs/releases/V0_1.0.0.md`：v0.1.0 发布说明（功能清单、下载与安装、已知限制、升级与回退）。
+- `docs/releases/V0_1.0.0-RELEASE.md`：GitHub Release 正文。
+- `docs/acceptance/V0_1.0.0_RELEASE_2026-10-23.md`：发布验收报告。
+- `scripts/build_release.ps1`：发布打包脚本，产出便携包 ZIP + 安装包 EXE + SHA256 校验清单。
+- `installer/team-toolbox.iss`：Inno Setup 安装包定义，含安装前 Node.js 运行时检查。
+- `backend/src/db.test.js`：3 项测试，钉住 `DB_PATH` 路径解析行为。
+
+### 发布资产
+| 文件 | 字节 | SHA256 |
+|---|---|---|
+| `team-toolbox-Setup-0.1.0.exe` | 27605857 | `9202c8804f36431a5dd01e5ecf1e261b30000f4df6a1885a7781e7f4aac1843e` |
+| `team-toolbox-0.1.0.zip` | 41240802 | `5dcf40916ac6794a4fb649d2a5d67bd3cb1d9aa43b24d29002da56d85d15dc0e` |
+
+### 与参考项目 TravelMap 的差异
+TravelMap 用 PyInstaller 把 Python 后端冻结成单文件 EXE。本项目后端是 Node.js，**better-sqlite3 与 sharp 都含原生模块，无法像 Python 那样冻结进单个可执行文件**。改为「生产依赖随包分发 + 一键启动脚本」：便携包解压后双击 `启动.cmd` 即可，无需安装、无需联网装依赖。
+
+### Fixed
+- **后端不托管前端**：`express.static` 此前是注释掉的，生产部署下前端与 API 不同源（前端用相对路径 `/api` 调用，必然跨域失败）。发布包改为后端单端口同时托管两者，附带 SPA 回退（history 模式深链刷新不白屏）与三档缓存策略。
+- **`/assets` 路由与构建产物目录同名冲突**：Vite 默认输出到 `dist/assets/`，而前端恰有 `/assets` 路由（资源管理页）。`express.static` 优先处理 → 301 → 该目录无 index.html → 404，**资源管理页直接打不开**。修法：`build.assetsDir` 改为 `static`。
+- **`DB_PATH` 环境变量完全失效**：`getDefaultDatabase()` 调 `createDatabase()` 时没传 path，而该函数默认参数硬编码 `'data/team-toolbox.sqlite3'` 且**不读环境变量**。日志打印的是环境变量路径、实际打开的却是项目默认库，文件根本没创建 —— 表现是「迁移没执行、表却都在」，完全对不上账。修法：显式传 `DB_PATH_RAW`。
+- **后端启动不自动迁移**：此前靠启动脚本先跑 `npm run migrate`，用户手动启动时表不存在，资源接口报 `no such table: asset_versions`。修法：迁移纳入启动流程且**放在 `listen` 之前**（否则有窗口期接口全 500），迁移失败直接退出。
+- **缓存头未按预期生效**：哈希正则要求扩展名之前是纯 hex，但 Vite 产物名是「名称-哈希.扩展」（哈希在扩展名**之前**且含 base64 字符）。修正后三档策略全部生效。
+
+### 验证证据
+- 后端 `npm test` **246/246**（新增 3 项）；前端回归 **315/315**；生产构建通过。
+- 便携包解压到**独立目录**实际启动：自动迁移 5 个版本、12 张业务表建成、数据库落在包内 `data/`、首页与 5 条 SPA 深链全部 200、4 个 API 端点 200、浏览器渲染正常且控制台 0 错误。
+- 发布包**不含任何用户数据**：`data/` 在包内为空，演示库（18 资源/21 版本/7 文档）不进入发布资产。
+
+### 环境事实
+- Inno Setup 6.7.3 经 `winget` 安装于用户级路径（本地 AppData 下的 `Programs/Inno Setup 6/ISCC.exe`）。
+- 本机**无 pwsh**（只有 Windows PowerShell 5.1），`.ps1` 与 `.iss` 必须带 UTF-8 BOM，否则中文按 OEM 代码页解读而解析失败。
+- 本机**无 7-Zip**，压缩用 .NET `System.IO.Compression.ZipFile`。
+- Inno Setup 的 Pascal Script 限制较多（不支持动态数组、不支持逗号分隔多变量、`RegQueryStringValue` 为 4 参数且 SubKey 与 ValueName 必须分开），已在 `.iss` 内注释说明。
+
 ## 2026-10-20
 
 ### 把前端硬约束写进 AGENTS.md（实现 + 浏览器验证，待 Codex 验收）
