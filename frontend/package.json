@@ -1,6 +1,6 @@
 {
   "name": "team-toolbox-frontend",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "team-toolbox frontend (Vite + Vue 3)",
   "type": "module",

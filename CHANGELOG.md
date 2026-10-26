@@ -2,6 +2,78 @@
 
 格式：日期 + 类型 + 条目。**只追加，不改写历史。**当前进度以 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) 为唯一来源，本文件不承载状态。
 
+## 2026-10-26
+
+### v0.1.1 修复发布包 ABI 不兼容缺陷（实测用户环境验证通过，待 Codex 验收）
+
+### Context
+v0.1.0 的发布包在用户机器上**装完根本起不来**。用户报：
+`NODE_MODULE_VERSION 127. This version of Node.js requires NODE_MODULE_VERSION 137.`
+
+根因不是用户装错了，而是发布流程把「原生模块的 ABI 兼容性」这个**构建机的属性**
+泄漏给了用户：
+- `better-sqlite3` 是 NODE_MODULE_VERSION 敏感的原生模块，随包分发的 `.node`
+  只能被同 ABI 的 Node 加载（ABI 127 = Node 22，ABI 137 = Node 24）；
+- 打包时依赖在**构建机（Node 22）**上安装，因此随包二进制是 ABI 127；
+- 用户机器上是 Node 24 → 加载必然失败。
+
+**为什么用户无法自救**：`better-sqlite3` v11.10.0 官方预编译仅覆盖
+`node-v108/v115/v127/v131`，**没有 ABI 137**。重新安装会退化成源码编译，
+需要 Visual Studio Build Tools —— 对「双击即用」的工具不可接受。
+
+### Fixed
+- **发布包内自带 Node 运行时**（`runtime/node.exe` v22.22.2）。
+  Windows 版 node.exe 单文件自包含（V8/libuv/OpenSSL 静态链接），包里只需这一个文件。
+  启动脚本优先使用它，**用户机器无需安装 Node，也不受系统 Node 版本影响**。
+- **装依赖时用内置 Node 跑 npm**：把内置 dist 加到 `PATH` 最前再执行
+  `npm install`，保证预编译二进制的 ABI 与包内 node.exe 同源。
+  否则会出现「用 Node 22 装、让用户跑 Node 24」的同一个坑。
+- **安装器移除 Node 检查**：Node 已内置，该检查挡不住真问题（v0.1.0 装的时候
+  提示了 Node 存在，跑起来照样崩），反而拦住了完全不需要装 Node 的用户。
+- **启动前运行时自检**（`runtime/check.js`）：ABI 不匹配时给出可操作提示
+  （「重新下载完整发布包，不要在包内跑 npm install」），而不是把用户甩给堆栈。
+- **浏览器等就绪再打开**（`runtime/open-browser.js`）：原先是「先开浏览器再启服务」，
+  用户会先看到「无法访问此页面」还得手动刷新。
+- **打包脚本 `Invoke-Native` 用 `$Args` 作参数名**：`$Args` 是 PowerShell 自动变量，
+  用作 `param` 名会被抢占，参数个数恒为 0，`& $Exe @Args` 展开成空调用 →
+  npm 打印 usage 并以退出码 1 结束。症状极具迷惑性（报错指向「前端生产构建失败」，
+  真正原因在几行之外）。改名 `$ArgList` 修复。这个 bug 一直潜伏，是本次重打包才暴露。
+- **`verify-search.mjs` 依赖他脚本的残留数据**：原本搜「BD」并断言「演示库有 BD 前缀
+  文档」，而那批文档是 `verify-batch-delete.mjs` 造的测试数据、被它自己回收了，
+  导致本脚本在 batch-delete 之后跑会莫名失败（实测 10/11）。改为自造自收，
+  并新增「搜英文词的片段不应误命中」这条更严格的断言。
+
+### Added
+- `scripts/build_release.ps1`：新增 `Get-NodeRuntime`（按版本缓存到
+  `build/runtime-cache/`，打包机无外网时可手工放置）、`-NodeVersion` 参数。
+- `runtime/check.js`、`runtime/open-browser.js`：随包运行时辅助脚本。
+- `frontend/verify-release-runtime.mjs`：14 项验收（内置运行时存在且完整、可独立运行、
+  ABI 匹配、跨 ABI 时提示可读、启动脚本契约、runtime 目录无冗余）。
+- `docs/releases/V0_1.0.1.md`、`docs/acceptance/V0_1.0.1_RELEASE_2026-10-26.md`。
+- `docs/USER_GUIDE.md` 补「使用发布包」章节（无需装 Node、数据位置、备份、故障排查）。
+
+### Changed
+- 版本号 0.1.0 → 0.1.1（backend / frontend package.json 与安装包）。
+
+### 验证证据
+- 后端 `npm test` **288/288**；前端回归全绿；新增 `verify-release-runtime` **14/14**；
+  `verify-search` 改为自造自收后 **14/14**。
+- 便携包解压到独立目录实测：迁移 6 个版本、3 端点全 200、浏览器渲染 OK、控制台 0 错误。
+- **覆盖安装到用户实际路径**（`%LOCALAPPDATA%\team-toolbox`），在
+  **系统 Node v24.19.0 位于 PATH** 的原始环境下：自检通过（内置 v22.22.2 / ABI 127）、
+  5 端点全 200、浏览器渲染 OK、导航四项完整、控制台 0 错误。
+  **这正是 v0.1.0 失败的那个场景。**
+- 演示库数据核对：文档删除是 `verify-batch-delete.mjs` 自造测试数据的正常回收，
+  真实演示数据（4 篇文档 / 22 资源 / 4 分类 / 6 标签）完好。
+
+### 发布资产
+| 文件 | 字节 | SHA256 |
+|---|---|---|
+| `team-toolbox-Setup-0.1.1.exe` | 49030266 | `aeb5020873b733aaeba5eafcc5121fba83abe6c5f05fae7285c67494c9cfc6b9` |
+| `team-toolbox-0.1.1.zip` | 74437577 | `2f399e49cd80f23d9d0fe472944d1641724e6627ff946de203f1876befb0caec` |
+
+体积较 v0.1.0 增加（ZIP +33.2 MB / EXE +21.4 MB），全部来自内置 Node 运行时。
+
 ## 2026-10-23
 
 ### TASK-015 文档引用资源库：打通知识库与资源库（实现 + 浏览器端到端验证，待 Codex 验收）

@@ -104,9 +104,40 @@ check('无匹配时显示 0 条结果', /0\s*条结果/.test(r3.count || ''), r3
 check('无匹配时无结果条目', (r3.titles || []).length === 0, JSON.stringify(r3.titles));
 
 console.log('\n── 4. 英文按词边界匹配 ──');
-const r4 = JSON.parse(await search('BD')) || {};
-console.log('  搜「BD」→', r4.count);
-check('英文关键词有结果（演示库有 BD 前缀文档）', (r4.titles || []).length > 0);
+// 自己造测试文档，不依赖演示库内容。
+//
+// 之前这里搜「BD」并断言「演示库有 BD 前缀文档」—— 那批文档其实是
+// verify-batch-delete.mjs 造的测试数据，被它自己按 AGENTS.md 第 10 条回收了。
+// 于是本脚本在 batch-delete 之后跑就会莫名失败（实测 10/11）。
+// 验收脚本不能依赖别的脚本的残留数据，必须自造自收。
+const API = BASE.replace(/\/$/, '') + '/api';
+const mkTitle = '搜索验收·英文词边界';
+const mkBody = '本段包含 zephyr 工具与 digital transform 的说明，用于验证英文按词边界匹配。';
+
+// 造文档（若已存在先删，避免重复运行残留）
+await fetch(`${API}/documents?q=${encodeURIComponent(mkTitle)}`, { method: 'DELETE' }).catch(() => {});
+const created = await (await fetch(`${API}/documents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: mkTitle, content_md: mkBody })
+})).json();
+const mkId = created && created.id;
+
+const r4 = JSON.parse(await search('zephyr')) || {};
+console.log('  搜「zephyr」→', r4.count);
+check('英文关键词能命中自造文档', (r4.titles || []).includes(mkTitle),
+    JSON.stringify(r4.titles));
+
+// 关键：搜子串「zeph」应**不**命中（zephyr 是完整词，不是子串可搜的）
+const r4b = JSON.parse(await search('zeph')) || {};
+check('搜英文词的片段不误命中（按词边界匹配）',
+    !(r4b.titles || []).includes(mkTitle),
+    JSON.stringify(r4b.titles));
+
+// 搜另一个完整词应命中
+const r4c = JSON.parse(await search('digital')) || {};
+check('完整英文词命中', (r4c.titles || []).includes(mkTitle),
+    JSON.stringify(r4c.titles));
 
 console.log('\n── 5. 清除搜索恢复列表 ──');
 await ev(`(() => {
@@ -126,6 +157,23 @@ check('计数不再是 0 条结果', !/0\s*条结果/.test(r5.count || ''), r5.c
 console.log('\n── 6. 控制台无错误 ──');
 const realErrs = errs.filter((e) => !/favicon|DevTools/i.test(e));
 check('控制台无错误', realErrs.length === 0, realErrs.slice(0, 2).join(' | '));
+
+// ── 清理自造数据 ──
+// 按名称特征全量回收，不只删本轮的 id —— 脚本被中断时
+// 本轮 id 可能没记录下来，只删它会留下垃圾污染演示库。
+// （AGENTS.md 前端约定第 10 条）
+console.log('\n── 7. 清理测试数据 ──');
+try {
+    const list = await (await fetch(`${API}/documents?limit=200`)).json();
+    const junk = (list.items || []).filter((d) => /^搜索验收·/.test(d.title || ''));
+    for (const d of junk) {
+        await fetch(`${API}/documents/${d.id}`, { method: 'DELETE' }).catch(() => {});
+    }
+    console.log(`  已清理 ${junk.length} 个测试文档`);
+    check('测试文档已全部回收', junk.length > 0 || !mkId, `清理了 ${junk.length} 个`);
+} catch (e) {
+    check('清理测试文档', false, String(e && e.message).slice(0, 80));
+}
 
 console.log('\n────────────────────────────────────────────────');
 console.log(`通过 ${pass} / ${pass + fail}`);

@@ -14,20 +14,37 @@
 #    因此改为「生产依赖随包分发 + 一键启动脚本」：
 #    便携包解压后双击 启动.cmd 即可，无需安装、无需联网装依赖。
 #
-#  两个必须注意的实现细节：
+#  三个必须注意的实现细节：
 #  1. 依赖装在**暂存目录**里，不动开发者的 backend/node_modules。
 #     在源码目录跑 npm install --omit=dev 会裁剪开发依赖，
 #     导致开发者本地的 npm test 跑不起来。
 #  2. 前端 dist 在构建前用 PowerShell 清空，不交给 Vite 的 emptyOutDir。
 #     Vite 用 node 的 fs.rmSync 删目录，会被 WorkBuddy 的删除保护拦截
 #     （单目录超过 50 个文件即拒绝），构建必然失败。
+#  3. **必须内置 Node 运行时**（runtime/node.exe）—— 见下。
+#
+#  ── 为什么必须内置运行时 ──
+#    better-sqlite3 是 NODE_MODULE_VERSION 敏感的原生模块：
+#    它随包分发的 .node 二进制只能被**同 ABI** 的 Node 加载
+#    （ABI 127 = Node 22，ABI 137 = Node 24，互不兼容）。
+#    若依赖用户系统里的 Node，构建机（Node 22）与用户机（Node 24）一旦不同，
+#    后端启动即报 NODE_MODULE_VERSION 127 vs 137 —— v0.1.0 就是这么坏的。
+#    better-sqlite3 官方预编译包也不覆盖 Node 24（只有 v108/115/127/131），
+#    用户机器上无法靠 npm rebuild 自愈（需 Visual Studio Build Tools）。
+#    因此唯一可靠解法：**包内自带 node.exe**，启动脚本优先用它，
+#    完全摆脱对用户系统 Node 版本与 ABI 的依赖。
+#    代价是包体积 +约 88 MB（node.exe 单文件自包含，无需其他运行时文件）。
+#    sharp 与 @napi-rs/canvas 是 N-API，本身跨 Node 版本兼容，无需额外处理。
 #
 #  用法：
 #    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_release.ps1 -Version 0.1.0
 # ============================================================================
 param(
     [string]$Version = "0.1.0",
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    # 内置 Node 运行时的版本。必须是**稳定 LTS**，且与打包时安装依赖的
+    # Node 版本一致 —— 否则 better-sqlite3 的 ABI 又对不上（这正是 v0.1.0 的坑）。
+    [string]$NodeVersion = "22.22.2"
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +56,8 @@ $backend     = Join-Path $projectRoot "backend"
 $stageDir    = Join-Path $projectRoot "build\release\$Version"
 $releaseDir  = Join-Path $projectRoot "release"
 $innoDir     = Join-Path $projectRoot "installer"
+# 内置运行时的缓存目录 —— 跨版本复用，避免每次打包都重新下载 34 MB。
+$runtimeCache = Join-Path $projectRoot "build\runtime-cache"
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
     throw "Invalid version '$Version'. Expected semver like 0.1.0"
@@ -46,6 +65,54 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 
 function Say([string]$msg, [string]$color = "Gray") {
     Write-Host $msg -ForegroundColor $color
+}
+
+# ── 取得内置 Node 运行时 ─────────────────────────────────────────────────
+#
+# 返回 Node 发行版的**目录**（含 node.exe 与 npm）。
+#
+# 关键点：
+#  1. node.exe 是**单文件自包含**的（Windows 版把 V8 / libuv / OpenSSL
+#     全静态链接进去了），所以最终包里只需要这一个文件 ——
+#     不需要 ICU 数据目录、不需要 npm、不需要 corepack。
+#  2. 但**安装依赖时必须用同一套 Node 跑 npm**：better-sqlite3 的
+#     预编译二进制是按跑 npm 时的 Node ABI 选的。若用构建机的 Node 22 装、
+#     却让用户跑 Node 24，ABI 就对不上（v0.1.0 就是这么坏的）。
+#     所以这里返回完整 dist，装依赖时把它加到 PATH 最前面。
+#
+# 缓存策略：按 Node 版本缓存到 build\runtime-cache\<version>\node-v<ver>-win-x64\。
+# 打包机若无外网，可手工放置该目录后重跑（脚本会直接复用）。
+function Get-NodeRuntime {
+    param([string]$Ver)
+
+    $cacheDir = Join-Path $runtimeCache $Ver
+    $distDir  = Join-Path $cacheDir "node-v$Ver-win-x64"
+    $exePath  = Join-Path $distDir "node.exe"
+
+    if (Test-Path $exePath) {
+        Say "      命中缓存：$exePath" "DarkGray"
+        return $distDir
+    }
+
+    New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+    $zipUrl = "https://nodejs.org/dist/v$Ver/node-v$Ver-win-x64.zip"
+    $zipPath = Join-Path $cacheDir "node.zip"
+
+    Say "      下载 Node v$Ver 运行时..." "DarkGray"
+    try {
+        Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 300
+    } catch {
+        throw "下载 Node 运行时失败：$zipUrl`n请检查网络，或手工放置 node-v$Ver-win-x64 目录到 $cacheDir 后重试。"
+    }
+
+    if (Test-Path $distDir) { Remove-Item $distDir -Recurse -Force }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $cacheDir)
+    Remove-Item $zipPath -Force
+
+    if (-not (Test-Path $exePath)) { throw "Node 运行时压缩包里没有 node.exe：$zipUrl" }
+    Say "      运行时就绪：node.exe（{0:N1} MB）" -f ((Get-Item $exePath).Length / 1MB) "Green"
+    return $distDir
 }
 
 # 把外部命令的 stderr 并入 stdout 输出。
@@ -57,14 +124,19 @@ function Say([string]$msg, [string]$color = "Gray") {
 function Invoke-Native {
     param(
         [string]$Exe,
-        [string[]]$Args,
+        # 参数名**不能叫 $Args** —— 它是 PowerShell 的自动变量
+        # （函数未声明形参时接收剩余实参）。用作 param 名会被自动变量抢占，
+        # 表现为参数个数恒为 0，于是 `& $Exe @Args` 展开成空调用，
+        # npm 打印 usage 并以退出码 1 结束。
+        # 症状极具迷惑性：报错指向「前端生产构建失败」，而真正原因在几行之外。
+        [string[]]$ArgList,
         [string]$WorkDir
     )
     $saved = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
         if ($WorkDir) { Push-Location $WorkDir }
-        & $Exe @Args 2>&1 | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
+        & $Exe @ArgList 2>&1 | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
         return $LASTEXITCODE
     } finally {
         if ($WorkDir) { Pop-Location }
@@ -88,7 +160,7 @@ if (Test-Path $dist) {
 }
 Push-Location $frontend
 try {
-    $code = Invoke-Native -Exe 'npm.cmd' -Args @('run', 'build')
+    $code = Invoke-Native -Exe 'npm.cmd' -ArgList @('run', 'build')
     if ($code -ne 0) { throw "前端生产构建失败（退出码 $code）。" }
 } finally {
     Pop-Location
@@ -106,6 +178,15 @@ $backendOut = Join-Path $appDir "backend"
 $frontendOut = Join-Path $appDir "frontend"
 New-Item -ItemType Directory -Path $backendOut -Force | Out-Null
 New-Item -ItemType Directory -Path $frontendOut -Force | Out-Null
+
+# 内置 Node 运行时 —— 解决 better-sqlite3 的 ABI 依赖（详见文件头说明）。
+# 用户机器不需要装 Node，也不会因为系统 Node 版本不同而启动失败。
+Say "      准备内置 Node 运行时..."
+$nodeDist = Get-NodeRuntime -Ver $NodeVersion
+$runtimeOut = Join-Path $appDir "runtime"
+New-Item -ItemType Directory -Path $runtimeOut -Force | Out-Null
+Copy-Item (Join-Path $nodeDist "node.exe") (Join-Path $runtimeOut "node.exe") -Force
+Say "      运行时已内置（{0:N1} MB）" -f ((Get-Item (Join-Path $runtimeOut "node.exe")).Length / 1MB) "Green"
 
 # 后端：只带源码与清单，**不带 node_modules** —— 依赖在暂存目录里重装，
 # 这样发布包拿到的是与 package.json 严格一致的生产依赖树，
@@ -137,10 +218,17 @@ if (Test-Path (Join-Path $projectRoot "README.md")) {
 # ── 3. 在暂存目录安装生产依赖 ──────────────────────────────────────────────
 Say "[3/5] 安装后端生产依赖（暂存目录内）..." "Cyan"
 Push-Location $backendOut
+$origPath = $env:PATH
 try {
-    $code = Invoke-Native -Exe 'npm.cmd' -Args @('install', '--omit=dev', '--no-audit', '--no-fund')
+    # **必须用内置 Node 跑 npm**：better-sqlite3 的预编译二进制是按
+    # 跑 npm 时的 Node ABI 挑选的。若用构建机的 Node 装、却让用户跑
+    # 另一个版本，ABI 对不上，后端启动即崩（v0.1.0 的真实故障）。
+    # 把内置 dist 放到 PATH 最前面，保证 npm 与包内 node.exe 同源。
+    $env:PATH = $nodeDist + ";" + $origPath
+    $code = Invoke-Native -Exe 'npm.cmd' -ArgList @('install', '--omit=dev', '--no-audit', '--no-fund')
     if ($code -ne 0) { throw "后端生产依赖安装失败（退出码 $code）。" }
 } finally {
+    $env:PATH = $origPath
     Pop-Location
 }
 Say "      生产依赖就绪" "Green"
@@ -148,47 +236,169 @@ Say "      生产依赖就绪" "Green"
 # ── 4. 写启动脚本 ─────────────────────────────────────────────────────────
 Say "[4/5] 写启动脚本..." "Cyan"
 
+# 以 UTF-8 with BOM 写入 —— cmd.exe 在中文系统上按 OEM 代码页解读无 BOM 的 UTF-8，
+# 中文会变乱码；有 BOM 时 cmd 会切到 UTF-8 代码页。
+# （JS 文件同理：Node 读无 BOM 的 UTF-8 没问题，但保持一致更省心。）
+$utf8Bom = New-Object System.Text.UTF8Encoding($true)
+
 # 启动.cmd：双击即用。检查 Node、首次运行初始化数据库、启动后端并开浏览器。
+# 启动.cmd：双击即用。
+#
+# 运行时策略：**优先用包内自带的 runtime\node.exe**。
+# 随包分发的 better-sqlite3 原生二进制与该 Node 的 ABI 严格绑定，
+# 因此不依赖用户系统里装的是哪个 Node 版本 —— 这正是 v0.1.0 装完就崩的原因。
+#
+# 三个必须处理的情况：
+#  1. 包内运行时缺失（用户删了目录）→ 退回系统 Node，并明确警告 ABI 风险。
+#  2. 用户自己跑过 npm install（可能换成别的 Node 装的）→ 自检会报 ABI 不匹配。
+#  3. 浏览器不能在后端就绪前打开，否则用户看到的是「无法访问此页面」。
+
+# runtime/check.js：启动前自检，确认原生模块能加载。
+$runtimeCheck = @'
+// 发布包运行时自检。
+//
+// 存在的理由：better-sqlite3 的原生二进制与 Node 的 ABI（NODE_MODULE_VERSION）
+// 严格绑定。若随包依赖被换成了别的 Node 版本编译的二进制，加载会失败并报
+// "NODE_MODULE_VERSION 127 vs 137" —— 这类错误发生在 require 阶段，
+// 堆栈深且信息晦涩，普通用户无从判断发生了什么。
+//
+// 这里提前做一次最小验证（打开内存库），失败时给出可操作的说明。
+const path = require('node:path');
+
+const modPath = path.join(__dirname, '..', 'backend', 'node_modules', 'better-sqlite3');
+
+let Database;
+try {
+    Database = require(modPath);
+} catch (err) {
+    const msg = String((err && err.message) || err);
+    if (msg.includes('NODE_MODULE_VERSION')) {
+        console.error('');
+        console.error('[ERROR] 数据库驱动与当前 Node 版本不兼容。');
+        console.error('');
+        console.error('        随包的原生模块是用另一个 Node 版本编译的，');
+        console.error('        二者的 ABI（NODE_MODULE_VERSION）必须一致。');
+        console.error('');
+        console.error('        请重新下载完整的发布包（不要在包内跑 npm install）。');
+        console.error('');
+        console.error('        原始错误：' + msg);
+    } else {
+        console.error('');
+        console.error('[ERROR] 无法加载数据库驱动：' + msg);
+        console.error('        随包的 backend/node_modules 可能不完整，请重新下载发布包。');
+    }
+    process.exit(1);
+}
+
+try {
+    const db = new Database(':memory:');
+    db.close();
+} catch (err) {
+    console.error('[ERROR] 数据库驱动自检失败：' + String((err && err.message) || err));
+    process.exit(1);
+}
+
+console.log('[check] 运行时自检通过（Node ' + process.version + '，ABI ' + process.versions.modules + '）');
+'@
+
+# runtime/open-browser.js：等后端真正就绪后再打开浏览器。
+$openBrowser = @'
+// 等后端就绪后再打开浏览器。
+//
+// 为什么不用「先 start 浏览器再启动服务」：那样用户会先看到一个
+// 「无法访问此页面」，还得手动刷新 —— 明明服务两秒后就起来了。
+const http = require('node:http');
+const { spawn } = require('node:child_process');
+
+const URL = 'http://127.0.0.1:3000/';
+const DEADLINE = Date.now() + 30000;
+
+function openBrowser() {
+    try {
+        if (process.platform === 'win32') {
+            spawn('cmd', ['/c', 'start', '""', URL], { detached: true, stdio: 'ignore' }).unref();
+        } else if (process.platform === 'darwin') {
+            spawn('open', [URL], { detached: true, stdio: 'ignore' }).unref();
+        } else {
+            spawn('xdg-open', [URL], { detached: true, stdio: 'ignore' }).unref();
+        }
+    } catch (e) {
+        // 打不开浏览器不是致命错误 —— 用户可以手动访问地址
+    }
+    process.exit(0);
+}
+
+function retry() {
+    if (Date.now() > DEADLINE) {
+        console.error('[info] 后端未在 30 秒内就绪，未自动打开浏览器。请手动访问 ' + URL);
+        process.exit(0);
+    }
+    setTimeout(probe, 500);
+}
+
+function probe() {
+    const req = http.get(URL, (res) => {
+        res.resume();
+        openBrowser();
+    });
+    req.on('error', retry);
+    req.setTimeout(1000, () => {
+        req.destroy();
+        retry();
+    });
+}
+
+probe();
+'@
+
+[System.IO.File]::WriteAllText((Join-Path $runtimeOut "check.js"), $runtimeCheck, $utf8Bom)
+[System.IO.File]::WriteAllText((Join-Path $runtimeOut "open-browser.js"), $openBrowser, $utf8Bom)
+
 $startCmd = @'
 @echo off
 chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
-REM ---- Node.js 检查 ----
+REM ---- 定位 Node 运行时 ----
+REM 优先用包内自带的 runtime\node.exe：它的 ABI 与随包分发的
+REM better-sqlite3 原生模块严格一致，因此不受用户系统 Node 版本影响。
+set "NODE_EXE=%~dp0runtime\node.exe"
+if exist "%NODE_EXE%" goto :runtime_ready
+
+echo [warn] 未找到包内运行时 runtime\node.exe，将改用系统 Node。
+echo [warn] 若随后报 NODE_MODULE_VERSION 错误，请重新下载完整发布包。
 where node >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] 未找到 Node.js。请先安装 Node.js v20.19+ 或 v22 LTS。
-    echo         https://nodejs.org/en/download
+    echo [ERROR] 未找到 Node.js，且包内运行时不完整，无法启动。
+    echo         请重新下载完整的发布包：https://github.com/GuiYe314/team-toolbox/releases
+    pause
+    exit /b 1
+)
+set "NODE_EXE=node"
+
+:runtime_ready
+REM ---- 运行时自检：确认数据库驱动能加载 ----
+"%NODE_EXE%" "%~dp0runtime\check.js"
+if errorlevel 1 (
+    echo.
     pause
     exit /b 1
 )
 
-REM ---- 首次运行：初始化数据库 ----
-if not exist "data\team-toolbox.sqlite3" (
-    echo [step] 首次运行，正在初始化数据库...
-    pushd backend
-    call npm run migrate
-    if errorlevel 1 ( popd & echo [ERROR] 数据库初始化失败 & pause & exit /b 1 )
-    popd
-)
-
 REM ---- 启动后端（同时托管前端与 API，单端口）----
 echo [info] 正在启动 team-toolbox...
-echo [info] 浏览器将自动打开 http://127.0.0.1:3000/
-start "" "http://127.0.0.1:3000/"
+echo [info] 就绪后会自动打开 http://127.0.0.1:3000/
+start "" /b "%NODE_EXE%" "%~dp0runtime\open-browser.js"
 
 pushd backend
-call npm start
+"%NODE_EXE%" src\index.js
 popd
 
 echo.
 echo 服务已停止。
 pause
 '@
-# 以 UTF-8 with BOM 写入 —— cmd.exe 在中文系统上按 OEM 代码页解读无 BOM 的 UTF-8，
-# 中文会变乱码；有 BOM 时 cmd 会切到 UTF-8 代码页。
-$utf8Bom = New-Object System.Text.UTF8Encoding($true)
 [System.IO.File]::WriteAllText((Join-Path $appDir "启动.cmd"), $startCmd, $utf8Bom)
 
 # 停止.cmd：按端口结束本机实例
@@ -276,7 +486,7 @@ if (-not $SkipInstaller) {
         $tmpIss = Join-Path $innoDir "team-toolbox-$Version.iss"
         [System.IO.File]::WriteAllText($tmpIss, $issContent, (New-Object System.Text.UTF8Encoding($true)))
 
-        $code = Invoke-Native -Exe $iscc -Args @($tmpIss)
+        $code = Invoke-Native -Exe $iscc -ArgList @($tmpIss)
         if ($code -ne 0) { throw "Inno Setup 编译失败（退出码 $code）。" }
         Say ("      安装包 {0:N0} 字节" -f (Get-Item $setupPath).Length) "Green"
     }
