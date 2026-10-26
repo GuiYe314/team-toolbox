@@ -290,11 +290,27 @@ try {
     process.exit(1);
 }
 
+// 显式检查导出类型。
+//
+// 理由：require 成功**不等于**模块可用。实测存在这种情形 ——
+// 加载到了 .node 但导出里没有构造函数（版本不匹配时模块能 require 通过，
+// 却在 new 时才炸）。若不显式检查，错误会表现为
+// "Database is not a constructor"，对用户毫无指向性。
+if (typeof Database !== 'function') {
+    console.error('');
+    console.error('[ERROR] 数据库驱动加载了，但不是可用的数据库实现。');
+    console.error('        导出类型：' + typeof Database);
+    console.error('        随包的 backend/node_modules 可能被替换过，请重新下载发布包。');
+    process.exit(1);
+}
+
 try {
     const db = new Database(':memory:');
     db.close();
 } catch (err) {
+    console.error('');
     console.error('[ERROR] 数据库驱动自检失败：' + String((err && err.message) || err));
+    console.error('        随包的原生模块与内置 Node 版本可能不匹配，请重新下载发布包。');
     process.exit(1);
 }
 
@@ -510,6 +526,28 @@ foreach ($a in $assets) {
     Say ("      {0}  {1}" -f (Split-Path -Leaf $a), $h.Substring(0,16)) "Green"
 }
 [System.IO.File]::WriteAllText($manifestPath, ($lines -join "`r`n"), (New-Object System.Text.UTF8Encoding($false)))
+
+# ── 6. 运行时自检（封版硬门槛）────────────────────────────────────────────
+#
+# 为什么必须在这里自动验：v0.1.0 的包在构建机上一切正常，
+# 装到用户机器却因 ABI 不匹配直接起不来。构建机跑通**不能**作为证据 ——
+# 构建机装依赖时用的 Node 版本，决定了随包原生模块的 ABI。
+#
+# 这里用包内自带的 node.exe 实际加载随包的 better-sqlite3，
+# 加载失败就中止打包，不让坏包流出去。
+Say ""
+Say "[封版自检] 验证随包原生模块可加载..." "Cyan"
+$checkScript = Join-Path $appDir "runtime\check.js"
+if (-not (Test-Path $checkScript)) {
+    throw "封版自检失败：找不到 runtime\check.js（打包流程可能被改动过）。"
+}
+$checkOut = & (Join-Path $appDir "runtime\node.exe") $checkScript 2>&1
+$checkCode = $LASTEXITCODE
+$checkOut | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
+if ($checkCode -ne 0) {
+    throw "封版自检失败：包内 node.exe 无法加载随包的 better-sqlite3（退出码 $checkCode）。`n这说明原生模块的 ABI 与内置运行时不一致 —— 不要发布这个包。"
+}
+Say "      原生模块加载正常" "Green"
 
 Say ""
 Say "=== 完成 ===" "Green"
