@@ -181,7 +181,13 @@ export function moveFolder({ connection: db, id, parentId }) {
 // ══════════════════════════════════════════════════════════════════
 
 /** 把数据库行转成前端用的 camelCase 对象。 */
-function toAsset(row, tags = []) {
+/**
+ * 把数据库行转成对外的资源对象。
+ *
+ * 导出是为了让**集合**（asset-collection-store.js）复用同一套字段映射 ——
+ * 否则集合里的资源与列表里的资源结构不一致，前端要写两套渲染。
+ */
+export function toAsset(row, tags = []) {
     if (!row) return null;
     return {
         id: row.id,

@@ -17,6 +17,7 @@ import { createReadStream, statSync, unlinkSync, writeFileSync, mkdirSync, rmSyn
 import { tmpdir } from 'node:os';
 import { join, resolve as resolvePath } from 'node:path';
 import * as store from './asset-store.js';
+import * as collections from './asset-collection-store.js';
 import {
     saveAssetFile, saveDerivedFile, deleteAssetFile,
     deleteVersionDir, deleteAssetDir, resolveAssetPath, assetMimeOf, classifyAsset,
@@ -215,6 +216,71 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
         const id = parseId(req.params.id);
         if (id === null) return res.status(400).json({ error: 'invalid_input', message: '文件夹 ID 无效' });
         res.json(store.deleteFolder({ connection: getDb(), id }));
+    }));
+
+    // ══════════════════════════════════════════════════════════════
+    // 集合（Packs）—— 跨目录的资源编组
+    //
+    // 与文件夹的区别：文件夹是一棵树（一个资源只能待在一个位置），
+    // 集合是多对多（一个资源可属多个集合），回答「这次要交付哪些」。
+    // ══════════════════════════════════════════════════════════════
+
+    router.get('/collections', wrap((_req, res) => {
+        res.json({ items: collections.listCollections({ connection: getDb() }) });
+    }));
+
+    router.post('/collections', wrap((req, res) => {
+        const { name, description } = req.body || {};
+        res.status(201).json(collections.createCollection({
+            connection: getDb(), name, description
+        }));
+    }));
+
+    router.get('/collections/:id', wrap((req, res) => {
+        const id = parseId(req.params.id);
+        if (id === null) return res.status(400).json({ error: 'invalid_input', message: '集合 ID 无效' });
+        const r = collections.getCollection({ connection: getDb(), id });
+        if (!r.collection) return res.status(404).json({ error: 'not_found', message: '集合不存在' });
+        res.json(r);
+    }));
+
+    router.put('/collections/:id', wrap((req, res) => {
+        const id = parseId(req.params.id);
+        if (id === null) return res.status(400).json({ error: 'invalid_input', message: '集合 ID 无效' });
+        const { name, description } = req.body || {};
+        res.json(collections.updateCollection({ connection: getDb(), id, name, description }));
+    }));
+
+    /**
+     * 删除集合。
+     * **只删集合本身，不删资源** —— 集合是视图不是容器，
+     * 删掉「展会包」不该让包里的模型跟着消失。前端必须说清这点。
+     */
+    router.delete('/collections/:id', wrap((req, res) => {
+        const id = parseId(req.params.id);
+        if (id === null) return res.status(400).json({ error: 'invalid_input', message: '集合 ID 无效' });
+        res.json(collections.deleteCollection({ connection: getDb(), id }));
+    }));
+
+    router.post('/collections/:id/items', wrap((req, res) => {
+        const id = parseId(req.params.id);
+        if (id === null) return res.status(400).json({ error: 'invalid_input', message: '集合 ID 无效' });
+        const { assetIds } = req.body || {};
+        res.json(collections.addAssetsToCollection({ connection: getDb(), collectionId: id, assetIds }));
+    }));
+
+    router.delete('/collections/:id/items', wrap((req, res) => {
+        const id = parseId(req.params.id);
+        if (id === null) return res.status(400).json({ error: 'invalid_input', message: '集合 ID 无效' });
+        const { assetIds } = req.body || {};
+        res.json(collections.removeAssetsFromCollection({ connection: getDb(), collectionId: id, assetIds }));
+    }));
+
+    /** 反向查询：某个资源属于哪些集合（资源详情页显示「它还在哪些包里」）。 */
+    router.get('/assets/:id/collections', wrap((req, res) => {
+        const id = parseId(req.params.id);
+        if (id === null) return res.status(400).json({ error: 'invalid_input', message: '资源 ID 无效' });
+        res.json({ items: collections.listCollectionsOfAsset({ connection: getDb(), assetId: id }) });
     }));
 
     // ══════════════════════════════════════════════════════════════

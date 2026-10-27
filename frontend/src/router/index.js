@@ -38,6 +38,18 @@ const routes = [
         component: () => import('../views/Assets.vue')
     },
     {
+        // 集合列表与详情。注册在 /assets 之后即可 —— 资源详情是弹窗不是路由，
+        // 不存在 /assets/:id 抢匹配的问题。
+        path: '/assets/collections',
+        name: 'asset-collections',
+        component: () => import('../views/AssetCollections.vue')
+    },
+    {
+        path: '/assets/collections/:id',
+        name: 'asset-collection-detail',
+        component: () => import('../views/AssetCollectionDetail.vue')
+    },
+    {
         path: '/tools',
         name: 'tools',
         component: () => import('../views/Tools.vue')

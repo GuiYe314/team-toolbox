@@ -151,6 +151,23 @@ export const assetApi = {
     moveFolder: (id, parentId) => request('PUT', `/asset-folders/${id}`, { parentId }),
     deleteFolder: (id) => request('DELETE', `/asset-folders/${id}`),
 
+    // ── 集合（Packs）──
+    // 与文件夹的区别：文件夹是一棵树（一个资源只能待在一个位置），
+    // 集合是多对多（一个资源可属多个集合），回答「这次要交付哪些」。
+    listCollections: () => request('GET', '/collections'),
+    getCollection: (id) => request('GET', `/collections/${id}`),
+    createCollection: (name, description = '') =>
+        request('POST', '/collections', { name, description }),
+    updateCollection: (id, patch) => request('PUT', `/collections/${id}`, patch),
+    // 删集合**不删资源** —— 集合是视图不是容器
+    deleteCollection: (id) => request('DELETE', `/collections/${id}`),
+    addToCollection: (id, assetIds) =>
+        request('POST', `/collections/${id}/items`, { assetIds }),
+    removeFromCollection: (id, assetIds) =>
+        request('DELETE', `/collections/${id}/items`, { assetIds }),
+    // 反向查询：这个资源还在哪些包里
+    collectionsOfAsset: (assetId) => request('GET', `/assets/${assetId}/collections`),
+
     // ── 回收站 / 批量 ──
     batchDelete: (assetIds) => request('POST', '/assets/batch-delete', { assetIds }),
     batchRestore: (assetIds) => request('POST', '/assets/batch-restore', { assetIds }),

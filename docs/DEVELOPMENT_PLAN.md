@@ -167,6 +167,25 @@
   7) 备份往返保留回收站内容与删除状态。
 - **完成条件**：以上 7 条均有测试覆盖且全绿；前后端回归全绿。
 
+### TASK-017 资源集合（Packs）
+- **交付物**：`backend/src/migrations/008_asset_collections.sql`（集合表 + 成员多对多表）；
+  `backend/src/asset-collection-store.js`（CRUD / 成员增删 / 反向查询）；
+  `asset-api.js` 的 `/collections` 系列路由与 `GET /assets/:id/collections`；
+  `frontend/src/views/AssetCollections.vue`（列表）、`AssetCollectionDetail.vue`（详情）；
+  资源页的「集合」入口与批量「加入集合」；
+  `backend/src/asset-collection.test.js`（13 项）、`frontend/verify-asset-collections.mjs`（20 项）。
+- **覆盖特性**：F-AM-001。
+- **依赖**：TASK-010（资源管理子系统）。
+- **验证**：
+  1) 能建集合、加资源、成员数正确；
+  2) 一个资源可同时属于多个集合（与文件夹的本质区别）；
+  3) 重复加入幂等；
+  4) **删集合不删资源**、移出集合不删资源，且界面对此有明确说明；
+  5) 软删资源离开集合、恢复后自动回到原集合；
+  6) 永久删除资源后成员行不悬空；
+  7) 同名集合被拒绝并给出可读提示。
+- **完成条件**：以上 7 条均有测试覆盖且全绿；前后端回归全绿。
+
 ## 3. 依赖关系（人工核对无环）
 
 - TASK-001 → TASK-002 → TASK-003
@@ -179,6 +198,7 @@
 - TASK-005 + TASK-007 → TASK-014
 - TASK-005 + TASK-010 → TASK-015
 - TASK-005 + TASK-009 → TASK-016
+- TASK-010 → TASK-017
 - 延期：TASK-D02 依赖 TASK-010；TASK-D01 依赖 TASK-D02，两者均需届时完成对应方案决策。
 
 ## 4. 延期任务（不计入 MVP 门槛）

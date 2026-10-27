@@ -28,6 +28,14 @@
                     </svg>
                     新建文件夹
                 </button>
+                <!-- 集合：跨目录的资源编组，与文件夹互补（一个资源可属多个集合） -->
+                <router-link class="btn" to="/assets/collections" title="跨目录的资源编组">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z" />
+                        <path d="M3.5 7.5 12 12l8.5-4.5M12 12v9" />
+                    </svg>
+                    集合
+                </router-link>
 
                 <!-- 导入 / 导出 / 存储路径 -->
                 <div class="am-io-group">
@@ -217,6 +225,7 @@
             </button>
             <button class="btn btn-sm" type="button" @click="batchMove">移动</button>
             <button class="btn btn-sm" type="button" @click="batchTag">添加标签</button>
+            <button v-if="!trashMode" class="btn btn-sm" type="button" @click="batchAddToCollection">加入集合</button>
             <button v-if="trashMode" class="btn btn-sm" type="button" @click="batchRestore">恢复</button>
             <button class="btn btn-sm btn-danger" type="button" @click="trashMode ? batchPurge() : batchDelete()">
                 {{ trashMode ? '永久删除' : '删除' }}
@@ -1535,10 +1544,57 @@ export default {
                 }
             };
         },
+        /**
+         * 把选中的资源加入集合。
+         *
+         * 用输入框而不是下拉选择：集合在早期往往还没建好，
+         * 让用户「输入名字 → 不存在就顺手创建」比「先去别处建好再回来选」少两步。
+         * 名字已存在则直接加入 —— 与标签的交互习惯一致。
+         */
+        batchAddToCollection() {
+            const n = this.selectedIds.length;
+            this.prompt = {
+                kind: 'text',
+                title: `把 ${n} 个资源加入集合`,
+                hint: '输入集合名称：已存在则直接加入，不存在会自动创建',
+                placeholder: '展会交付包',
+                value: '',
+                okText: '加入',
+                onSubmit: async (raw) => {
+                    const name = String(raw || '').trim();
+                    if (!name) throw new Error('请输入集合名称');
+
+                    // 先按名字找，找到就用；找不到再创建
+                    const listed = await assetApi.listCollections();
+                    if (!listed.res.ok) throw new Error((listed.body && listed.body.message) || '读取集合失败');
+                    const found = ((listed.body && listed.body.items) || []).find((c) => c.name === name);
+
+                    let cid = found ? found.id : null;
+                    let createdNew = false;
+                    if (!cid) {
+                        const made = await assetApi.createCollection(name);
+                        if (!made.res.ok) throw new Error((made.body && made.body.message) || '创建集合失败');
+                        cid = made.body.id;
+                        createdNew = true;
+                    }
+
+                    const r = await assetApi.addToCollection(cid, this.selectedIds);
+                    if (!r.res.ok) throw new Error((r.body && r.body.message) || '加入集合失败');
+
+                    const added = (r.body && r.body.added) || 0;
+                    const skipped = (r.body && r.body.skipped) || 0;
+                    let msg = createdNew
+                        ? `已创建集合「${name}」并加入 ${added} 个资源`
+                        : `已把 ${added} 个资源加入集合「${name}」`;
+                    if (skipped > 0) msg += `；${skipped} 个本来就在集合里`;
+                    await this.load();
+                    window.alert(msg);
+                }
+            };
+        },
         confirmDelete(ids) {
             this.confirm = {
-                title: '移入回收站',
-                text: `确定将 ${ids.length} 个资源移入回收站吗？`,
+                title: '移入回收站',                text: `确定将 ${ids.length} 个资源移入回收站吗？`,
                 warn: '文件不会立即删除，可在回收站中恢复。',
                 okText: '移入回收站',
                 action: async () => {
