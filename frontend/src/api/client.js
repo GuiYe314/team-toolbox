@@ -60,10 +60,16 @@ export const api = {
     createDocument: (payload) => request('POST', '/documents', payload),
     updateDocument: (id, payload) => request('PUT', '/documents/' + id, payload),
     deleteDocument: (id) => request('DELETE', '/documents/' + id),
-    // batchDeleteDocuments 传 id 数组；服务端单事务原子删除。
+    // batchDeleteDocuments 传 id 数组；服务端单事务原子软删（移入回收站）。
     // 返回 { deleted, cascaded, missing }：deleted 为直接删除数，
-    // cascaded 为被连带删除的子孙页数，missing 为已不存在的 id。
+    // cascaded 为被连带移入回收站的子孙页数，missing 为已不存在的 id。
     batchDeleteDocuments: (ids) => request('POST', '/documents/batch-delete', { ids }),
+    // ── 回收站（007）──
+    listTrashDocuments: (query = '') => request('GET', '/documents/trash' + query),
+    restoreDocuments: (ids) => request('POST', '/documents/restore', { ids }),
+    // purge 必须带 confirm=1，服务端会拒掉未确认的请求
+    purgeDocuments: (ids) => request('POST', '/documents/purge?confirm=1', { ids }),
+    emptyTrash: () => request('POST', '/documents/trash/empty?confirm=1', {}),
     listCategories: () => request('GET', '/categories'),
     createCategory: (name) => request('POST', '/categories', { name }),
     updateCategory: (id, name) => request('PUT', '/categories/' + id, { name }),

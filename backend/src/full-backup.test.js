@@ -10,7 +10,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync, createWriteStream } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync, createWriteStream, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -33,9 +33,13 @@ import { extractFullBackup, restoreFullBackup } from './full-backup-restore.js';
  */
 function makeDb() {
     const db = createTestingDatabase({ memory: true });
-    for (const file of ['001_init.sql', '002_page_tree.sql', '003_assets.sql', '004_placeholder.sql', '005_asset_settings.sql']) {
-        const sql = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'migrations', file), 'utf8');
-        db.exec(sql);
+    // 自动扫描迁移目录，**不要硬编码文件列表**。
+    // 之前每新增一个迁移都要回来改这里（006、007 都漏过），
+    // 漏掉的后果是测试用手写/过期的 schema，报出一堆与改动无关的失败。
+    const dir = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
+    const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+    for (const file of files) {
+        db.exec(readFileSync(join(dir, file), 'utf8'));
     }
     return db;
 }

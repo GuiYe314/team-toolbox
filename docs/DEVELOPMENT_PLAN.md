@@ -149,6 +149,24 @@
   5) `auto` 指针：有发布版取发布版，无发布版退回最新版。
 - **完成条件**：以上 5 条均有测试覆盖且全绿；前后端回归全绿。
 
+### TASK-016 文档回收站（把物理删除改成可恢复）
+- **交付物**：`backend/src/migrations/007_document_trash.sql`（is_deleted / deleted_at / deleted_by）；
+  `store.js` 的软删、恢复、永久删除、回收站列表；`api.js` 的
+  `GET /documents/trash`、`POST /documents/restore`、`POST /documents/purge?confirm=1`、
+  `POST /documents/trash/empty?confirm=1`；`frontend/src/views/KnowledgeTrash.vue`（回收站页）；
+  `backend/src/document-trash.test.js`（12 项）、`frontend/verify-document-trash.mjs`（26 项）。
+- **覆盖特性**：F-KB-010。
+- **依赖**：TASK-005（文档 CRUD）、TASK-009（备份，需保留删除状态）。
+- **验证**：
+  1) 软删后正常列表 / 详情 / 搜索 / 页面树均不可见，回收站可见；
+  2) 恢复后正文、标签、可搜索性完整；
+  3) 恢复时父级不可用 → 提升为顶层（不产生看不见的孤儿）；
+  4) 永久删除需 `confirm=1`，且只允许删回收站里的文档；
+  5) 永久删除不带走「已单独恢复正常」的下层文档；
+  6) 永久删除的返回数量如实反映影响面（含随子树清掉的文档）；
+  7) 备份往返保留回收站内容与删除状态。
+- **完成条件**：以上 7 条均有测试覆盖且全绿；前后端回归全绿。
+
 ## 3. 依赖关系（人工核对无环）
 
 - TASK-001 → TASK-002 → TASK-003
@@ -160,6 +178,7 @@
 - TASK-009 + TASK-012 → TASK-013
 - TASK-005 + TASK-007 → TASK-014
 - TASK-005 + TASK-010 → TASK-015
+- TASK-005 + TASK-009 → TASK-016
 - 延期：TASK-D02 依赖 TASK-010；TASK-D01 依赖 TASK-D02，两者均需届时完成对应方案决策。
 
 ## 4. 延期任务（不计入 MVP 门槛）

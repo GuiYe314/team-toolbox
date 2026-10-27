@@ -185,7 +185,8 @@ try {
     await evalJs(`[...document.querySelectorAll('.kb-selbar .btn')].find(b => b.textContent.includes('删除所选')).click();`);
     await sleep(500);
     ok(await evalJs("!!document.querySelector('.overlay .dialog')"), '确认弹窗打开');
-    ok(await evalJs("document.querySelector('.dialog-title').textContent.includes('确认批量删除')"), '弹窗标题正确');
+    const dlgTitle = await evalJs("document.querySelector('.dialog-title').textContent");
+    ok(/移入回收站|确认批量删除/.test(dlgTitle), '弹窗标题正确');
     ok(await evalJs("document.querySelector('.dialog-text').textContent.includes('1')"), '弹窗显示选中数量');
     ok(await evalJs("!!document.querySelector('.dialog-warn')"), '父页面触发级联警告');
     ok(await evalJs("document.querySelector('.dialog-warn').textContent.includes('2 个子页面')"),
@@ -220,7 +221,7 @@ try {
     ok(await evalJs("document.querySelector('.kb-sel-count').textContent.includes('已选 3 项')"), '选中 3 个独立页');
     await evalJs(`[...document.querySelectorAll('.kb-selbar .btn')].find(b => b.textContent.includes('删除所选')).click();`);
     await sleep(400);
-    await evalJs(`[...document.querySelectorAll('.dialog-actions .btn')].find(b => b.textContent.includes('确认删除')).click();`);
+    await evalJs(`[...document.querySelectorAll('.dialog-actions .btn')].find(b => /移入回收站|确认删除|删除中/.test(b.textContent)).click();`);
     await sleep(1500);
     ok(!(await evalJs("!!document.querySelector('.overlay .dialog')")), '删除后弹窗关闭');
     for (const id of lonelyIds) {
@@ -229,8 +230,10 @@ try {
     }
     const parentAlive = await fetch(`${API}/documents/${parent.data.id}`);
     ok(parentAlive.status === 200, '未选中的父页仍在');
-    ok(await evalJs("document.querySelector('.kb-io-msg') && document.querySelector('.kb-io-msg').textContent.includes('已删除 3 个文档')"),
-        '顶部提示已删除 3 个');
+    // 文案随回收站（TASK-016）改为「移入回收站」，
+    // 断言校验语义（提及 3 个文档 + 可恢复）而不是固定措辞。
+    const ioMsg = await evalJs("document.querySelector('.kb-io-msg') ? document.querySelector('.kb-io-msg').textContent : ''");
+    ok(/3 个文档/.test(ioMsg) && /回收站|已删除/.test(ioMsg), '顶部提示说明 3 个文档的去向');
     ok(await evalJs("document.querySelector('.kb-sel-count').textContent.includes('已选 0 项')"), '删除后选择已清空');
 
     // ── 8. 删除父页验证级联 ───────────────────────────────────────
@@ -243,7 +246,7 @@ try {
     await sleep(300);
     await evalJs(`[...document.querySelectorAll('.kb-selbar .btn')].find(b => b.textContent.includes('删除所选')).click();`);
     await sleep(400);
-    await evalJs(`[...document.querySelectorAll('.dialog-actions .btn')].find(b => b.textContent.includes('确认删除')).click();`);
+    await evalJs(`[...document.querySelectorAll('.dialog-actions .btn')].find(b => /移入回收站|确认删除|删除中/.test(b.textContent)).click();`);
     await sleep(1500);
     for (const id of [parent.data.id, kid1.data.id, kid2.data.id]) {
         const r = await fetch(`${API}/documents/${id}`);

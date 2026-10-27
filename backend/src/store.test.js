@@ -59,6 +59,11 @@ CREATE TABLE IF NOT EXISTS documents (
     version      INTEGER NOT NULL DEFAULT 1,
     created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    -- 回收站（007）：软删标记。测试模板要跟随生产 schema，
+    -- 否则存储层里所有带 is_deleted 过滤的查询都会报「没有这一列」。
+    is_deleted   INTEGER NOT NULL DEFAULT 0,
+    deleted_at   TEXT,
+    deleted_by   TEXT,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
     FOREIGN KEY (parent_id)   REFERENCES documents(id) ON DELETE CASCADE
 );
@@ -428,12 +433,20 @@ describe('文档存储层', () => {
         assert.strictEqual(updated.category_id, null, '删除分类后文档应变为未分类');
     });
 
-    it('删除文档后标签关联自动清理', () => {
+    it('软删保留标签关联，永久删除后才清理', () => {
+        // 行为变化（007 回收站）：旧版物理删除时 document_tags 由 ON DELETE CASCADE 清掉；
+        // 现在软删只打标记，**关联必须保留** —— 否则从回收站恢复后标签就全丢了。
         const doc = store.createDocument({ connection: db, title: 'CASCADE Test', tags: ['cascadetag'] });
         const docId = doc.id;
+
         store.deleteDocument({ connection: db, id: docId });
-        const tags = store.getDocumentTags({ connection: db, document_id: docId });
-        assert.strictEqual(tags.length, 0, '删除文档后标签关联应自动清理');
+        const tagsAfterTrash = store.getDocumentTags({ connection: db, document_id: docId });
+        assert.strictEqual(tagsAfterTrash.length, 1, '软删后标签关联必须保留（恢复时要带回来）');
+
+        // 永久删除才走物理 DELETE，此时 CASCADE 才生效
+        store.purgeDocuments({ connection: db, ids: [docId] });
+        const tagsAfterPurge = store.getDocumentTags({ connection: db, document_id: docId });
+        assert.strictEqual(tagsAfterPurge.length, 0, '永久删除后标签关联才应被级联清理');
     });
 
     // ── 乐观锁冲突 ──

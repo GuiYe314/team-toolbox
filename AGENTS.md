@@ -43,6 +43,7 @@
 | `verify-search.mjs` | 全文检索：中文子串命中、英文词边界、空状态、清除恢复 | 10 |
 | `verify-release-runtime.mjs` | 发布包运行时：内置 Node、ABI 自检、启动脚本契约 | — |
 | `verify-asset-reference.mjs` | 文档引用资源：插入、落库、渲染、失效降级 | — |
+| `verify-document-trash.mjs` | 文档回收站：软删、恢复、永久删除、二次确认、不误伤正常文档 | 9、10 |
 | `verify-qr-share.mjs` | 二维码内容、颜色走 CSS 变量、主题切换 | 2、4 |
 | `verify-batch-mode.mjs` | 批量模式开关、菜单落在视口内 | 1、8 |
 | `verify-asset-preview.mjs` | 预览管线、缩略图、失败原因可见 | — |

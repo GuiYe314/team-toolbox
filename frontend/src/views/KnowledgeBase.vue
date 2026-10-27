@@ -42,6 +42,15 @@
             </div>
 
             <div class="kb-io">
+                <!-- 回收站入口：删除是软删，用户需要知道「东西去哪了、还能不能找回」 -->
+                <router-link class="btn btn-sm" to="/kb/trash" title="查看已删除的文档">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                        <polyline points="4 6.5 20 6.5" />
+                        <path d="M9 6.5V4.8A1.8 1.8 0 0 1 10.8 3h2.4A1.8 1.8 0 0 1 15 4.8v1.7" />
+                        <path d="M6.5 6.5l.9 13.2A1.8 1.8 0 0 0 9.2 21.4h5.6a1.8 1.8 0 0 0 1.8-1.7l.9-13.2" />
+                    </svg>
+                    回收站
+                </router-link>
                 <!-- 批量删除：先进入选择模式，选中后再确认，避免误删 -->
                 <button
                     class="btn btn-sm"
@@ -220,12 +229,13 @@
         <Teleport to="body">
             <div v-if="showDeleteConfirm" class="overlay" @click.self="closeDeleteConfirm">
             <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="kb-del-title">
-                <h2 class="dialog-title" id="kb-del-title">确认批量删除</h2>
+                <h2 class="dialog-title" id="kb-del-title">移入回收站</h2>
                 <p class="dialog-text">
-                    即将删除 <strong>{{ selectedIds.length }}</strong> 个文档，此操作不可撤销。
+                    即将把 <strong>{{ selectedIds.length }}</strong> 个文档移入回收站。
+                    <strong>可以随时在回收站里恢复</strong>，不会立刻消失。
                 </p>
                 <p v-if="cascadeWarnCount > 0" class="dialog-warn">
-                    其中包含页面树中的父页面，其下共 {{ cascadeWarnCount }} 个子页面也会一并删除。
+                    其中包含页面树中的父页面，其下共 {{ cascadeWarnCount }} 个子页面也会一并移入回收站。
                 </p>
                 <ul v-if="selectedTitles.length" class="kb-del-list">
                     <li v-for="t in selectedTitles" :key="t" class="kb-del-item">{{ t }}</li>
@@ -237,7 +247,7 @@
                 <div class="dialog-actions">
                     <button class="btn" type="button" :disabled="deleting" @click="closeDeleteConfirm">取消</button>
                     <button class="btn btn-danger-solid" type="button" :disabled="deleting" @click="doBatchDelete">
-                        {{ deleting ? '删除中…' : '确认删除' }}
+                        {{ deleting ? '处理中…' : '移入回收站' }}
                     </button>
                 </div>
             </div>
@@ -681,10 +691,11 @@ export default {
                 const cascaded = (body && body.cascaded) || 0;
                 const missing = (body && body.missing) || [];
 
-                let msg = `已删除 ${deleted} 个文档`;
+                let msg = `已将 ${deleted} 个文档移入回收站`;
                 if (cascaded > 0) msg += `，连带 ${cascaded} 个子页面`;
                 if (missing.length > 0) msg += `；${missing.length} 个已不存在`;
-                msg += '。';
+                // 必须告诉用户去哪儿找回 —— 否则「删了」的焦虑还在
+                msg += '，可在回收站恢复。';
                 this.ioError = false;
                 this.ioMessage = msg;
 

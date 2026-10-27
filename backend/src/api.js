@@ -193,6 +193,54 @@ export function registerApi(app, { getDb, basePath = '/api' }) {
         res.json({ items: store.listChildren({ connection: getDb(), id }) });
     }));
 
+    // ───────────────────────── 文档回收站 ─────────────────────────
+    // 注意：这些路径必须注册在 /documents/:id 之前，
+    // 否则 "trash" 会被当成文档 id 解析。
+
+    /** 回收站列表（按删除时间倒序）。 */
+    router.get('/documents/trash', wrap((req, res) => {
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+        const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+        res.json(store.listTrashDocuments({ connection: getDb(), limit, offset }));
+    }));
+
+    /** 从回收站恢复（连带子树；父级已不可用时提升为顶层）。 */
+    router.post('/documents/restore', wrap((req, res) => {
+        const ids = req.body && req.body.ids;
+        res.json(store.restoreDocuments({ connection: getDb(), ids }));
+    }));
+
+    /**
+     * 永久删除：物理移除，不可恢复。
+     * 必须显式 confirm=1（与资源侧 purge 的约定一致），
+     * 且只允许删已在回收站里的文档 —— 从机制上杜绝一键抹掉正常文档。
+     */
+    router.post('/documents/purge', wrap((req, res) => {
+        if (req.query.confirm !== '1') {
+            return res.status(400).json({
+                error: 'invalid_input',
+                message: '永久删除需要二次确认'
+            });
+        }
+        const ids = req.body && req.body.ids;
+        res.json(store.purgeDocuments({ connection: getDb(), ids }));
+    }));
+
+    /** 清空回收站（物理删除全部已删文档）。 */
+    router.post('/documents/trash/empty', wrap((req, res) => {
+        if (req.query.confirm !== '1') {
+            return res.status(400).json({
+                error: 'invalid_input',
+                message: '清空回收站需要二次确认'
+            });
+        }
+        const ids = store.listTrashDocumentIds({ connection: getDb() });
+        if (ids.length === 0) {
+            return res.json({ deleted: 0, detached: 0, missing: [] });
+        }
+        res.json(store.purgeDocuments({ connection: getDb(), ids }));
+    }));
+
     // 读取单个
     router.get('/documents/:id', wrap((req, res) => {
         const id = parseId(req.params.id);

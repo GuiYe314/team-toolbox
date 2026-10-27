@@ -588,11 +588,11 @@ test('POST /api/documents/batch-delete 原子性：任一 id 非法则整批不�
     assert.equal((await fetch(base + `/api/documents/${b.data.id}`)).status, 200);
 });
 
-test('POST /api/documents/batch-delete 清理标签关联', async () => {
+test('POST /api/documents/batch-delete 软删保留标签关联，purge 后才清理', async () => {
     const a = await postDoc({ title: '标签批删', tags: ['待删标签'] });
-    // 断言 document_tags 关联行被 CASCADE 清理。
-    // 注意：tags 表中的标签名本身保留（与单条删除行为一致），
-    //孤立标签的清理是 TASK 里尚未实现的 GC，不在本次范围内。
+    // 行为变化（007 回收站）：软删只打标记，document_tags 关联**保留**，
+    // 这样从回收站恢复时标签还在；只有永久删除（purge）才由 CASCADE 清理。
+    // 注意：tags 表中的标签名本身保留，孤立标签的 GC 不在本次范围内。
     const linkedBefore = db.prepare(`
         SELECT COUNT(*) AS n FROM document_tags dt
         JOIN tags t ON t.id = dt.tag_id
@@ -602,12 +602,27 @@ test('POST /api/documents/batch-delete 清理标签关联', async () => {
 
     await postBatchDelete([a.data.id]);
 
-    const linkedAfter = db.prepare(`
+    const linkedAfterTrash = db.prepare(`
         SELECT COUNT(*) AS n FROM document_tags dt
         JOIN tags t ON t.id = dt.tag_id
         WHERE dt.document_id = ? AND t.name = ?
     `).get(a.data.id, '待删标签').n;
-    assert.equal(linkedAfter, 0, '标签关联应被级联清理');
+    assert.equal(linkedAfterTrash, 1, '软删后标签关联必须保留（恢复时要带回来）');
+
+    // 永久删除后才真正清理
+    const purge = await fetch(`${base}/api/documents/purge?confirm=1`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [a.data.id] })
+    });
+    assert.equal(purge.status, 200, 'purge 应成功');
+
+    const linkedAfterPurge = db.prepare(`
+        SELECT COUNT(*) AS n FROM document_tags dt
+        JOIN tags t ON t.id = dt.tag_id
+        WHERE dt.document_id = ? AND t.name = ?
+    `).get(a.data.id, '待删标签').n;
+    assert.equal(linkedAfterPurge, 0, '永久删除后标签关联才应被级联清理');
 });
 
 // ───────────────────────── 备份导入 / 导出 ─────────────────────────

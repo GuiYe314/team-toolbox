@@ -17,6 +17,12 @@ const routes = [
         component: () => import('../views/DocumentEdit.vue')
     },
     {
+        // 必须注册在 /kb/:id 之前，否则 "trash" 会被当成文档 id。
+        path: '/kb/trash',
+        name: 'kb-trash',
+        component: () => import('../views/KnowledgeTrash.vue')
+    },
+    {
         path: '/kb/:id',
         name: 'kb-detail',
         component: () => import('../views/DocumentDetail.vue')

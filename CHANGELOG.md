@@ -2,6 +2,65 @@
 
 格式：日期 + 类型 + 条目。**只追加，不改写历史。**当前进度以 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) 为唯一来源，本文件不承载状态。
 
+## 2026-10-27
+
+### TASK-016 文档回收站：把「物理删除」改成「可恢复」（实现 + 浏览器验证，待 Codex 验收）
+
+### Context
+功能调研核实出的数据保护缺口，与「备份不含资源文件」同类：
+**让用户以为自己有退路，实际没有。**
+
+文档此前是 `DELETE FROM documents` 物理删除，且 `ON DELETE CASCADE` 会连带
+删掉整棵子树 —— 误删一篇带十几篇子页的文档，没有任何挽回手段。
+而资源侧从第一天起就有完整回收站（`is_deleted` + 恢复 + 永久删除）。
+
+### Added
+- `backend/src/migrations/007_document_trash.sql`：`is_deleted` / `deleted_at` / `deleted_by`。
+  只加标记列，不改主键外键，现有数据零迁移成本。
+- `store.js`：
+  - `deleteDocument` / `deleteDocuments` 改为软删（整棵子树一并标记）
+  - `restoreDocuments`：恢复子树、重建全文索引、父级不可用时提升为顶层
+  - `purgeDocuments`：永久删除，只允许删回收站里的文档
+  - `listTrashDocuments` / `listTrashDocumentIds`
+- `api.js`：`GET /documents/trash`、`POST /documents/restore`、
+  `POST /documents/purge?confirm=1`、`POST /documents/trash/empty?confirm=1`
+  （路由注册在 `/documents/:id` 之前，否则 "trash" 会被当成 id）
+- `frontend/src/views/KnowledgeTrash.vue`：回收站页（`/kb/trash`）——
+  列表、单条/批量恢复、单条/批量永久删除、清空，全部带二次确认。
+- `backend/src/document-trash.test.js`（12 项）、`frontend/verify-document-trash.mjs`（26 项）。
+
+### Changed
+- 所有正常查询排除已删：列表、详情、搜索（FTS 与 LIKE 两条路径）、页面树、
+  子页列表、编辑。已删文档无法通过直链或接口绕过（详情报 404）。
+- 删除确认文案改为「移入回收站」，并明示**可以随时恢复**；
+  删除成功的提示也告诉你「可在回收站恢复」—— 否则「删了」的焦虑还在。
+- 父页面校验（创建/编辑文档时）要求父页未删除，
+  避免正常文档挂在回收站页面下变成「看不见的孤儿」。
+- 备份快照保留 `is_deleted` / `deleted_at`，导入时原样恢复；
+  旧版备份没有这两个字段，按未删除处理。
+
+### Fixed
+- **永久删除会带走「已单独恢复正常」的子文档**：父在回收站、子已恢复正常时，
+  直接 DELETE 父会被 `ON DELETE CASCADE` 一起带走。改为删除前先把这些正常子页摘成顶层。
+- **永久删除的返回数量不准**：`DELETE ... WHERE id IN (1,2)`（2 是 1 的子节点）
+  返回 `changes = 1` —— CASCADE 先删了子，父的删除只影响 1 行。
+  界面会报「永久删除 1 项」而实际删了 2 篇。改为显式求出完整子树、
+  删除前先断开待删集合内部的父子关系（避免 CASCADE 抢行），逐项准确计数。
+- **测试硬编码迁移文件列表**：`full-backup.test.js` / `search-index.test.js` 里
+  手写 `['001_init.sql', ...]`，加 006 时漏过一次，加 007 又漏一次，
+  导致测试跑在过期 schema 上报出一批与改动无关的失败。改为自动扫描迁移目录。
+- `verify-batch-delete.mjs` 的文案断言改为校验语义而非固定措辞
+  （「移入回收站 / 确认删除」都算通过），避免以后再调整文案时误报。
+
+### 验证证据
+- 后端 `npm test` **300/300**（新增 12 项，含「关键：永久删除不能带走已恢复的子页」）。
+- 前端回归 **389 项全绿**（新增 `verify-document-trash` 26/26；
+  `verify-batch-delete` 45/45、`ui-verify` 53/53 等全部保持通过）。
+- 浏览器实测：知识库 → 删除 → 回收站列表（标题/标签/删除时间/子页数正确）→
+  永久删除确认弹窗 → 取消 → 恢复 → 提示「已恢复 1 篇文档」→ 列表清空 → 空状态；
+  文档详情接口恢复 200、标签保留、搜索重新命中；控制台 0 错误。
+- API 实测：无 `confirm` 的 purge/清空返回 400，带 `confirm=1` 返回 200。
+
 ## 2026-10-26
 
 ### v0.1.1 发布流程加固：封版自检门槛 + 坏包警告（已发布）

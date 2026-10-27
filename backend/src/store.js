@@ -224,7 +224,7 @@ export function createDocument({ connection: db, title, content_md = '', categor
 
     // 验证父页面存在（如果提供了）
     if (vParent.value !== null) {
-        const parent = db.prepare('SELECT id FROM documents WHERE id = ?').get(vParent.value);
+        const parent = db.prepare('SELECT id FROM documents WHERE id = ? AND is_deleted = 0').get(vParent.value);
         if (!parent) throw errorMap(new Error('指定的父页面不存在'), '(store)', 'invalid_input');
     }
 
@@ -277,7 +277,10 @@ export function createDocument({ connection: db, title, content_md = '', categor
  *             tags: string[], path: {id:number,title:string}[], child_count: number, descendant_count: number }|null}
  */
 export function getDocument({ connection: db, id }) {
-    const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(id);
+    // 已删文档对正常详情页不可见（返回 null → 404）。
+    // 回收站要走 listTrash / getTrashDocument，不共用这条路径 ——
+    // 否则「已删文档还能通过直链打开」会让回收站形同虚设。
+    const doc = db.prepare('SELECT * FROM documents WHERE id = ? AND is_deleted = 0').get(id);
     if (!doc) return null;
 
     const tagRows = db.prepare(`
@@ -286,7 +289,9 @@ export function getDocument({ connection: db, id }) {
         WHERE dt.document_id = ?
     `).all(id);
 
-    // 祖先路径（根 → 父），用于面包屑
+    // 祖先路径（根 → 父），用于面包屑。
+    // 路径上的祖先若已被删（在回收站），不出现在正常文档的导航里。
+    // 过滤放在 SQL 里做，而不是查出后再逐条查库（那会变成 N+1 查询）。
     const path = db.prepare(`
         WITH RECURSIVE up(id, title, parent_id, depth) AS (
             SELECT id, title, parent_id, 0 FROM documents WHERE id = ?
@@ -294,15 +299,18 @@ export function getDocument({ connection: db, id }) {
             SELECT d.id, d.title, d.parent_id, up.depth + 1
             FROM documents d JOIN up ON d.id = up.parent_id
         )
-        SELECT id, title FROM up WHERE depth > 0 ORDER BY depth DESC
+        SELECT up.id, up.title FROM up
+        JOIN documents d ON d.id = up.id AND d.is_deleted = 0
+        WHERE up.depth > 0 ORDER BY up.depth DESC
     `).all(id);
 
-    const childCount = db.prepare('SELECT COUNT(*) AS n FROM documents WHERE parent_id = ?').get(id).n;
+    // 子页与后代统计只计未删除的 —— 回收站里的子页不应让父页显示「还有 N 个子页」
+    const childCount = db.prepare('SELECT COUNT(*) AS n FROM documents WHERE parent_id = ? AND is_deleted = 0').get(id).n;
     const descendantCount = db.prepare(`
         WITH RECURSIVE sub(id) AS (
-            SELECT id FROM documents WHERE parent_id = ?
+            SELECT id FROM documents WHERE parent_id = ? AND is_deleted = 0
             UNION ALL
-            SELECT d.id FROM documents d JOIN sub ON d.parent_id = sub.id
+            SELECT d.id FROM documents d JOIN sub ON d.parent_id = sub.id AND d.is_deleted = 0
         )
         SELECT COUNT(*) AS n FROM sub
     `).get(id).n;
@@ -331,7 +339,8 @@ export function getDocument({ connection: db, id }) {
 export function listDocuments({ connection: db, filter = {} }) {
     const { limit = 20, offset = 0, category_id, parent_id, root, tags } = filter;
 
-    const conds = [];
+    // 正常列表恒排除回收站 —— 回收站走 listTrashDocuments。
+    const conds = ['d.is_deleted = 0'];
     const params = [];
     if (category_id !== undefined && category_id !== null) {
         conds.push('d.category_id = ?');
@@ -512,17 +521,11 @@ export function searchDocuments({ connection: db, keyword, limit = 20, offset = 
         //
         // 所以：第一段在纯 FTS 上下文里取 doc_id + rank（无 GROUP BY），
         //       第二段用 IN 拿主表详情与标签。
-        const total = db.prepare(`
-            SELECT COUNT(*) as n
-            FROM ${FTS_TABLE}
-            WHERE tokens MATCH ?
-        `).get(matchExpr).n;
-
-        // 第一段：FTS 匹配 + BM25 打分。
-        // 刻意**只查 FTS 表**，不 JOIN documents —— bm25() 在 FTS5 的辅助函数，
-        // 一旦 JOIN 上别的表再配 GROUP BY，SQLite 报
-        // "unable to use function bm25 in the requested context"。
-        // 二级排序（相关度相同时按更新时间倒序）放到 JS 里做，避开这个限制。
+        //
+        // 回收站：已删文档在软删时会从 FTS 索引移除，正常不会出现在匹配里。
+        // 但**不能依赖这个前提**——索引可能因外部改库而漂移。
+        // 因此第二段仍显式过滤 is_deleted = 0，且 total 按过滤后的实际条数算，
+        // 否则会出现「计数说 5 条、列表只有 3 条」的不一致。
         const matched = db.prepare(`
             SELECT doc_id AS did, bm25(${FTS_TABLE}, 0.0, 10.0) AS rank
             FROM ${FTS_TABLE}
@@ -532,7 +535,7 @@ export function searchDocuments({ connection: db, keyword, limit = 20, offset = 
 
         if (!matched.length) return { total: 0, items: [] };
 
-        // 第二段：按匹配 id 取主表详情与标签
+        // 第二段：按匹配 id 取主表详情与标签（排除回收站）
         const ids = matched.map((m) => m.did);
         const placeholders = ids.map(() => '?').join(',');
         const rows = db.prepare(`
@@ -542,16 +545,19 @@ export function searchDocuments({ connection: db, keyword, limit = 20, offset = 
             LEFT JOIN categories c ON c.id = d.category_id
             LEFT JOIN document_tags dt ON dt.document_id = d.id
             LEFT JOIN tags t ON t.id = dt.tag_id
-            WHERE d.id IN (${placeholders})
+            WHERE d.id IN (${placeholders}) AND d.is_deleted = 0
             GROUP BY d.id
         `).all(...ids);
 
         const byId = new Map(rows.map((r) => [r.id, r]));
+        // 只保留在主表仍存在且未删除的匹配项
+        const validMatched = matched.filter((m) => byId.has(m.did));
+        const total = validMatched.length;
+
         // 相关度相同时按更新时间倒序（与旧版 LIKE 实现的排序习惯一致，
         // 避免行为回退让用户觉得「搜索坏了」）
-        const ordered = matched
+        const ordered = validMatched
             .map((m) => ({ row: byId.get(m.did), rank: m.rank }))
-            .filter((x) => x.row)
             .sort((a, b) => {
                 if (a.rank !== b.rank) return a.rank - b.rank;
                 return String(b.row.updated_at).localeCompare(String(a.row.updated_at));
@@ -601,7 +607,8 @@ function searchDocumentsByLike({ connection: db, keyword, limit, offset }) {
         .replace(/%/g, '\\%')
         .replace(/_/g, '\\_');
     const params = [`%${escaped}%`, `%${escaped}%`];
-    const where = `WHERE (d.title LIKE ? ESCAPE '\\' OR d.content_md LIKE ? ESCAPE '\\')`;
+    // LIKE 降级路径同样要排除回收站，否则 FTS 不可用时已删文档又会冒出来
+    const where = `WHERE d.is_deleted = 0 AND (d.title LIKE ? ESCAPE '\\' OR d.content_md LIKE ? ESCAPE '\\')`;
 
     const total = db.prepare(`SELECT COUNT(*) as n FROM documents d ${where}`).get(...params).n;
 
@@ -633,6 +640,7 @@ export function listDocumentTree({ connection: db }) {
     return db.prepare(`
         SELECT id, title, parent_id, updated_at, created_at
         FROM documents
+        WHERE is_deleted = 0
         ORDER BY created_at ASC, id ASC
     `).all();
 }
@@ -649,7 +657,7 @@ export function listChildren({ connection: db, id }) {
     return db.prepare(`
         SELECT id, title, parent_id, updated_at
         FROM documents
-        WHERE parent_id = ?
+        WHERE parent_id = ? AND is_deleted = 0
         ORDER BY created_at ASC, id ASC
     `).all(id);
 }
@@ -671,8 +679,9 @@ export function listChildren({ connection: db, id }) {
  * @throws {{ code: 'conflict', current: object }} - 版本冲突，返回当前服务端快照
  */
 export function updateDocument({ connection: db, id, version, title, content_md, category_id, parent_id, tags }) {
-    // 先查当前文档
-    const current = db.prepare('SELECT * FROM documents WHERE id = ?').get(id);
+    // 先查当前文档（已删文档不可编辑 —— 回收站里只能恢复或永久删除，
+    // 允许编辑会绕过「正常列表不可见」的语义）
+    const current = db.prepare('SELECT * FROM documents WHERE id = ? AND is_deleted = 0').get(id);
     if (!current) {
         const err = new Error('文档不存在');
         err.code = 'not_found';
@@ -721,7 +730,9 @@ export function updateDocument({ connection: db, id, version, title, content_md,
         const v = validateParentId(parent_id);
         if (!v.valid) throw errorMap(new Error(v.message), '(store)', 'invalid_input');
         if (v.value !== null) {
-            const parent = db.prepare('SELECT id FROM documents WHERE id = ?').get(v.value);
+            // 父页面必须存在且**未删除**：挂到回收站里的页面下，
+            // 会让这篇正常文档在树状导航里变成「看不见的孤儿」。
+            const parent = db.prepare('SELECT id FROM documents WHERE id = ? AND is_deleted = 0').get(v.value);
             if (!parent) throw errorMap(new Error('指定的父页面不存在'), '(store)', 'invalid_input');
             // 防环：不能把页面移动到自身或自己的后代之下
             if (isSelfOrDescendant(db, id, v.value)) {
@@ -792,45 +803,80 @@ export function updateDocument({ connection: db, id, version, title, content_md,
  * @param {number} config.id
  * @throws {{ code: 'not_found', message: string }}
  */
-export function deleteDocument({ connection: db, id }) {
-    const doc = db.prepare('SELECT id FROM documents WHERE id = ?').get(id);
+/**
+ * 软删除文档（移入回收站），**整棵子树一起标记**。
+ *
+ * 与旧版「DELETE FROM documents」的区别：
+ *   旧版靠 ON DELETE CASCADE 连带物理删除子页与标签关联，误删无法挽回；
+ *   现在只打 is_deleted 标记，子页与标签关联都保留，因此可以完整恢复。
+ *
+ * 级联语义保持不变：删父页 = 整棵子树都进回收站，
+ * 与用户看到「这篇文档连同它的 N 个子页一起被删」的预期一致。
+ *
+ * 全文索引同步移除：已删文档不应再被搜索命中。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @param {number} config.id
+ * @param {string} [config.operator='local']
+ * @returns {{ deleted: number }} 实际被标记的文档数（含子孙）
+ */
+export function deleteDocument({ connection: db, id, operator = 'local' }) {
+    const doc = db.prepare('SELECT id FROM documents WHERE id = ? AND is_deleted = 0').get(id);
     if (!doc) {
         const err = new Error('文档不存在');
         err.code = 'not_found';
         throw errorMap(err, '(store)', 'not_found');
     }
 
-    // document_tags 有 ON DELETE CASCADE，删除文档自动清理关联
-    // 全文索引没有 CASCADE（FTS5 虚表不支持外键），需手动清理
     const tx = db.transaction(() => {
-        db.prepare('DELETE FROM documents WHERE id = ?').run(id);
-        try {
-            removeDocument(db, id);
-        } catch (e) {
-            // 索引表不存在时忽略
+        const rows = db.prepare(`
+            WITH RECURSIVE sub(id) AS (
+                SELECT id FROM documents WHERE id = ?
+                UNION ALL
+                SELECT d.id FROM documents d JOIN sub ON d.parent_id = sub.id
+            )
+            SELECT id FROM sub
+        `).all(id);
+        const ids = rows.map((r) => r.id);
+        const ph = ids.map(() => '?').join(',');
+
+        const affected = db.prepare(`
+            UPDATE documents
+            SET is_deleted = 1, deleted_at = datetime('now'), deleted_by = ?
+            WHERE id IN (${ph}) AND is_deleted = 0
+        `).run(operator, ...ids).changes;
+
+        // FTS5 虚表没有 ON DELETE CASCADE，索引要手动清；
+        // 软删时同样要清，否则已删文档仍会被搜索命中。
+        for (const did of ids) {
+            try { removeDocument(db, did); } catch (e) { /* 索引表不存在时忽略 */ }
         }
+        return affected;
     });
-    tx();
+    return { deleted: tx() };
 }
 
 /**
- * 批量删除文档（单个事务，全成功或全回滚）。
+ * 批量软删除文档（移入回收站，单个事务，全成功或全回滚）。
  *
  * 与逐条调用 deleteDocument 的区别有两点：
  *   1. 原子性：整个批次在一个事务里，中途失败不会留下「删了一半」的库。
  *   2. 不因个别 id 不存在而整批失败——不存在的 id 记入 missing 后跳过，
  *      因为并发场景下另一个客户端可能已删掉其中一项。
  *
- * 子页面（parent_id）与标签关联都由 ON DELETE CASCADE 自动清理；
- * cascaded 字段返回被连带删除的子孙页数，供前端二次确认展示。
+ * 软删只打 is_deleted 标记，**子页面与标签关联全部保留**，可完整恢复；
+ * 返回的 cascaded 是被连带标记的子孙页数，供前端二次确认展示。
+ * 真正的物理删除只发生在 purgeDocuments（需 confirm=1）。
  *
  * @param {object} config
  * @param {import('better-sqlite3').Database} config.connection
  * @param {number[]} config.ids - 待删除的文档 id 数组（1-500 个）
+ * @param {string} [config.operator='local']
  * @returns {{ deleted: number, cascaded: number, missing: number[] }}
  * @throws {{ code: 'invalid_input', message: string }}
  */
-export function deleteDocuments({ connection: db, ids }) {
+export function deleteDocuments({ connection: db, ids, operator = 'local' }) {
     // ── 入参校验 ──
     if (!Array.isArray(ids) || ids.length === 0) {
         throw errorMap(new Error('请至少选择一个文档'), '(store)', 'invalid_input');
@@ -846,8 +892,7 @@ export function deleteDocuments({ connection: db, ids }) {
         }
     }
 
-    const selectStmt = db.prepare('SELECT id FROM documents WHERE id = ?');
-    const deleteStmt = db.prepare('DELETE FROM documents WHERE id = ?');
+    const selectStmt = db.prepare('SELECT id FROM documents WHERE id = ? AND is_deleted = 0');
 
     const tx = db.transaction(() => {
         const missing = [];
@@ -861,7 +906,7 @@ export function deleteDocuments({ connection: db, ids }) {
             return { deleted: 0, cascaded: 0, missing };
         }
 
-        // 连带删除的子孙页数：递归 CTE 求 alive 集合的完整后代
+        // 连带标记的子孙页：递归 CTE 求 alive 集合的完整后代
         const placeholders = alive.map(() => '?').join(',');
         const cascadeRows = db.prepare(`
             WITH RECURSIVE sub(id) AS (
@@ -872,15 +917,20 @@ export function deleteDocuments({ connection: db, ids }) {
             SELECT id FROM sub
         `).all(...alive);
         const cascadeCount = cascadeRows.length;
+        const allIds = cascadeRows.map((r) => r.id);
+        const allPh = allIds.map(() => '?').join(',');
 
-        for (const id of alive) deleteStmt.run(id);
+        // 软删：只打标记，不物理删除 —— 子页与标签关联全部保留，可完整恢复
+        db.prepare(`
+            UPDATE documents
+            SET is_deleted = 1, deleted_at = datetime('now'), deleted_by = ?
+            WHERE id IN (${allPh}) AND is_deleted = 0
+        `).run(operator, ...allIds);
 
-        // 清理全文索引：主文档与被连带删除的子孙页都要清
+        // 清理全文索引：主文档与被连带标记的子孙页都要清
         // （FTS5 虚表没有 ON DELETE CASCADE，必须手动删）
-        try {
-            for (const row of cascadeRows) removeDocument(db, row.id);
-        } catch (e) {
-            // 索引表不存在时忽略
+        for (const row of cascadeRows) {
+            try { removeDocument(db, row.id); } catch (e) { /* 索引表不存在时忽略 */ }
         }
 
         return {
@@ -899,8 +949,241 @@ export function deleteDocuments({ connection: db, ids }) {
 }
 
 // ─────────────────────────────────────────────────
+// 文档回收站（007 引入）
+// ─────────────────────────────────────────────────
+
+/**
+ * 列出回收站里的文档。
+ *
+ * 与正常列表分开的原因：正常列表恒带 is_deleted = 0，
+ * 回收站要有独立的入口与排序（按删除时间倒序，最近删的排前面）。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @param {number} [config.limit=50]
+ * @param {number} [config.offset=0]
+ * @returns {{ total:number, items:object[] }}
+ */
+export function listTrashDocuments({ connection: db, limit = 50, offset = 0 }) {
+    const total = db.prepare('SELECT COUNT(*) AS n FROM documents WHERE is_deleted = 1').get().n;
+    const rows = db.prepare(`
+        SELECT d.id, d.title, d.parent_id, d.category_id, d.version,
+               d.created_at, d.updated_at, d.deleted_at, d.deleted_by,
+               c.name AS category_name,
+               (SELECT COUNT(*) FROM documents s WHERE s.parent_id = d.id) AS child_count
+        FROM documents d
+        LEFT JOIN categories c ON c.id = d.category_id
+        WHERE d.is_deleted = 1
+        ORDER BY d.deleted_at DESC, d.id DESC
+        LIMIT ? OFFSET ?
+    `).all(limit, offset);
+
+    // 标签按本页 id 批量取，避免逐条查库
+    const items = rows.map((row) => {
+        const tagRows = db.prepare(`
+            SELECT t.name FROM tags t
+            JOIN document_tags dt ON dt.tag_id = t.id
+            WHERE dt.document_id = ?
+        `).all(row.id);
+        return {
+            ...row,
+            tags: tagRows.map((r) => r.name),
+            snippet: makeSnippet(
+                db.prepare('SELECT content_md FROM documents WHERE id = ?').get(row.id)?.content_md,
+                '',
+                140
+            )
+        };
+    });
+    return { total, items };
+}
+
+/** 回收站里的全部文档 id（清空回收站时用）。 */
+export function listTrashDocumentIds({ connection: db }) {
+    return db.prepare('SELECT id FROM documents WHERE is_deleted = 1').all().map((r) => r.id);
+}
+
+/**
+ * 从回收站恢复文档（连带其子树）。
+ *
+ * 两个必须处理的边界：
+ *
+ * 1. **父文档可能已不在正常集合中**。例如父页被永久删除了，或仍在回收站。
+ *    此时把恢复出来的文档提升为顶层（parent_id = NULL），
+ *    否则它会挂在一个不可见的父节点下，在树状导航里成为「看不见的孤儿」。
+ *
+ * 2. **同一批里可能同时选了父和子**。恢复父时子已被连带恢复，
+ *    再处理子应是幂等空操作，不能报错。
+ *
+ * 恢复后重建全文索引 —— 软删时索引被移除，不重建就永远搜不到。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @param {number[]} config.ids
+ * @param {string} [config.operator='local']
+ * @returns {{ restored: number, reparented: number, missing: number[] }}
+ */
+export function restoreDocuments({ connection: db, ids, operator = 'local' }) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+        throw errorMap(new Error('请至少选择一个文档'), '(store)', 'invalid_input');
+    }
+    const uniq = [...new Set(ids)].filter((n) => Number.isInteger(n) && n > 0);
+
+    const tx = db.transaction(() => {
+        const missing = [];
+        let restored = 0;
+        let reparented = 0;
+
+        for (const id of uniq) {
+            const doc = db.prepare('SELECT id, parent_id, is_deleted FROM documents WHERE id = ?').get(id);
+            if (!doc) { missing.push(id); continue; }
+            if (doc.is_deleted === 0) continue; // 已在正常集合（可能被同批的父节点连带恢复了）
+
+            // 取整棵子树一并恢复
+            const rows = db.prepare(`
+                WITH RECURSIVE sub(id) AS (
+                    SELECT id FROM documents WHERE id = ?
+                    UNION ALL
+                    SELECT d.id FROM documents d JOIN sub ON d.parent_id = sub.id
+                )
+                SELECT id FROM sub
+            `).all(id);
+            const subIds = rows.map((r) => r.id);
+            const ph = subIds.map(() => '?').join(',');
+            restored += db.prepare(`
+                UPDATE documents
+                SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+                WHERE id IN (${ph}) AND is_deleted = 1
+            `).run(...subIds).changes;
+
+            // 父文档已不存在或仍在回收站 → 提升为顶层
+            if (doc.parent_id !== null) {
+                const parentAlive = db.prepare(
+                    'SELECT id FROM documents WHERE id = ? AND is_deleted = 0'
+                ).get(doc.parent_id);
+                if (!parentAlive) {
+                    db.prepare('UPDATE documents SET parent_id = NULL WHERE id = ?').run(id);
+                    reparented++;
+                }
+            }
+
+            // 重建全文索引（软删时被移除）
+            for (const sid of subIds) {
+                const full = db.prepare('SELECT id, title, content_md FROM documents WHERE id = ?').get(sid);
+                if (full) {
+                    try { indexDocument(db, full.id, full.title, full.content_md); } catch (e) { /* 索引表不存在时忽略 */ }
+                }
+            }
+        }
+        return { restored, reparented, missing };
+    });
+
+    try {
+        return tx();
+    } catch (err) {
+        if (err.code === 'invalid_input') throw err;
+        throw errorMap(err, '(store)', 'write');
+    }
+}
+
+/**
+ * 永久删除文档（物理删除，不可恢复）。
+ *
+ * **只允许删已在回收站里的文档**（is_deleted = 1）——
+ * 这条约束让「永久删除」必须先进回收站，从机制上杜绝一键抹掉正常文档。
+ *
+ * 两个必须显式处理的点：
+ *
+ * 1. **级联删除要自己算，不能依赖 ON DELETE CASCADE 的隐式行为**。
+ *    实测 DELETE 一棵子树时，SQLite 的 changes **不包含**被 CASCADE 带走的行，
+ *    返回值会报「删了 1 个」而实际删了 3 个 —— 用户看到的数量是错的。
+ *    所以这里先递归求出完整子树，显式删除并计数。
+ *
+ * 2. **不能带走已恢复正常的下层文档**。若某篇回收站文档的子页已被单独恢复，
+ *    直接删父页会被 CASCADE 一起带走。所以先把这些「仍正常的子页」摘成顶层。
+ *
+ * @param {object} config
+ * @param {import('better-sqlite3').Database} config.connection
+ * @param {number[]} config.ids
+ * @returns {{ deleted: number, detached: number, missing: number[] }}
+ *   deleted 是**实际被物理删除的文档总数**（含随子树一起清掉的回收站文档）
+ */
+export function purgeDocuments({ connection: db, ids }) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+        throw errorMap(new Error('请至少选择一个文档'), '(store)', 'invalid_input');
+    }
+    const uniq = [...new Set(ids)].filter((n) => Number.isInteger(n) && n > 0);
+
+    const tx = db.transaction(() => {
+        const missing = [];
+        const found = [];
+        for (const id of uniq) {
+            const row = db.prepare('SELECT id FROM documents WHERE id = ? AND is_deleted = 1').get(id);
+            if (row) found.push(id); else missing.push(id);
+        }
+        if (found.length === 0) return { deleted: 0, detached: 0, missing };
+
+        // 求出完整子树（含正常与回收站两种状态）
+        const ph = found.map(() => '?').join(',');
+        const subtreeRows = db.prepare(`
+            WITH RECURSIVE sub(id) AS (
+                SELECT id FROM documents WHERE id IN (${ph})
+                UNION ALL
+                SELECT d.id FROM documents d JOIN sub ON d.parent_id = sub.id
+            )
+            SELECT id FROM sub
+        `).all(...found);
+        const subtreeIds = subtreeRows.map((r) => r.id);
+
+        // 子树里仍正常的文档（父被删、但自己被单独恢复过）→ 摘成顶层，避免被 CASCADE 带走
+        let detached = 0;
+        for (const sid of subtreeIds) {
+            if (found.includes(sid)) continue; // 选中的本身就该删
+            const row = db.prepare('SELECT is_deleted FROM documents WHERE id = ?').get(sid);
+            if (row && row.is_deleted === 0) {
+                db.prepare('UPDATE documents SET parent_id = NULL WHERE id = ?').run(sid);
+                detached += 1;
+            }
+        }
+
+        // 只删回收站里的（正常文档已被摘出，不在删除范围内）
+        const deletable = subtreeIds.filter((sid) => {
+            const row = db.prepare('SELECT is_deleted FROM documents WHERE id = ?').get(sid);
+            return row && row.is_deleted === 1;
+        });
+
+        let deleted = 0;
+        if (deletable.length > 0) {
+            const dph = deletable.map(() => '?').join(',');
+
+            // **删除前先断开待删集合内部的父子关系**。
+            // 否则 ON DELETE CASCADE 会「抢行」：删父时子已被级联带走，
+            // SQLite 的 changes 只统计显式匹配到的行 ——
+            // 实测 DELETE id IN (1,2)（2 是 1 的子节点）返回 1，
+            // 于是界面报「永久删除 1 项」而实际删了 2 篇。
+            // 反正这些行马上要删掉，断开关系不影响任何可见状态。
+            db.prepare(`UPDATE documents SET parent_id = NULL WHERE id IN (${dph})`).run(...deletable);
+
+            deleted = db.prepare(
+                `DELETE FROM documents WHERE id IN (${dph}) AND is_deleted = 1`
+            ).run(...deletable).changes;
+        }
+
+        return { deleted, detached, missing };
+    });
+
+    try {
+        return tx();
+    } catch (err) {
+        if (err.code === 'invalid_input') throw err;
+        throw errorMap(err, '(store)', 'write');
+    }
+}
+
+// ─────────────────────────────────────────────────
 // 分类和标签的存储层支持（供 TASK-003 最小使用）
 // ─────────────────────────────────────────────────
+
 
 /**
  * 创建分类。
@@ -1055,8 +1338,12 @@ export function exportSnapshot({ connection: db }) {
     const tags = listTags({ connection: db });
     const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
 
+    // 回收站文档**也要导出**：软删只是标记，用户「删除」通常不是想永久抹掉。
+    // 若这里漏掉回收站，「导出 → 清空 → 恢复」就会把回收站悄悄清空，
+    // 等于把用户最后的退路也拿掉了（与资源侧全量备份的取舍一致）。
     const docs = db.prepare(`
-        SELECT id, parent_id, title, content_md, category_id, created_at, updated_at
+        SELECT id, parent_id, title, content_md, category_id, created_at, updated_at,
+               is_deleted, deleted_at
         FROM documents ORDER BY id ASC
     `).all();
 
@@ -1089,7 +1376,10 @@ export function exportSnapshot({ connection: db }) {
             category: d.category_id == null ? null : (categoryNameById.get(d.category_id) || null),
             tags: tagsByDoc.get(d.id) || [],
             created_at: d.created_at,
-            updated_at: d.updated_at
+            updated_at: d.updated_at,
+            // 保留删除状态，导入时原样恢复（缺省视为未删除，兼容旧版备份）
+            is_deleted: d.is_deleted ? 1 : 0,
+            deleted_at: d.deleted_at || null
         }))
     };
 }
@@ -1151,7 +1441,10 @@ export function importSnapshot({ connection: db, snapshot }) {
             category: typeof d.category === 'string' && categoryByName.has(d.category.trim()) ? categoryByName.get(d.category.trim()) : null,
             tags: Array.isArray(d.tags) ? d.tags.filter((t) => typeof t === 'string') : [],
             created_at: typeof d.created_at === 'string' ? d.created_at : null,
-            updated_at: typeof d.updated_at === 'string' ? d.updated_at : null
+            updated_at: typeof d.updated_at === 'string' ? d.updated_at : null,
+            // 删除状态：新版备份带这个字段；旧版备份没有，默认未删除
+            is_deleted: (d.is_deleted === 1 || d.is_deleted === true) ? 1 : 0,
+            deleted_at: typeof d.deleted_at === 'string' ? d.deleted_at : null
         });
     }
 
@@ -1191,6 +1484,18 @@ export function importSnapshot({ connection: db, snapshot }) {
         }
         if (doc.created_at && doc.updated_at && isIsoish(doc.created_at) && isIsoish(doc.updated_at)) {
             restoreTime.run(doc.created_at, doc.updated_at, created.id);
+        }
+        // 快照里标记为已删的，导入后仍应待在回收站。
+        // 若不复原这个状态，「导出 → 清空 → 恢复」会把回收站悄悄清空。
+        // 只影响**新建**的文档；跳过的既有文档不改动（合并模式不动已有数据）。
+        if (doc.is_deleted === 1) {
+            db.prepare(`
+                UPDATE documents
+                SET is_deleted = 1, deleted_at = COALESCE(?, datetime('now')), deleted_by = 'import'
+                WHERE id = ?
+            `).run(doc.deleted_at, created.id);
+            // createDocument 已建索引，标记为已删后要移除，否则会被搜索命中
+            try { removeDocument(db, created.id); } catch (e) { /* 索引表不存在时忽略 */ }
         }
         stats.imported += 1;
         if (doc.ref !== null) refToNewId.set(doc.ref, created.id);

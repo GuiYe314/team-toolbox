@@ -13,7 +13,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTestingDatabase } from './db.js';
@@ -27,7 +27,10 @@ const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations
 /** 建一个带完整 schema 的内存库。 */
 function makeDb() {
     const db = createTestingDatabase({ memory: true });
-    for (const f of ['001_init.sql', '002_page_tree.sql', '003_assets.sql', '004_placeholder.sql', '005_asset_settings.sql', '006_search_index.sql']) {
+    // 自动扫描迁移目录 —— 硬编码列表会在每次新增迁移时漏掉，
+    // 导致测试跑在过期 schema 上（006、007 都因此报过一批假失败）。
+    const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+    for (const f of files) {
         db.exec(readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
     }
     return db;

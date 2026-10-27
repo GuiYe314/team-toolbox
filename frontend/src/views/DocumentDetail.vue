@@ -64,19 +64,20 @@
 
         <!-- 删除二次确认 -->
         <div v-if="showDelete" class="modal-mask" @click.self="closeDelete">
-            <div class="modal" role="dialog" aria-modal="true" aria-label="删除确认">
-                <h2 class="modal-title">确认删除</h2>
+            <div class="modal" role="dialog" aria-modal="true" aria-label="移入回收站确认">
+                <h2 class="modal-title">移入回收站</h2>
                 <p class="modal-text">
-                    确定要删除文档「<strong>{{ doc && doc.title }}</strong>」吗？此操作不可撤销。
+                    确定要把文档「<strong>{{ doc && doc.title }}</strong>」移入回收站吗？
+                    <strong>可以随时在回收站里恢复。</strong>
                 </p>
                 <p v-if="doc && doc.descendant_count > 0" class="modal-warn">
-                    其下 {{ doc.descendant_count }} 个子页面也会一并删除。
+                    其下 {{ doc.descendant_count }} 个子页面也会一并移入回收站。
                 </p>
                 <p v-if="deleteError" class="nt-state nt-state-error">{{ deleteError }}</p>
                 <div class="modal-actions">
                     <button class="nt-btn" type="button" :disabled="deleting" @click="closeDelete">取消</button>
                     <button class="nt-btn nt-btn-danger" type="button" :disabled="deleting" @click="doDelete">
-                        {{ deleting ? '删除中…' : '确认删除' }}
+                        {{ deleting ? '处理中…' : '移入回收站' }}
                     </button>
                 </div>
             </div>
