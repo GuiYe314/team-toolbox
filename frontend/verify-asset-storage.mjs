@@ -14,6 +14,7 @@
 // 真实浏览器 + 真实文件系统，不 mock。
 
 import { spawn } from 'node:child_process';
+import { purgeTestAssets } from './verify-cleanup.mjs';
 import { mkdtempSync, writeFileSync, readdirSync, existsSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -121,19 +122,9 @@ const cleanup = async () => {
     try {
         // 搜 'ST' 会误伤正常资源（名称里含 ST 的），所以按
         // 「以 ST + 数字开头」这一特征精确挑出本脚本造出来的探针。
-        const found = await api('/api/assets?pageSize=200&search=' + encodeURIComponent('ST'));
-        const ids = (found.body.items || [])
-            .filter((a) => /^ST\d{4,}/.test(a.name))
-            .map((a) => a.id);
-        if (ids.length === 0) return;
-        await fetch(URL_BASE + '/api/assets/batch-delete', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ assetIds: ids })
-        }).catch(() => {});
-        await fetch(URL_BASE + '/api/assets/purge?confirm=1', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ assetIds: ids })
-        }).catch(() => {});
+        // 必须同时扫正常集合与回收站 —— 只扫正常集合时，
+        // 一旦某次运行中途失败、残留沉进回收站，此后再也匹配不到，会永久堆积。
+        await purgeTestAssets(URL_BASE + '/api', /^ST\d{4,}/);
     } catch { /* 清理失败不应影响主流程 */ }
     try { rmSync(MIRROR, { recursive: true, force: true }); } catch { /* 忽略 */ }
 };

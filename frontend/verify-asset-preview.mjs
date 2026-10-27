@@ -13,6 +13,7 @@ const CDP_PORT = Number(process.env.CDP_PORT) || 9400;
 const STAMP = 'PV' + Date.now().toString().slice(-6);
 
 import { spawn } from 'node:child_process';
+import { purgeTestAssets } from './verify-cleanup.mjs';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -219,7 +220,10 @@ const realErrs = consoleErrs.filter((e) => !/favicon|DevTools/i.test(e));
 check('控制台无报错', realErrs.length === 0, realErrs.slice(0, 3).join(' | '));
 
 // ── 清理 ──
+// 不只删本轮 id：脚本若中途被中断，id 可能没记录下来；
+// 按名称特征（PV + 数字）把历次残留一并清掉，且同时扫正常集合与回收站。
 async function cleanup() {
+    await purgeTestAssets(URL_BASE + '/api', /^PV\d{4,}/);
     for (const id of [assetId, vup.body?.id].filter(Boolean)) {
         await fetch(`${URL_BASE}/api/assets/batch-delete`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },

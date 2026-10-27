@@ -18,6 +18,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { purgeTestAssets } from './verify-cleanup.mjs';
 
 const URL_BASE = process.env.VERIFY_BASE || 'http://127.0.0.1:5173';
 const PORT = Number(process.env.CDP_PORT) || 9800;
@@ -113,22 +114,10 @@ await api(`/api/assets/${assetId}/publish`, { method: 'POST', body: { versionId:
  * 2. 所以按**名称特征**（/^AM\d{4,}/）搜索，把历次残留一起清掉。
  */
 async function cleanup() {
-    try {
-        const found = await api('/api/assets?pageSize=200&search=' + encodeURIComponent('AM'));
-        const ids = (found.body.items || [])
-            .filter((a) => /^AM\d{4,}/.test(a.name))
-            .map((a) => a.id);
-        if (ids.length > 0) {
-            await fetch(`${URL_BASE}/api/assets/batch-delete`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assetIds: ids })
-            }).catch(() => {});
-            await fetch(`${URL_BASE}/api/assets/purge?confirm=1`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assetIds: ids })
-            }).catch(() => {});
-        }
-    } catch { /* 清理失败不应影响主流程 */ }
+    // 必须同时扫「正常集合」与「回收站」—— 只扫正常集合时，
+    // 一旦某次运行中途失败、残留沉进回收站，此后再也匹配不到，会永久堆积。
+    // 实测演示库回收站里积了 10 个从 10-20 起的 AMxxxxxx配图.png。
+    await purgeTestAssets(URL_BASE + '/api', /^AM\d{4,}/);
     // 测试文件夹同理：按名称特征删
     try {
         const fs = await api('/api/asset-folders');
