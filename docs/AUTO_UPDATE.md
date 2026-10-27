@@ -48,8 +48,13 @@ https://github.com/GuiYe314/team-toolbox/releases/latest/download
    （用 `releases/latest/download/<文件名>` 直连资产不走 API，但检查版本仍需读清单。）
 3. **资产可达性不稳定** —— 实际下载会跳转到 `release-assets.githubusercontent.com`，
    部分地区时通时断。内网共享目录反而最可靠。
+4. **不认代理环境变量**（实测）—— Node 的原生 `fetch` 不读取 `HTTPS_PROXY` /
+   `HTTP_PROXY`。在需要代理才能访问 GitHub 的网络里，会出现
+   「浏览器能打开、`curl` 也能下载，但检查更新报源不可达」。
+   这类环境下请改用内网共享目录。
 
-所以：**能出网的小团队可以直接用 GitHub；纯内网环境指向共享目录**。换源不需要改代码。
+所以：**能直连 GitHub 的小团队可以直接用 GitHub；纯内网或需要代理的环境指向共享目录**。
+换源不需要改代码。
 
 ### 配置方式
 
@@ -159,6 +164,8 @@ gh release create v0.1.2 --repo GuiYe314/team-toolbox \
 | 提示「包内运行时自检未通过」 | 这个包的依赖与包内 Node 不匹配，**不要装**，重新打包 |
 | 界面顶部提示「上次更新没有成功，已自动回滚」 | 新版本启动失败，已退回原版本。看 `data/updates/apply.log` 找原因 |
 | 更新后版本没变 | 检查 `data/updates/pending.json` 与 `ROLLBACK.txt`，再看 `apply.log` |
+| 报「无法访问更新源：fetch failed」但在浏览器里能打开 | 多半是**代理问题**：Node 的原生 fetch 不读 `HTTPS_PROXY`。改用内网共享目录，或换成不需要代理的地址 |
+| 报「连接超时」「域名解析失败」 | 网络不通或被拦截。错误信息里会带上底层原因（连接超时 / ENOTFOUND / 证书失败） |
 
 日志位置：`data/updates/apply.log`（换文件脚本的输出）。
 

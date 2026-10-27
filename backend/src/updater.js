@@ -103,6 +103,43 @@ function versionDir(version) {
 // ─────────────────────────────────────────────────
 
 /**
+ * 把网络层异常翻译成人能看懂的说明。
+ *
+ * 原生 fetch 失败只给一句 "fetch failed"，真正的原因藏在 e.cause 里
+ * （连接超时 / DNS / 证书）。而失败原因不同，用户该做的事完全不同：
+ * 代理问题去改源，证书问题去查防火墙，超时可能是网络慢。
+ *
+ * 特别地：**Node 的 fetch 不读取 HTTPS_PROXY 环境变量**。
+ * 这意味着「浏览器能打开、命令行 curl 也能下载，但应用说源不可达」——
+ * 在需要代理的公司网络里这是常态，而且从报错上完全看不出来。
+ */
+function describeNetworkError(err) {
+    const msg = (err && err.message) || String(err);
+    const cause = err && err.cause;
+    const code = cause && (cause.code || cause.message);
+    const detail = code ? `（${code}）` : '';
+
+    const hasProxyEnv = Boolean(
+        process.env.HTTPS_PROXY || process.env.https_proxy
+        || process.env.HTTP_PROXY || process.env.http_proxy
+    );
+
+    let hint = '';
+    if (hasProxyEnv) {
+        hint = '。检测到系统设置了代理环境变量，但当前网络库不自动使用它 —— '
+            + '请改用内网共享目录作为更新源，或改为无需代理的地址';
+    } else if (code && /CERT|SSL|TLS/i.test(String(code))) {
+        hint = '。证书校验失败，可能被网络中间设备拦截，请联系网络管理员';
+    } else if (code && /ENOTFOUND|EAI_AGAIN/i.test(String(code))) {
+        hint = '。域名解析失败，请确认地址拼写与网络连通性';
+    } else if (code && /TIMEOUT|ETIMEDOUT/i.test(String(code))) {
+        hint = '。连接超时，可能是网络较慢或目标不可达';
+    }
+
+    return `${msg}${detail}${hint}`;
+}
+
+/**
  * 读取并校验清单。
  *
  * @param {{kind:'http'|'file', url:string, dir?:string}} loc
@@ -115,7 +152,7 @@ async function readManifest(loc) {
         try {
             res = await fetch(loc.url, { signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS) });
         } catch (e) {
-            throw fail(`无法访问更新源：${e && e.message ? e.message : e}`, 'source_unreachable');
+            throw fail(`无法访问更新源：${describeNetworkError(e)}`, 'source_unreachable');
         }
         if (!res.ok) {
             // 403 与 404 分开说 —— 私有仓库匿名访问返回 404，
@@ -356,7 +393,7 @@ export async function downloadUpdate(version) {
             try {
                 res = await fetch(src.url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
             } catch (e) {
-                throw fail(`下载失败：${e && e.message ? e.message : e}`, 'download_failed');
+                throw fail(`下载失败：${describeNetworkError(e)}`, 'download_failed');
             }
             if (!res.ok) throw fail(`下载返回 HTTP ${res.status}`, 'download_failed');
             await pipeline(Readable.fromWeb(res.body), meter, createWriteStream(tmpPath));
