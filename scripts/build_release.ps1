@@ -202,6 +202,18 @@ if (Test-Path (Join-Path $backend "package-lock.json")) {
     Copy-Item (Join-Path $backend "package-lock.json") $backendOut -Force
 }
 
+# 剔除测试文件。
+#
+# 后端测试与源码同目录（`src/*.test.js`），直接整目录复制会把它们打进发布包。
+# 危害不大（不会被执行），但发布包里躺着 4 个测试文件既让包体无谓变大，
+# 也容易让人误会「这包是不是开发版」。npm 包也从不带 test 文件。
+$stagedSrc = Join-Path $backendOut "src"
+$testFiles = Get-ChildItem -Path $stagedSrc -Filter "*.test.js" -File -ErrorAction SilentlyContinue
+if ($testFiles) {
+    $testFiles | Remove-Item -Force
+    Say ("      已剔除 {0} 个测试文件" -f $testFiles.Count) "DarkGray"
+}
+
 # 把 -Version 注入包内的 package.json。
 #
 # 这一步不能省：后端从 package.json 读版本号并对外报告（/api/health、

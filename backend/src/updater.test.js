@@ -422,6 +422,57 @@ describe('解压与自检', () => {
     });
 });
 
+describe('换文件脚本（apply.cmd）', () => {
+    const script = updater.buildApplyScript({
+        appRoot: 'C:\\app',
+        staged: 'C:\\app\\data\\updates\\9.9.9\\staged\\team-toolbox',
+        pid: 4321,
+        logPath: 'C:\\app\\data\\updates\\apply.log'
+    });
+
+    test('必须是 CRLF 换行', () => {
+        // 这条不是风格问题：cmd.exe 解析纯 LF 的批处理文件会把相邻行粘在一起，
+        // 报出一堆「不是内部或外部命令」。而且这个错误只在真实触发时暴露 ——
+        // 在 Git Bash 里手工 cmd //c 跑同一个文件可能看着正常。
+        assert.ok(script.includes('\r\n'), '完全没有 CRLF');
+        assert.equal(
+            script.replace(/\r\n/g, '').includes('\n'),
+            false,
+            '存在裸 LF —— cmd.exe 会把相邻行粘在一起'
+        );
+    });
+
+    test('除启动器文件名外必须是纯 ASCII', () => {
+        // Windows 中文系统控制台默认 OEM 代码页，UTF-8 中文会把 rem 行
+        // 按字节错切成几条「命令」去执行 —— 除非文件带 BOM（由调用方添加）。
+        //
+        // 唯一允许出现的中文是 `启动.cmd` 这个文件名本身：它由打包脚本生成，
+        // 改不了。因此把它剥掉之后，其余内容必须全为 ASCII。
+        const stripped = script.split('启动.cmd').join('<LAUNCHER>');
+        const bad = [...stripped].filter((c) => c.charCodeAt(0) > 127);
+        assert.equal(bad.length, 0, `含非 ASCII 字符: ${JSON.stringify(bad.slice(0, 8))}`);
+    });
+
+    test('关键步骤都在脚本里', () => {
+        // 换文件时排除 data：用户数据永不参与替换
+        assert.match(script, /robocopy "%STAGED%" "%APP%" \/E \/XD "%APP%\\data"/);
+        // 回滚快照也排除 data
+        assert.match(script, /robocopy "%APP%" "%APP%\\data\\updates\\rollback" \/E \/XD "%APP%\\data"/);
+        // 延时必须用 ping（timeout 在无控制台环境立刻返回，会误判回滚）
+        assert.match(script, /ping -n 4 127\.0\.0\.1 >nul/);
+        assert.equal(/timeout \/t/.test(script), false, '不应再使用 timeout /t');
+        // 三个终止分支都要存在
+        ['success', 'rollback', 'fail_norollback'].forEach((label) => {
+            assert.ok(script.includes(`:${label}`), `缺少 :${label} 分支`);
+        });
+    });
+
+    test('路径被写进脚本时保持绝对形式', () => {
+        assert.ok(script.includes('set "APP=C:\\app"'));
+        assert.ok(script.includes('set "OLD_PID=4321"'));
+    });
+});
+
 describe('安装前置条件', () => {
     test('未暂存就安装 → not_staged，且不会写 pending 标记', async () => {
         await assert.rejects(

@@ -628,105 +628,123 @@ async function backupBeforeUpdate(version) {
  * @returns {string}
  */
 export function buildApplyScript({ appRoot, staged, pid, logPath }) {
-    // 用绝对路径：这个脚本从 data\updates\<ver>\ 下执行，
-    // 而它要操作的是包根，相对路径容易算错。
-    return `@echo off
-chcp 65001 >nul
-setlocal enabledelayedexpansion
-set "APP=${appRoot}"
-set "STAGED=${staged}"
-set "LOG=${logPath}"
-set "OLD_PID=${pid}"
+    // ── 两条硬约束，写错任何一条这个脚本就跑不起来 ──
+    //
+    // 1. **必须 CRLF 换行**。cmd.exe 解析纯 LF 的批处理文件是坏的：它会把
+    //    相邻行粘在一起，报出一堆毫无意义的「不是内部或外部命令」。
+    //    这个坑极其隐蔽 —— 在 Git Bash 里手动 `cmd //c` 执行同一个文件时
+    //    表现可能正常，只有从服务里真实触发时才露馅。
+    //
+    // 2. **内容必须是纯 ASCII**。Windows 中文系统的控制台默认 OEM 代码页，
+    //    UTF-8 的中文注释会被按字节错切，把 `rem` 行撕成几段去当命令执行。
+    //    所以下面所有注释都用英文 —— 这段文本是要交给 cmd.exe 的，
+    //    不是给人读的文档；中文说明留在本文件的 JS 注释里。
+    //    日志内容也只用 ASCII 单词（start / success / rolling back）。
+    const lines = [
+        '@echo off',
+        'chcp 65001 >nul',
+        'setlocal enabledelayedexpansion',
+        `set "APP=${appRoot}"`,
+        `set "STAGED=${staged}"`,
+        `set "LOG=${logPath}"`,
+        `set "OLD_PID=${pid}"`,
+        '',
+        'echo [update] %DATE% %TIME% start >> "%LOG%"',
+        '',
+        'rem ---- 1. wait for the old process to exit ----',
+        'rem A running node.exe keeps its own files locked, so the swap cannot start',
+        'rem until it is gone. Wait by exact PID, not by image name: the user may',
+        'rem have other node processes running and a name match would never end.',
+        'rem',
+        'rem Delay uses ping instead of the timeout command. This script runs',
+        'rem detached with stdin redirected, and under that condition timeout',
+        'rem returns IMMEDIATELY. The verify loop would then burn through all its',
+        'rem tries in about a second and declare a healthy new version "failed",',
+        'rem triggering a rollback nobody asked for. ping does not use stdin.',
+        'set /a TRIES=0',
+        ':wait',
+        'if %TRIES% GEQ 120 goto timeout',
+        'tasklist /FI "PID eq %OLD_PID%" /NH 2>nul | find /I "node.exe" >nul',
+        'if not errorlevel 1 (',
+        '    ping -n 2 127.0.0.1 >nul',
+        '    set /a TRIES+=1',
+        '    goto wait',
+        ')',
+        '',
+        'rem ---- 2. make sure the staged tree is still intact ----',
+        'if not exist "%STAGED%\\backend\\src\\index.js" goto fail_staged',
+        'if not exist "%STAGED%\\runtime\\node.exe" goto fail_staged',
+        '',
+        'rem ---- 3. snapshot the current version for rollback ----',
+        'rem /XD data is a hard requirement: that directory holds the database,',
+        'rem uploaded images and asset files. User data must never be touched.',
+        'if exist "%APP%\\data\\updates\\rollback" rmdir /s /q "%APP%\\data\\updates\\rollback"',
+        'robocopy "%APP%" "%APP%\\data\\updates\\rollback" /E /XD "%APP%\\data" /NFL /NDL /NJH /NJS /NP >> "%LOG%" 2>&1',
+        'if errorlevel 8 goto fail_backup',
+        '',
+        'rem ---- 4. swap in the new version ----',
+        'rem No /MIR on purpose: leaving a stale file behind is far safer than',
+        'rem deleting something the user still needs.',
+        'robocopy "%STAGED%" "%APP%" /E /XD "%APP%\\data" /NFL /NDL /NJH /NJS /NP >> "%LOG%" 2>&1',
+        'if errorlevel 8 goto fail_copy',
+        '',
+        'rem ---- 5. start the new version ----',
+        'rem The new version deletes pending.json once it is listening. If the marker',
+        'rem survives, the new version never came up.',
+        'set TT_SKIP_BROWSER=1',
+        'start "" "%APP%\\启动.cmd"',
+        '',
+        'rem ---- 6. wait for the new version to prove itself ----',
+        'set /a WAIT=0',
+        ':verify',
+        'ping -n 4 127.0.0.1 >nul',
+        'set /a WAIT+=1',
+        'if not exist "%APP%\\data\\updates\\pending.json" goto success',
+        'if %WAIT% GEQ 20 goto rollback',
+        'goto verify',
+        '',
+        ':success',
+        'echo [update] %DATE% %TIME% success >> "%LOG%"',
+        'del /q "%APP%\\data\\updates\\ROLLBACK.txt" 2>nul',
+        'rmdir /s /q "%APP%\\data\\updates\\rollback" 2>nul',
+        'exit /b 0',
+        '',
+        ':rollback',
+        'echo [update] %DATE% %TIME% new version did not start, rolling back >> "%LOG%"',
+        'del /q "%APP%\\data\\updates\\pending.json" 2>nul',
+        'if not exist "%APP%\\data\\updates\\rollback\\backend\\src\\index.js" goto fail_norollback',
+        'robocopy "%APP%\\data\\updates\\rollback" "%APP%" /E /XD "%APP%\\data" /NFL /NDL /NJH /NJS /NP >> "%LOG%" 2>&1',
+        'echo [update] rolled back to previous version at %DATE% %TIME% >> "%APP%\\data\\updates\\ROLLBACK.txt"',
+        'set TT_SKIP_BROWSER=1',
+        'start "" "%APP%\\启动.cmd"',
+        'exit /b 2',
+        '',
+        ':timeout',
+        'echo [update] timeout waiting for old process to exit >> "%LOG%"',
+        'exit /b 3',
+        '',
+        ':fail_staged',
+        'echo [update] staged files missing >> "%LOG%"',
+        'exit /b 4',
+        '',
+        ':fail_backup',
+        'echo [update] rollback snapshot failed, abort before touching files >> "%LOG%"',
+        'exit /b 5',
+        '',
+        ':fail_copy',
+        'echo [update] copy failed, restoring previous version >> "%LOG%"',
+        'del /q "%APP%\\data\\updates\\pending.json" 2>nul',
+        'robocopy "%APP%\\data\\updates\\rollback" "%APP%" /E /XD "%APP%\\data" /NFL /NDL /NJH /NJS /NP >> "%LOG%" 2>&1',
+        'start "" "%APP%\\启动.cmd"',
+        'exit /b 6',
+        '',
+        ':fail_norollback',
+        'echo [update] rollback snapshot missing, manual recovery needed >> "%LOG%"',
+        'exit /b 7',
+        ''
+    ];
 
-echo [update] %DATE% %TIME% start >> "%LOG%"
-
-rem ── 1. 等待旧进程退出 ──
-rem 运行中的 node.exe 与 node_modules 无法被覆盖，必须等它彻底退出。
-rem 按 PID 精确等待而不是「等所有 node.exe 消失」—— 用户可能同时开着
-rem 别的 node 程序，按名字等会永远等不到。
-rem
-rem 延时用 ping 而不是 timeout /t：本脚本以「无控制台、stdin 被重定向」
-rem 的方式启动，此时 timeout 会**立刻返回**而不是等满秒数 ——
-rem 结果是验证循环一秒跑完 20 次，把「新版本还在启动中」误判成
-rem 「启动失败」，触发一次本不该发生的回滚。ping 不依赖 stdin。
-set /a TRIES=0
-:wait
-if %TRIES% GEQ 120 goto timeout
-tasklist /FI "PID eq %OLD_PID%" /NH 2>nul | find /I "node.exe" >nul
-if not errorlevel 1 (
-    ping -n 2 127.0.0.1 >nul
-    set /a TRIES+=1
-    goto wait
-)
-
-rem ── 2. 确认暂存目录仍完好 ──
-if not exist "%STAGED%\\backend\\src\\index.js" goto fail_staged
-if not exist "%STAGED%\\runtime\\node.exe" goto fail_staged
-
-rem ── 3. 保留当前版本用于回滚（排除 data，用户数据不参与换文件）──
-if exist "%APP%\\data\\updates\\rollback" rmdir /s /q "%APP%\\data\\updates\\rollback"
-robocopy "%APP%" "%APP%\\data\\updates\\rollback" /E /XD "%APP%\\data" /NFL /NDL /NJH /NJS /NP >> "%LOG%" 2>&1
-if errorlevel 8 goto fail_backup
-
-rem ── 4. 换文件 ──
-rem 不用 /MIR：被删掉的文件残留在原地，比误删用户文件安全得多。
-rem 排除 data 是硬要求 —— 那里是数据库、上传图片与资源文件。
-robocopy "%STAGED%" "%APP%" /E /XD "%APP%\\data" /NFL /NDL /NJH /NJS /NP >> "%LOG%" 2>&1
-if errorlevel 8 goto fail_copy
-
-rem ── 5. 启动新版本 ──
-rem 新版本启动成功后会自动删除 pending.json；标记还在说明没起来。
-set TT_SKIP_BROWSER=1
-start "" "%APP%\\启动.cmd"
-
-rem ── 6. 等待新版本自证成功 ──
-set /a WAIT=0
-:verify
-ping -n 4 127.0.0.1 >nul
-set /a WAIT+=1
-if not exist "%APP%\\data\\updates\\pending.json" goto success
-if %WAIT% GEQ 20 goto rollback
-goto verify
-
-:success
-echo [update] %DATE% %TIME% success >> "%LOG%"
-del /q "%APP%\\data\\updates\\ROLLBACK.txt" 2>nul
-rmdir /s /q "%APP%\\data\\updates\\rollback" 2>nul
-exit /b 0
-
-:rollback
-echo [update] %DATE% %TIME% new version did not start, rolling back >> "%LOG%"
-del /q "%APP%\\data\\updates\\pending.json" 2>nul
-if not exist "%APP%\\data\\updates\\rollback\\backend\\src\\index.js" goto fail_norollback
-robocopy "%APP%\\data\\updates\\rollback" "%APP%" /E /XD "%APP%\\data" /NFL /NDL /NJH /NJS /NP >> "%LOG%" 2>&1
-echo [update] rolled back to previous version at %DATE% %TIME% >> "%APP%\\data\\updates\\ROLLBACK.txt"
-set TT_SKIP_BROWSER=1
-start "" "%APP%\\启动.cmd"
-exit /b 2
-
-:timeout
-echo [update] timeout waiting for old process to exit >> "%LOG%"
-exit /b 3
-
-:fail_staged
-echo [update] staged files missing >> "%LOG%"
-exit /b 4
-
-:fail_backup
-echo [update] rollback snapshot failed, abort before touching files >> "%LOG%"
-exit /b 5
-
-:fail_copy
-echo [update] copy failed, restoring previous version >> "%LOG%"
-del /q "%APP%\\data\\updates\\pending.json" 2>nul
-robocopy "%APP%\\data\\updates\\rollback" "%APP%" /E /XD "%APP%\\data" /NFL /NDL /NJH /NJS /NP >> "%LOG%" 2>&1
-start "" "%APP%\\启动.cmd"
-exit /b 6
-
-:fail_norollback
-echo [update] rollback snapshot missing, manual recovery needed >> "%LOG%"
-exit /b 7
-`;
+    return lines.join('\r\n');
 }
 
 /**
@@ -756,7 +774,10 @@ export async function applyUpdate({ version }) {
     }, null, 2), 'utf8');
 
     const scriptPath = join(dir, 'apply.cmd');
-    writeFileSync(scriptPath, buildApplyScript({
+    // 前置 UTF-8 BOM：脚本里必须提到 `启动.cmd`（文件名就是中文，改不了），
+    // 而中文系统的 cmd 默认按 OEM 代码页读文件。带 BOM 时 cmd 会切到 UTF-8，
+    // 中文路径才能被正确识别 —— 这与打包脚本写 `启动.cmd` 用的是同一套约定。
+    writeFileSync(scriptPath, '\uFEFF' + buildApplyScript({
         appRoot: APP_ROOT,
         staged: appRoot,
         pid: process.pid,
