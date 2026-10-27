@@ -4,7 +4,8 @@
 
 > **使用边界**：第一版仅面向受控的本机/内网环境，未内置认证与权限控制，**不得暴露到公网**。详见 [ARCHITECTURE](docs/ARCHITECTURE.md) 第 7 节“内部访问边界”。
 
-- 仓库：https://github.com/GuiYe314/team-toolbox（私有）
+- 仓库：https://github.com/GuiYe314/team-toolbox（公开）
+  > 代码公开 **不等于** 服务可以公开部署：本系统第一版无认证，仍只允许跑在受控本机/内网。
 - 文档基线日期：2026-10-16
 - 当前状态：**进度唯一来源：[docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)**（本文件不复制进度；阶段一脚手架 TASK-001 已完成，待 Codex 验收，详情见状态文档）
 

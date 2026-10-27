@@ -29,10 +29,27 @@
 | 静态文件服务 | `https://example.com/team-toolbox` |
 | GitHub Releases 资产 | `https://github.com/<owner>/<repo>/releases/latest/download` |
 
-**为什么默认不用 GitHub**：本仓库是私有的，匿名访问 API 返回 404，
-每台客户端都得带 token；未认证 API 还有 60 次/小时/IP 的限流；
-且受控内网里的机器可能根本出不了网。GitHub 可以作为其中一个选项，
-但不适合当唯一方案 —— 所以更新源做成了可配置。
+**为什么把更新源做成可配置，而不是写死 GitHub**
+
+仓库是公开的，所以「匿名访问 404」这条障碍已经不存在了（2026-10-27 公开）。
+GitHub Releases 现在是**有效选项**，填这个地址即可：
+
+```
+https://github.com/GuiYe314/team-toolbox/releases/latest/download
+```
+
+它指向「最新一次 Release 的资产」，地址固定、不用改版本号，非常适合做更新源。
+
+但仍有三个现实理由让它不适合当**唯一**方案：
+
+1. **受控内网可能出不了网** —— 部署前提就是内网，很多机器根本访问不到 GitHub。
+2. **未认证 API 限流 60 次/小时/IP**，`releases/latest` 接口也在限流范围内。
+   公司 NAT 下十几台机器各查几次就可能打满，且 403 无法区分「限流」与「仓库不存在」。
+   （用 `releases/latest/download/<文件名>` 直连资产不走 API，但检查版本仍需读清单。）
+3. **资产可达性不稳定** —— 实际下载会跳转到 `release-assets.githubusercontent.com`，
+   部分地区时通时断。内网共享目录反而最可靠。
+
+所以：**能出网的小团队可以直接用 GitHub；纯内网环境指向共享目录**。换源不需要改代码。
 
 ### 配置方式
 
@@ -63,6 +80,26 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_release.ps1 `
 
 把 **`manifest.json` + `team-toolbox-0.1.2.zip`** 两个文件放进更新源目录即可。
 只放 zip 不放清单，客户端什么也找不到；只放清单不放 zip，下载会失败。
+
+### 如果更新源是 GitHub Releases
+
+发布时把清单一起作为资产上传（少传它，客户端读不到版本信息）：
+
+```bash
+gh release create v0.1.2 --repo GuiYe314/team-toolbox \
+  --title "team-toolbox 0.1.2" \
+  --notes-file docs/releases/V0_1.2.0-RELEASE.md \
+  release/team-toolbox-Setup-0.1.2.exe \
+  release/team-toolbox-0.1.2.zip \
+  release/team-toolbox-0.1.2-SHA256.txt \
+  release/manifest.json \
+  --latest
+```
+
+然后把更新源填成 `https://github.com/GuiYe314/team-toolbox/releases/latest/download`。
+这个地址指向「最新 Release 的资产」，不会随版本号变化。
+
+> `--latest` 很重要：`releases/latest` 只认被标记为 latest 的那一个。
 
 ### 关于版本号
 

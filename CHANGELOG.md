@@ -4,6 +4,28 @@
 
 ## 2026-10-27
 
+### 仓库改为公开 + 自动更新文档随之修正
+
+仓库由 private 改为 public。公开前扫过全部 57 次提交的历史 blob：
+无 token / 私钥 / 云凭据（`gho_`、`ghp_`、`github_pat_`、`BEGIN * PRIVATE KEY`、`AKIA` 均 0 命中）；
+`.env` 从未提交（`.gitignore` 第 23 行覆盖），`data/` 从未入库，历史里只有 `.env.example`。
+唯一会一并公开的二进制是 `frontend/search-f5.png`（TASK-014 时的界面截图，后来已删，内容为应用自身演示数据）。
+
+随之修正三处**已经变成错话**的表述 —— 公开之后文档必须重构事实，而不是留着旧理由：
+
+- `docs/AUTO_UPDATE.md`：原文写「本仓库是私有的，匿名 API 返回 404，每台客户端都要带 token」。
+  现在这条不成立，GitHub Releases 已成为有效更新源，补上可直接使用的地址
+  `https://github.com/GuiYe314/team-toolbox/releases/latest/download`。
+  但保留「不写死 GitHub」的设计，理由改为仍然成立的三条：内网可能出不了网、
+  未认证 API 限流 60 次/小时/IP、资产域名可达性不稳。
+- `docs/AUTO_UPDATE.md` 补「如果更新源是 GitHub Releases」的发布命令，
+  明确 `gh release create` **必须带 `manifest.json`**，否则客户端读不到版本信息。
+- `docs/VERSION_POLICY.md`：「三份资产」改为「四份」（新增更新清单）。
+- `README.md`：去掉「（私有）」，并补一句「代码公开不等于服务可以公开部署」——
+  本系统无认证，仍只允许跑在受控本机/内网，两者是不同的事。
+
+## 2026-10-27
+
 ### TASK-018 自动更新：检查 / 下载 / 校验 / 安装 / 自动回滚（实现 + 沙箱实测，待 Codex 验收）
 
 ### Context
