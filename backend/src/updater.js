@@ -65,7 +65,10 @@ const MANIFEST_SCHEMA = 1;
 /** 单包体积上限（未压缩）。超过直接拒绝，防止被指向一个超大文件拖死磁盘。 */
 const MAX_PACKAGE_BYTES = 512 * 1024 * 1024;
 
-const MANIFEST_TIMEOUT_MS = 20_000;
+// 读清单的超时。实测 GitHub 的资产下载 1.3–2.6 秒，但同一主机上的页面请求
+// 出现过 11 秒；清单本身极小，超时设太紧会把「网络慢」误报成「更新源不可达」，
+// 而那个错误提示会让用户去改本来正确的配置。
+const MANIFEST_TIMEOUT_MS = 30_000;
 const DOWNLOAD_TIMEOUT_MS = 600_000;
 
 const PENDING_FILE = join(UPDATE_ROOT, 'pending.json');
