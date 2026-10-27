@@ -21,6 +21,7 @@ function check(name, ok, detail = '') {
 }
 
 import { spawn } from 'node:child_process';
+import { purgeTestDocuments } from './verify-cleanup.mjs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -148,7 +149,9 @@ check('正文含标准 Markdown 引用语法', refs.length >= 2, `${refs.length}
 check('引用指向 auto 指针', refs.every((r) => r.endsWith('/auto)')));
 
 // ── 清理 ──
-await fetch(API + '/api/documents/' + docId, { method: 'DELETE' }).catch(() => {});
+// 回收站（TASK-016）之后：只 DELETE 会把数据留在回收站，
+// 必须再 purge 才算真正清理。按标题特征回收，不只删本轮 id。
+await purgeTestDocuments(BASE + '/api', /^验收·/);
 
 console.log('\n── 7. 控制台无错误 ──');
 const realErrs = errs.filter((e) => !/favicon|DevTools/i.test(e));

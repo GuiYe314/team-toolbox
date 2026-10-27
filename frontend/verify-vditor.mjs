@@ -2,6 +2,7 @@
 // 验证：实例创建 / 资源全部本地 / 工具栏渲染 / 内容区渲染 / 旧 textarea 已移除 /
 //       工具栏点击可改内容 / getValue 往返一致 / 无 CDN 外网请求 / 控制台无报错
 import { spawn } from 'node:child_process';
+import { purgeTestDocuments } from './verify-cleanup.mjs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -187,12 +188,16 @@ const dark = await evalJs(`(() => ({
 check('深色主题下编辑器仍在', dark.hasVditor && dark.toolbar, `data-theme=${dark.html}`);
 await shot('shot-vditor-dark.png');
 
-// 清理
-await evalJs(`fetch('/api/documents/${doc.id}', { method: 'DELETE' }).then(r => r.status)`);
+// 清理：软删之后必须 purge（TASK-016），否则探针文档堆在回收站里。
 // 兜底：上面若因断言/异常提前退出，探针文档会留在库里变成垃圾数据，
 // 进而干扰其他按标题前缀匹配的验证脚本。退出时无条件再清一次。
+await evalJs(`fetch('/api/documents/${doc.id}', { method: 'DELETE' }).then(r => r.status)`);
+await purgeTestDocuments(URL_BASE + '/api', /^__vditor-verify__$/);
 process.on('exit', () => {
-    fetch(`${URL_BASE}/api/documents/${doc.id}`, { method: 'DELETE' }).catch(() => {});
+    fetch(`${URL_BASE}/api/documents/purge?confirm=1`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [doc.id] })
+    }).catch(() => {});
 });
 
 // ── 控制台 ──

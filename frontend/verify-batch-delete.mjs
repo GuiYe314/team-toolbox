@@ -7,6 +7,7 @@
 // 前置：后端 :3000 与前端 dev（默认 5173）均已启动。
 
 import { spawn } from 'node:child_process';
+import { purgeTestDocuments } from './verify-cleanup.mjs';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -275,11 +276,14 @@ try {
     fails.push('执行异常：' + err.message);
     console.error('\n执行异常：', err);
 } finally {
-    // 清理：确保测试数据不残留
+    // 清理：确保测试数据不残留。
+    // 软删（TASK-016）之后 batch-delete 只是移入回收站，
+    // 必须再 purge 才算真正清理 —— 否则每跑一次就往回收站里堆一批 BD- 垃圾。
     await fetch(`${API}/documents/batch-delete`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ ids: ALL_IDS })
     }).catch(() => {});
+    await purgeTestDocuments(API, /^BD/);
     try { ws.close(); } catch { /* ignore */ }
     try { chrome.kill(); } catch { /* ignore */ }
     try { rmSync(profile, { recursive: true, force: true }); } catch { /* ignore */ }

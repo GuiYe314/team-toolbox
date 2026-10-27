@@ -166,8 +166,13 @@ r = await evalJs(`(async () => {
   const shown = row ? row.querySelector('.tag-static')?.textContent.trim() : null;
 
   // 还原：清空搜索 + 删除探针文档
+  // 软删（TASK-016）之后只 DELETE 会留在回收站，必须再 purge 才真正清掉
   document.querySelector('.kb-search-clear')?.click();
   await fetch('/api/documents/' + doc.id, { method: 'DELETE' });
+  await fetch('/api/documents/purge?confirm=1', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: [doc.id] })
+  });
   await new Promise(r => setTimeout(r, 900));
 
   return { cats: cats.length, expected: cats[0].name, shown };

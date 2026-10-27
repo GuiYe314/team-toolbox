@@ -19,6 +19,7 @@ function check(name, ok, detail = '') {
 }
 
 import { spawn } from 'node:child_process';
+import { purgeTestDocuments } from './verify-cleanup.mjs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -114,8 +115,11 @@ const API = BASE.replace(/\/$/, '') + '/api';
 const mkTitle = '搜索验收·英文词边界';
 const mkBody = '本段包含 zephyr 工具与 digital transform 的说明，用于验证英文按词边界匹配。';
 
-// 造文档（若已存在先删，避免重复运行残留）
-await fetch(`${API}/documents?q=${encodeURIComponent(mkTitle)}`, { method: 'DELETE' }).catch(() => {});
+// 造文档前先清掉上一轮可能残留的同名测试数据。
+// 注意：原来这里写的是 `DELETE /api/documents?q=...` —— 该路由根本不存在
+// （DELETE 只接受 /documents/:id），实际一直是个静默 404 的死调用。
+// 改为按标题特征真正回收（含回收站里的残留）。
+await purgeTestDocuments(API, /^搜索验收·/);
 const created = await (await fetch(`${API}/documents`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -164,13 +168,10 @@ check('控制台无错误', realErrs.length === 0, realErrs.slice(0, 2).join(' |
 // （AGENTS.md 前端约定第 10 条）
 console.log('\n── 7. 清理测试数据 ──');
 try {
-    const list = await (await fetch(`${API}/documents?limit=200`)).json();
-    const junk = (list.items || []).filter((d) => /^搜索验收·/.test(d.title || ''));
-    for (const d of junk) {
-        await fetch(`${API}/documents/${d.id}`, { method: 'DELETE' }).catch(() => {});
-    }
-    console.log(`  已清理 ${junk.length} 个测试文档`);
-    check('测试文档已全部回收', junk.length > 0 || !mkId, `清理了 ${junk.length} 个`);
+    // 软删之后必须 purge（TASK-016），否则测试数据留在回收站里
+    const n = await purgeTestDocuments(API, /^搜索验收·/);
+    console.log(`  已清理 ${n} 个测试文档`);
+    check('测试文档已全部回收', n > 0 || !mkId, `清理了 ${n} 个`);
 } catch (e) {
     check('清理测试文档', false, String(e && e.message).slice(0, 80));
 }

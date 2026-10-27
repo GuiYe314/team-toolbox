@@ -8,6 +8,7 @@
 //   6) 首页与知识库视觉语言一致
 //   7) 列表接口不回传 content_md 正文（体积优化）
 import { spawn } from 'node:child_process';
+import { purgeTestDocuments } from './verify-cleanup.mjs';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -76,7 +77,8 @@ const created = await (await fetch(`${URL_BASE}/api/documents`, {
 })).json();
 
 const cleanup = async () => {
-    await fetch(`${URL_BASE}/api/documents/${created.id}`, { method: 'DELETE' }).catch(() => {});
+    // 软删之后必须 purge，否则测试数据会堆在回收站里（TASK-016）
+    await purgeTestDocuments(URL_BASE + '/api', /^CARD\d+/);
 };
 process.on('exit', cleanup);
 
