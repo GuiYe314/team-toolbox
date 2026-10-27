@@ -12,7 +12,7 @@
     "dev": "node --watch src/index.js",
     "migrate": "node src/migrate.js",
     "rebuild": "npm rebuild better-sqlite3",
-    "test": "node --test src/store.test.js src/api.test.js src/asset-store.test.js src/asset-api.test.js src/asset-mirror.test.js src/asset-preview.test.js src/db.test.js src/full-backup.test.js src/search-index.test.js src/asset-reference.test.js src/document-trash.test.js src/asset-collection.test.js"
+    "test": "node --test src/store.test.js src/api.test.js src/asset-store.test.js src/asset-api.test.js src/asset-mirror.test.js src/asset-preview.test.js src/db.test.js src/full-backup.test.js src/search-index.test.js src/asset-reference.test.js src/document-trash.test.js src/asset-collection.test.js src/updater.test.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.11",

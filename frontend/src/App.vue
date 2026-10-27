@@ -65,6 +65,15 @@
                     </span>
                     <span class="nav-label">工具箱</span>
                 </router-link>
+                <router-link to="/settings" class="nav-item" :class="{ 'is-active': $route.path.startsWith('/settings') }">
+                    <span class="nav-icon">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="3" />
+                            <path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.9 6.1l-1.4 1.4M7.5 16.5l-1.4 1.4M17.9 17.9l-1.4-1.4M7.5 7.5 6.1 6.1" />
+                        </svg>
+                    </span>
+                    <span class="nav-label">设置</span>
+                </router-link>
             </div>
 
             <div class="nav-footer">

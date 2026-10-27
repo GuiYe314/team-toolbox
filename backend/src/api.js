@@ -34,7 +34,24 @@ const STATUS_MAP = {
     constraint_failed: 409,
     cannot_open: 500,
     busy_lock: 500,
-    unknown: 500
+    unknown: 500,
+
+    // 自动更新（updater.js）。刻意把「更新源侧的问题」与「本地操作顺序问题」
+    // 分开：前者是 502（网关/上游不可达，换个源可能就好了），
+    // 后者是 409（状态不满足，按提示补齐前置步骤即可）。
+    not_configured: 400,
+    invalid_source: 400,
+    source_unreachable: 502,
+    manifest_invalid: 502,
+    download_failed: 502,
+    checksum_mismatch: 502,
+    package_invalid: 422,
+    package_too_large: 413,
+    self_check_failed: 422,
+    extract_failed: 422,
+    not_downloaded: 409,
+    not_staged: 409,
+    update_failed: 500
 };
 
 /**

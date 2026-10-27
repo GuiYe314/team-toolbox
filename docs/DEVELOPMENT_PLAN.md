@@ -186,6 +186,26 @@
   7) 同名集合被拒绝并给出可读提示。
 - **完成条件**：以上 7 条均有测试覆盖且全绿；前后端回归全绿。
 
+### TASK-018 自动更新（检查 / 下载 / 校验 / 安装 / 回滚）
+- **交付物**：
+  - `backend/src/version.js`（版本单点来源 + 语义化比较）
+  - `backend/src/update-source.js`（更新源配置，http(s) 与本地/共享目录）
+  - `backend/src/updater.js`（清单校验、下载校验、解压自检、换文件、回滚握手）
+  - `backend/src/update-api.js`（`/api/update/*`）
+  - `frontend/src/views/Settings.vue` + `/settings` 路由与侧栏入口
+  - `backend/src/updater.test.js`（26 项）、`frontend/verify-update.mjs`（17 项）
+  - 打包脚本产出 `release/manifest.json`，并把 `-Version` 注入包内 `backend/package.json`
+- **覆盖特性**：F-OPS-003。
+- **依赖**：TASK-009（备份，用于升级前保存数据）、TASK-001（打包与发布流程）。
+- **验证**：
+  1) 四种界面状态正确（未配置 / 已最新 / 有新版 / 清单损坏）；
+  2) 哈希不符 → 抛错且不留下 `package.zip` 与 `.part`；
+  3) 路径穿越条目 → 被拒且文件未落到暂存目录之外；
+  4) 包结构不全 / 包内运行时自检失败 → 在动文件前失败；
+  5) 隔离沙箱里执行 `apply.cmd`：新代码生效、`data/` 完好、成功后清理回滚快照；
+  6) 隔离沙箱里执行 `apply.cmd`（新版本不确认启动）：自动回滚到原代码、数据完好、写出 `ROLLBACK.txt`。
+- **完成条件**：以上 6 条均有测试或验证记录；前后端回归全绿。
+
 ## 3. 依赖关系（人工核对无环）
 
 - TASK-001 → TASK-002 → TASK-003
@@ -199,6 +219,7 @@
 - TASK-005 + TASK-010 → TASK-015
 - TASK-005 + TASK-009 → TASK-016
 - TASK-010 → TASK-017
+- TASK-001 + TASK-009 → TASK-018
 - 延期：TASK-D02 依赖 TASK-010；TASK-D01 依赖 TASK-D02，两者均需届时完成对应方案决策。
 
 ## 4. 延期任务（不计入 MVP 门槛）

@@ -44,7 +44,11 @@ param(
     [switch]$SkipInstaller,
     # 内置 Node 运行时的版本。必须是**稳定 LTS**，且与打包时安装依赖的
     # Node 版本一致 —— 否则 better-sqlite3 的 ABI 又对不上（这正是 v0.1.0 的坑）。
-    [string]$NodeVersion = "22.22.2"
+    [string]$NodeVersion = "22.22.2",
+    # 更新清单里展示给用户的一句话说明（会出现在应用的「检查更新」对话框里）。
+    [string]$Notes = "",
+    # 标记为强制更新：客户端会提示「必须更新」，但**不会**替用户跳过备份。
+    [switch]$Mandatory
 )
 
 $ErrorActionPreference = "Stop"
@@ -197,6 +201,21 @@ Copy-Item (Join-Path $backend "package.json") $backendOut -Force
 if (Test-Path (Join-Path $backend "package-lock.json")) {
     Copy-Item (Join-Path $backend "package-lock.json") $backendOut -Force
 }
+
+# 把 -Version 注入包内的 package.json。
+#
+# 这一步不能省：后端从 package.json 读版本号并对外报告（/api/health、
+# 更新接口），而自动更新完全依赖版本比对。若忘了手工改 package.json
+# 就用新版本号打包，包里会自称旧版本 —— 用户装了新版仍被提示「有新版本」，
+# 或者干脆不提示。历史上真的发生过：v0.1.1 的包对外自称 0.1.0。
+Say "      注入版本号到包内 package.json..."
+$stagedPkg = Join-Path $backendOut "package.json"
+$pkgRaw = [System.IO.File]::ReadAllText($stagedPkg, [System.Text.UTF8Encoding]::new($false))
+$pkgNew = [regex]::Replace($pkgRaw, '("version"\s*:\s*")[^"]*(")', "`${1}$Version`${2}", 1)
+if ($pkgNew -notmatch ('"version"\s*:\s*"' + [regex]::Escape($Version) + '"')) {
+    throw "无法把版本号 $Version 写入包内 package.json，请检查该文件格式。"
+}
+[System.IO.File]::WriteAllText($stagedPkg, $pkgNew, [System.Text.UTF8Encoding]::new($false))
 
 Say "      复制前端产物..."
 Copy-Item $dist $frontendOut -Recurse -Force
@@ -404,8 +423,13 @@ if errorlevel 1 (
 
 REM ---- 启动后端（同时托管前端与 API，单端口）----
 echo [info] 正在启动 team-toolbox...
+REM TT_SKIP_BROWSER=1：由自动更新的换文件脚本设置。
+REM 升级后重开一个浏览器标签页没有意义（用户本来就在页面上），
+REM 而且会让「更新完自动回到应用」变成「多出一个重复标签」。
+if "%TT_SKIP_BROWSER%"=="1" goto :skip_browser
 echo [info] 就绪后会自动打开 http://127.0.0.1:3000/
 start "" /b "%NODE_EXE%" "%~dp0runtime\open-browser.js"
+:skip_browser
 
 pushd backend
 "%NODE_EXE%" src\index.js
@@ -527,6 +551,37 @@ foreach ($a in $assets) {
 }
 [System.IO.File]::WriteAllText($manifestPath, ($lines -join "`r`n"), (New-Object System.Text.UTF8Encoding($false)))
 
+# ── 更新清单（自动更新客户端读它）─────────────────────────────────────────
+#
+# 客户端靠这个文件回答三个问题：有没有新版、下哪个包、下到的包对不对。
+# 只发 zip 不发清单，自动更新就什么也找不到 —— 两者必须同时发布。
+#
+# 注意：**不能带 UTF-8 BOM**。带 BOM 时 JSON.parse 会直接抛
+# 「Unexpected token」，而错误现场看起来像「清单文件损坏」，
+# 极难联想到是编码问题。同理服务端读取时也会先剥掉 BOM 兜底。
+$updateManifest = Join-Path $releaseDir "manifest.json"
+$zipHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
+$zipSize = (Get-Item $zipPath).Length
+$updatePayload = [ordered]@{
+    schema   = 1
+    channel  = 'stable'
+    latest   = $Version
+    releases = @(
+        [ordered]@{
+            version     = $Version
+            released_at = (Get-Date -Format 'yyyy-MM-ddTHH:mm:sszzz')
+            file        = (Split-Path -Leaf $zipPath)
+            sha256      = $zipHash
+            size        = $zipSize
+            mandatory   = [bool]$Mandatory
+            notes       = $Notes
+        }
+    )
+}
+$updateJson = $updatePayload | ConvertTo-Json -Depth 6
+[System.IO.File]::WriteAllText($updateManifest, $updateJson, (New-Object System.Text.UTF8Encoding($false)))
+Say ("      更新清单 manifest.json（{0}）" -f $Version) "Green"
+
 # ── 6. 运行时自检（封版硬门槛）────────────────────────────────────────────
 #
 # 为什么必须在这里自动验：v0.1.0 的包在构建机上一切正常，
@@ -555,4 +610,11 @@ Say "输出目录: $releaseDir"
 Get-ChildItem $releaseDir -File | Where-Object { $_.Name -like "*$Version*" } | ForEach-Object {
     Say ("  {0}  {1:N0} 字节" -f $_.Name, $_.Length)
 }
+# 清单名不含版本号，单独列出，避免它被漏掉
+if (Test-Path (Join-Path $releaseDir "manifest.json")) {
+    Say ("  manifest.json  {0:N0} 字节" -f (Get-Item (Join-Path $releaseDir "manifest.json")).Length)
+}
+Say ""
+Say "自动更新：把 manifest.json 与 team-toolbox-$Version.zip 一起放到更新源目录，"
+Say "          客户端配置该目录后即可检查并安装更新。"
 Say ""

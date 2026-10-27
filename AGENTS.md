@@ -35,6 +35,7 @@
     - 文档：`purgeTestDocuments(apiBase, /标题特征/)`
     - 资源：`purgeTestAssets(apiBase, /名称特征/)`
     两者内部都完成了「软删 → 永久删除」两步，并同时扫两个范围。新增会造数据的验收脚本必须走这个模块。
+12. **验收脚本不得真的执行「安装更新」**：`POST /api/update/apply` 会替换程序文件并重启服务，跑一次测试环境就变样了，还可能把开发目录换成发布包内容。`verify-update.mjs` 只验证到「界面把状态讲清楚」，换文件与回滚由 `backend/src/updater.test.js` 与隔离沙箱里的 `apply.cmd` 手工验证覆盖。测试更新相关功能时，更新源指向 `os.tmpdir()` 下的临时目录，结束务必清空配置（`PUT /api/update/source` 传空串）。
 
 ### 验收脚本索引
 
@@ -49,6 +50,7 @@
 | `verify-asset-reference.mjs` | 文档引用资源：插入、落库、渲染、失效降级 | — |
 | `verify-document-trash.mjs` | 文档回收站：软删、恢复、永久删除、二次确认、不误伤正常文档 | 9、10 |
 | `verify-asset-collections.mjs` | 资源集合：列表、详情、移除不删资源、删集合不删资源 | 9、10 |
+| `verify-update.mjs` | 自动更新：未配置/已最新/有新版/清单损坏四种状态，不执行安装 | 9、11 |
 | `verify-qr-share.mjs` | 二维码内容、颜色走 CSS 变量、主题切换 | 2、4 |
 | `verify-batch-mode.mjs` | 批量模式开关、菜单落在视口内 | 1、8 |
 | `verify-asset-preview.mjs` | 预览管线、缩略图、失败原因可见 | — |

@@ -13,9 +13,12 @@ import { dirname } from 'node:path';
 import { getDefaultDatabase, closeDefaultDatabase, DB_PATH, PROJECT_ROOT } from './db.js';
 import { registerApi } from './api.js';
 import { registerAssetApi } from './asset-api.js';
+import { registerUpdateApi } from './update-api.js';
 import { backfillPreviews } from './asset-preview.js';
 import { runMigrations } from './migrate.js';
 import { ensureIndexSynced } from './search-index.js';
+import { getAppVersion } from './version.js';
+import { confirmStartupOk, readRollbackNotice } from './updater.js';
 
 // ESM 没有 __dirname，手工取当前模块目录。
 // 用于定位 frontend/dist —— 发布包内前端产物与后端同级目录结构：
@@ -34,6 +37,10 @@ registerApi(app, { getDb: getDefaultDatabase });
 
 // 资源管理接口（独立子系统）：Asset / AssetVersion / Folder / 标签 / 操作记录
 registerAssetApi(app, { getDb: getDefaultDatabase });
+
+// 自动更新接口：检查更新源、下载校验、安装重启。
+// 默认不启用 —— 未配置更新源时所有接口都只返回「未配置」。
+registerUpdateApi(app);
 
 // 健康检查：返回 DB 路径与可达性
 app.get('/api/health', (_req, res) => {
@@ -56,7 +63,10 @@ app.get('/api/health', (_req, res) => {
     res.json({
         status: 'ok',
         service: 'team-toolbox-backend',
-        version: '0.1.0',
+        // 版本号从 package.json 读，不再硬编码 ——
+        // 硬编码会让「包自称的版本」与「实际装的版本」悄悄分叉，
+        // 而自动更新完全依赖版本比对，分叉就等于更新检测失效。
+        version: getAppVersion(),
         db: { path: DB_PATH, ok: dbOk, size_bytes: dbSize }
     });
 });
@@ -138,6 +148,21 @@ async function start() {
         console.log(`[server] listening on http://${HOST}:${PORT}`);
         console.log(`[server] db path: ${resolvePath(DB_PATH)}`);
         console.log(`[server] node: ${process.version}`);
+        console.log(`[server] version: ${getAppVersion()}`);
+
+        // 自动更新的「成功握手」。
+        //
+        // apply.cmd 在换完文件、拉起本进程后会盯着 data/updates/pending.json：
+        // 标记还在就说明新版本没起来，它会自动回滚。所以这一行必须放在
+        // listen 成功之后 —— 迁移失败会 exit(1)，那时标记应当保留。
+        const upgraded = confirmStartupOk();
+        if (upgraded) {
+            console.log(`[update] 已完成升级：${upgraded.from} → ${upgraded.to}`);
+        }
+        const rollback = readRollbackNotice();
+        if (rollback) {
+            console.warn(`[update] 检测到上次升级被回滚：${rollback}`);
+        }
 
         // 全文索引与主表同步检查。
         //

@@ -126,5 +126,18 @@ export const api = {
                 err.network = true;
                 throw err;
             });
-    }
+    },
+
+    // ── 自动更新 ──
+    // 状态接口只读本地缓存，不发网络请求 —— 页面首屏不该被「更新源不通」卡住。
+    getUpdateStatus: () => request('GET', '/update/status'),
+    setUpdateSource: (source) => request('PUT', '/update/source', { source }),
+    // 显式触发检查（会访问更新源，可能较慢）
+    checkUpdate: () => request('POST', '/update/check'),
+    // 以下三步是「下载 → 解压自检 → 安装重启」，刻意拆开：
+    // 每一步只做一件事，失败时能明确停在哪一步，而不是装到一半说不清。
+    downloadUpdate: (version) => request('POST', '/update/download', { version }),
+    stageUpdate: (version) => request('POST', '/update/stage', { version }),
+    applyUpdate: (version) => request('POST', '/update/apply?confirm=1', { version }),
+    dismissRollback: () => request('POST', '/update/dismiss-rollback')
 };
