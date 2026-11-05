@@ -10,7 +10,7 @@ REM      2. Install backend & frontend deps on first run.
 REM      3. Run database migration if data file is missing.
 REM      4. Launch backend (3000) and frontend (5173) in separate
 REM         windows; open browser to frontend URL.
-REM  Stop: close the two titled command windows, or Ctrl+C.
+REM  Stop: double-click stop.bat, or Ctrl+C in each service window.
 REM ============================================================
 REM  IMPORTANT: this system has NO authentication.
 REM  Do NOT bind to 0.0.0.0 or expose to the public network.
@@ -90,7 +90,7 @@ echo ============================================================
 echo  team-toolbox started.
 echo    backend : http://127.0.0.1:3000  (window: team-toolbox-backend)
 echo    frontend: http://127.0.0.1:5173  (window: team-toolbox-frontend)
-echo  Stop: close the two titled windows.
+echo  Stop: double-click stop.bat.
 echo  WARN: NO auth. Do NOT bind 0.0.0.0 / expose publicly.
 echo ============================================================
 echo.

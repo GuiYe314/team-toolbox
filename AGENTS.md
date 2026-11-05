@@ -51,6 +51,7 @@
 | `verify-document-trash.mjs` | 文档回收站：软删、恢复、永久删除、二次确认、不误伤正常文档 | 9、10 |
 | `verify-asset-collections.mjs` | 资源集合：列表、详情、移除不删资源、删集合不删资源 | 9、10 |
 | `verify-update.mjs` | 自动更新：未配置/已最新/有新版/清单损坏四种状态，不执行安装 | 9、11 |
+| `verify-android-wireless.mjs` | 安卓调试：双栏与独立滚动、帮助/ADB 设置弹窗、六项常用命令、当前用户 HOME 选择/确认/复查/恢复/失效清理、自定义命令增改删/持久化/确认/版本冲突、实时 Logcat、单应用选择/状态/子进程隔离/重启跟随、屏幕单次/连续刷新/放大/取消/图片释放、二维码及六位码配对、单设备断开、错误恢复和明暗下拉对比度；使用离线 ADB 执行器 | 1、2、9 |
 | `verify-qr-share.mjs` | 二维码内容、颜色走 CSS 变量、主题切换 | 2、4 |
 | `verify-batch-mode.mjs` | 批量模式开关、菜单落在视口内 | 1、8 |
 | `verify-asset-preview.mjs` | 预览管线、缩略图、失败原因可见 | — |
@@ -61,6 +62,35 @@
 | `ui-verify.mjs` | 既有页面通用断言 | 3、5 |
 | `verify-batch-delete.mjs` | 知识库批量删除 | 9 |
 
+
+## 安卓调试边界（F-ADB-001）
+
+- ADB 仅在服务器执行，模块 API 只允许回环客户端和本机 Host；保留浏览器来源检查、JSON 和专用请求头要求，不信任代理转发头。
+- 进程调用使用参数数组、禁用本机 Shell、隐藏窗口、输出限制、超时与取消；自定义命令限 TASK-026 的已保存 ID、版本及确认执行，不增加临时自由执行接口或全局断开。
+- 六位码配对只使用短期缓存的 mDNS 配对服务；二维码配对只匹配当前短期会话生成的随机服务名。六位码与二维码随机口令仅经 stdin 传给 ADB，禁止写入进程参数、文件或日志。二维码内容仅在会话创建响应中返回当前本机页面，状态接口不得回传口令。
+- 文件夹扫描必须异步、有深度/目录/条目/结果/时间上限，不跟随子目录链接；多个 ADB 候选由用户选择，校验版本成功后才能保存。兼容既有可执行文件路径和 `ADB_PATH`，不需要 SQLite 或配置结构迁移。
+- 扫码会话两分钟有效，可在 ADB 忙碌时取消；取消、到期、配置变化和页面离开后清理口令与二维码。只能自动连接刚配对手机的连接服务；出现同地址多设备歧义时要求手动选择。扫码状态逻辑位于 `android-qr.js`，文件夹搜索位于 `android-adb-search.js`，公共解析位于 `android-adb-protocol.js`。
+- ADB 路径持久化到 `data/android-adb.json`（`ADB_PATH` 优先）；自定义命令单独保存到机器配置 `data/android-commands.json`，不放入团队备份。设备、发现服务和配对码均为瞬时状态。
+- 断开必须确认明确的单台无线设备，连接和断开后刷新列表，并区分操作失败与操作成功后刷新失败。
+- ADB 配置由 `AndroidAdbSettings.vue` 负责，经 `AndroidSettingsDialog.vue` 在调试页与设置页复用；操作说明由 `AndroidHelp.vue` 点击后弹出。弹窗必须 Teleport 到 body，支持键盘关闭与焦点恢复。调试页左侧为设备连接和列表，右侧为命令、屏幕与日志，两栏独立滚动。常用命令位于 `AndroidCommands.vue`，内置仅保留锁定程序、恢复桌面、IP、设备信息、内存与 CPU 六项；接受服务端内置或保存的自定义命令 ID，HOME 命令仅额外接受经过校验的 `component` 与 `userId`，其他命令拒绝这两项及任意附加参数。执行前重新验证目标为 `device`，必须插入 `-s <serial>`。输出不持久化。
+- `android-home.js` 通过 `am get-current-user`、限定 HOME Intent 的 `cmd package query-activities/resolve-activity` 读取当前用户、候选与默认值；组件严格校验、规范化并限量。设置必须布尔确认，复核当前用户及实际候选，再执行 `cmd package set-home-activity --user <用户> <组件>`，检查成功输出并复查默认包，失败不能冒称成功。总时限 30 秒，子命令各有输出/超时上限和取消；不猜测普通应用的启动页，不自动启动应用，也不实现禁退锁定。`AndroidHomeSelector.vue` 管理搜索与主动选择，换设备/命令/配置或离页清理；候选、用户与结果只在内存。IP 查询全部接口 IPv4；内存与 CPU 是 dumpsys 快照，不新增后台采集。
+- `android-custom-commands.js` 校验单条参数并解析引号，拒绝 `adb` 前缀、全局选项、连接管理和 Shell 管道/重定向/拼接；远端 `shell` 参数须按字面量转义，不能仅依赖本机 `shell:false`。自定义执行总是要求布尔确认和当前版本；修改/删除也核对版本，内置不可修改。命令库原子保存，损坏时拒绝覆盖，原文与结果不记操作日志。编辑弹窗失败保留草稿，不触发执行。
+- `android-logcat.js` 只使用固定 `-s <serial> logcat -v threadtime -T 100` 参数读取在线设备。服务端最多保留一个短期会话，缓存最多 2000 条或 1 MiB，单行最多 4096 字符，未完成单行缓冲超过 65536 字符时停止；每次轮询最多 300 条，15 秒无心跳终止进程。日志正文只在内存，不写配置、数据库或操作日志。停止不占用普通命令锁，切换设备、离页、配置变化、对应设备断开/重启及服务器退出必须结束采集；不提供清空手机缓冲区的操作。`AndroidLogcat.vue` 负责过滤、自动滚动和最多 2000 条的页面缓存。
+- 安卓原生下拉统一使用 `android.css` 的 `.adb-select`，底色不透明，选项/选中/禁用态按主题配色。主题切换时文字与底色同步更新，避免全局输入框背景动画造成瞬时低对比。
+- `android-apps.js` 只读查询明确在线设备上的包名、安装路径与进程，包名必须严格校验，参数固定为 `pm list packages`、`pm path <包名>`、`ps -A -w -o PID,NAME`，查询有超时和输出上限；使用宽输出避免长包名截断。列表最多 2000 个包名；运行状态按精确包名或 `包名:` 子进程名匹配，不能按任意子串猜测 PID。应用日志只把匹配 PID 的内容加入缓存并返回浏览器；心跳最多每两秒刷新一次 PID 集合，不另起永久扫描定时器，停止时取消在途查询。所有状态只在内存，不自动启动/停止手机应用，不把进程存在等同于前台或健康状态；短暂进程/特殊进程名/系统代写日志的限制必须在帮助中说明。
+- `android-screen.js` 只读在线且已授权的明确设备，以固定 `-s <serial> exec-out screencap -p` 参数读取原始二进制，禁止复用 UTF-8 文本 runner。设备检查与截图总时限 12 秒，图片输出最多 16 MiB、错误输出最多 4096 字节，验证 PNG 签名、块边界与 CRC、IHDR/IDAT/IEND、单边 16384 和总像素 32 Mi 上限。全服务最多一个在途截图，不占普通命令锁；请求取消、配置变化、对应设备断开/重启和服务退出时取消。API 复用本机保护，返回不缓存的 PNG；图片不写磁盘、数据库或日志。
+- `AndroidScreenPreview.vue` 默认不读取，必须选择设备；连续刷新在上次读取完成后等待所选间隔，不重叠请求。停止保留最后画面，清空会停止并撤销图片 URL；替换、取消解码、切换设备、设备消失、配置变化和卸载时释放 Blob URL。页面进入后台时停止并保留最后画面，离页清空；放大弹窗必须 Teleport 到 body 并支持 Escape 与焦点恢复。帮助须说明截图刷新速度及受保护内容的显示限制。
+- 修改后运行 `backend` 的 `npm test`（包含 `android-adb.test.js`、`android-adb-search.test.js`、`android-qr.test.js`、`android-adb-commands.test.js`、`android-home.test.js`、`android-custom-commands.test.js`、`android-logcat.test.js`、`android-apps.test.js` 和 `android-screen.test.js`）、前端构建和 `node frontend/verify-android-wireless.mjs`。浏览器验收使用临时配置与离线执行器，结束清理临时目录；不得把模拟验证宣称为真实手机验证。
+
+## Unity 局域网日志边界（F-ULOG-001）
+
+- 入口 `UnityLogs.vue` / `/tools/unity-logs`；`unity-log-client.js` 只请求本机后端。`unity-log-view.js` 解析与筛选整条日志，Vue 插值展示正文；预览限 256 KiB、显示限 1000 条。CSS 延续 tokens/theme 约束。
+- `unity-log-discovery.js` 按本机私有 IPv4 掩码生成有界候选，仅探测 TCP 日志端口和固定发现协议；默认 1024 地址、64 并发、25 秒总限，报告实际检查范围。指定 IP 也必须属于本机真实私网网段；不能接收自由 URL 或探测公网。
+- `unity-log-http.js` 固定路径、严格文件名校验，不跟随重定向；缓冲与流式读取都必须有完整请求超时、取消和响应大小限制。流建立到消费端之间的错误必须被捕获，避免未处理事件或挂起。
+- `unity-logs.js` 只在内存缓存发现结果与短期读取会话，最多八个会话，票据不回传浏览器、不记日志、不落盘；重连核对固定编号及 App ID。`unity-log-api.js` 要求回环客户端、本机 Host/Origin、JSON 与专用头，不信任转发头。文件只读，下载交给浏览器，不自动写团队数据库或备份。
+- 取消、切换设备、离页及服务器关闭必须取消在途请求；连接已建立但响应未交付时回收会话。页面后台暂停读取与连接。失败保留上次成功的预览，不能仍标记为正常读取。
+- Unity 改动限定 `Assets/Test/Log`，不得改 AnchorFrame 或原 GameLogic 日志模块；不得手改场景/预制体 YAML。设备新增发现协议位于 AOT，需完整重新打包。真实 Android/iPad 权限、网络和后台恢复需硬件单独验证，不能把本机 C# 协议联调当作真机测试。
+- 改动后运行完整 `backend` 的 `npm test`（包含 `unity-log-discovery.test.js`、`unity-logs.test.js`、`unity-log-api.test.js`）及前端构建；用隔离 C# 服务提供合成日志，通过浏览器验证搜索、历史、筛选/复制/下载、错误恢复、取消与离页。不得读写真实团队数据库或将合成日志混入设备数据；验证后关闭临时服务。
 
 ## 变更流程
 

@@ -14,6 +14,8 @@ import { getDefaultDatabase, closeDefaultDatabase, DB_PATH, PROJECT_ROOT } from 
 import { registerApi } from './api.js';
 import { registerAssetApi } from './asset-api.js';
 import { registerUpdateApi } from './update-api.js';
+import { registerAndroidApi } from './android-api.js';
+import { registerUnityLogApi } from './unity-log-api.js';
 import { backfillPreviews } from './asset-preview.js';
 import { runMigrations } from './migrate.js';
 import { ensureIndexSynced } from './search-index.js';
@@ -41,6 +43,8 @@ registerAssetApi(app, { getDb: getDefaultDatabase });
 // 自动更新接口：检查更新源、下载校验、安装重启。
 // 默认不启用 —— 未配置更新源时所有接口都只返回「未配置」。
 registerUpdateApi(app);
+const androidService = registerAndroidApi(app);
+const unityLogService = registerUnityLogApi(app);
 
 // 健康检查：返回 DB 路径与可达性
 app.get('/api/health', (_req, res) => {
@@ -210,6 +214,8 @@ const server = await start();
 
 function shutdown(signal) {
     console.log(`[server] received ${signal}, shutting down`);
+    androidService.dispose();
+    unityLogService.dispose();
     server.close(() => {
         closeDefaultDatabase();
         process.exit(0);

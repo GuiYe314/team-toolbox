@@ -31,6 +31,20 @@ export default {
         return {
             tools: [
                 {
+                    id: 'unity-logs',
+                    name: 'Unity 设备日志',
+                    desc: '搜索同局域网 Android / iPad，读取与下载历史日志',
+                    routeName: 'tool-unity-logs',
+                    status: '可用'
+                },
+                {
+                    id: 'android-wireless',
+                    name: '安卓无线调试',
+                    desc: '搜索无线设备，六位码配对、连接与设备管理',
+                    routeName: 'tool-android-wireless',
+                    status: '可用'
+                },
+                {
                     id: 'ratio-lock',
                     name: '比例锁定',
                     desc: '锁定宽高比，输入任一侧自动换算另一侧',

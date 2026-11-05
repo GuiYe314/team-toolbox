@@ -43,7 +43,38 @@
 
     /* ── 间距 ────────────────────────────────────────────────────── */
     --gap-column: 14px;
+    --ulog-gap-xs: 6px;
+    --ulog-gap-sm: 10px;
+    --ulog-gap-md: 16px;
+    --ulog-gap-lg: 22px;
+    --ulog-device-width: 300px;
+    --ulog-control-height: 38px;
+    --ulog-log-min-height: 180px;
+    --ulog-time-width: 88px;
+    --ulog-level-width: 78px;
+    --ulog-border-width: 1px;
+    --ulog-focus-width: 2px;
+    --ulog-copy-offset: -10000px;
     --page-padding: 22px;
+    --adb-small-gap: 6px;
+    --adb-min-column: 320px;
+    --adb-max-width: 1120px;
+    --adb-qr-size: 280px;
+    --adb-help-width: 720px;
+    --settings-max-width: 960px;
+    --adb-command-column: 220px;
+    --adb-output-height: 320px;
+    --adb-workspace-width: 1580px;
+    --adb-control-height: 40px;
+    --adb-log-height: 340px;
+    --adb-log-time-width: 124px;
+    --adb-log-level-width: 16px;
+    --adb-screen-height: 420px;
+    --adb-screen-empty-height: 180px;
+    --adb-screen-dialog-width: 960px;
+    --adb-screen-dialog-offset: 150px;
+    --adb-command-editor-width: 680px;
+    --adb-command-editor-input-height: 100px;
 
     /* ── 侧栏宽度（三栏：主导航 / 页面树 / 主内容）─────────────────── */
     --w-main-sidebar: 214px;

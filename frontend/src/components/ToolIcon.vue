@@ -17,6 +17,14 @@
             <rect x="3.5" y="5" width="17" height="14" rx="2" />
             <path d="M8.5 5v14M15.5 5v14M3.5 12h17" />
         </svg>
+        <svg v-else-if="resolved === 'android-wireless'" class="icon" viewBox="0 0 24 24">
+            <rect x="6.5" y="2.5" width="11" height="19" rx="2" />
+            <path d="M10 18h4M9 8a5 5 0 0 1 6 0M10.5 10.5a2.5 2.5 0 0 1 3 0" />
+        </svg>
+        <svg v-else-if="resolved === 'unity-logs'" class="icon" viewBox="0 0 24 24">
+            <rect x="5" y="2.5" width="14" height="19" rx="2" />
+            <path d="M8.5 7h7M8.5 11h7M8.5 15h4M11 18.5h2" />
+        </svg>
         <svg v-else class="icon" viewBox="0 0 24 24">
             <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
             <path d="M3.5 9.5h17M9.5 9.5v10" />
@@ -26,6 +34,8 @@
 
 <script>
 const MAP = {
+    'unity-logs': 'unity-logs',
+    'android-wireless': 'android-wireless',
     'json-fmt': 'braces',
     jsonfmt: 'braces',
     'qrcode': 'qrcode',

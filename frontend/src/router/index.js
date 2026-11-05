@@ -65,6 +65,16 @@ const routes = [
         component: () => import('../views/ToolEmptyState.vue')
     },
     {
+        path: '/tools/android-wireless',
+        name: 'tool-android-wireless',
+        component: () => import('../views/AndroidWireless.vue')
+    },
+    {
+        path: '/tools/unity-logs',
+        name: 'tool-unity-logs',
+        component: () => import('../views/UnityLogs.vue')
+    },
+    {
         path: '/tools/qrcode',
         name: 'tool-qrcode',
         component: () => import('../views/ToolEmptyState.vue')

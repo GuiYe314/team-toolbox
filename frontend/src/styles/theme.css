@@ -70,6 +70,16 @@
        Light 下前景近黑、背景纯白；Dark 下前景近白、背景深蓝灰。 */
     --qr-foreground: #0b1220;
     --qr-background: #ffffff;
+    /* 安卓系统扫码保持深色模块与不透明浅底，两种主题都使用相同配色。 */
+    --adb-qr-foreground: #0b1220;
+    --adb-qr-background: #ffffff;
+    --adb-select-background: #f8faff;
+    --adb-select-menu: #ffffff;
+    --adb-select-text: #1c2333;
+    --adb-select-border: #9caecb;
+    --adb-select-selected: #dce5ff;
+    --adb-select-disabled: #58677f;
+    --adb-log-background: #f4f7fc;
 }
 
 [data-theme="dark"] {
@@ -91,6 +101,13 @@
     --panel-border: rgba(255, 255, 255, 0.11);
 
     --text-primary: #e7ecf5;
+    --adb-select-background: #202e44;
+    --adb-select-menu: #18263b;
+    --adb-select-text: #f0f4fc;
+    --adb-select-border: #6e85aa;
+    --adb-select-selected: #354e79;
+    --adb-select-disabled: #b4c0d4;
+    --adb-log-background: #101a2b;
     --text-secondary: #a3aec4;
     --text-tertiary: #6c7893;
     --text-inverse: #0b1119;

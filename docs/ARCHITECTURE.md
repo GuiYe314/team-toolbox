@@ -1,5 +1,29 @@
 # 架构说明（ARCHITECTURE）
 
+## Unity 设备日志模块补充（2026-11-05）
+
+- TASK-025 / F-ULOG-001：`/tools/unity-logs` → 本机专用 `/api/unity-logs/*` → 同局域网 Unity 的 TCP 17523 只读日志服务；不依赖 ADB、不改 SQLite。
+- `unity-log-discovery.js` 从本机私有 IPv4 与掩码生成有界搜索范围，只探测专用 HTTP 发现协议。设备编号跨 IP 保持稳定，票据绑定来源 IP、闲置两分钟到期；票据只存后端内存，不给浏览器、不落盘。
+- `unity-logs.js` 管理发现结果及最多八个短期读取会话，固定日志路径、响应大小、超时、取消和下载流限制；`unity-log-api.js` 检查本机来源/Host/浏览器上下文及专用请求头。拒绝自由 URL、公网探测和重定向。
+- Unity 修改仅在 `Assets/Test/Log`：默认自动开放局域网读取，手动关闭保留；后台关闭、前台按原开启状态恢复。浏览器直连的访问码方式保留，工具箱通过发现票据自动读取。此修改在 AOT 程序集，必须重新打 APK/iOS 包。
+- 同 Wi-Fi 不保证设备互通：AP 隔离、iOS 本地网络权限、应用后台或不同 VLAN 需明确排查；大网段扫描截断与超时必须反馈真实覆盖范围。
+
+## 安卓无线调试模块补充（2026-11-05）
+
+- TASK-019 / F-ADB-001：前端 `/tools/android-wireless` → `/api/android/*` → 独立 ADB 服务，沿用 Vue 与 Express，不依赖浏览器直接访问 USB 或运行本机命令。
+- ADB 安装于服务器；模块仅允许服务器本机通过 localhost/回环地址访问，写请求检查 JSON、自定义请求头和浏览器同源上下文。常规知识库/资源库的受控内网访问边界保持原约定。
+- 服务使用内置参数列表或已保存自定义命令的校验结果，以 `spawn`、`shell: false`、隐藏窗口、限量捕获、超时和取消执行。执行接口以命令 ID 解析参数；HOME 设置仅增加严格校验的组件与当前用户字段，其他命令拒绝这两个字段。自定义命令必须确认目标、内容和版本，不提供临时自由执行或全局断开接口。
+- 配对只接受短期缓存的 mDNS 配对服务；六位配对码走 stdin，并在返回结果中脱敏。操作日志仅记录动作、成功/失败与错误码。
+- 服务器本地 ADB 路径以临时文件加替换保存至 `data/android-adb.json`，环境变量 `ADB_PATH` 优先；属于机器配置，不加入团队文档备份。发现结果、设备与配对码不持久化，无 SQLite 迁移。
+- TASK-020：文件夹搜索采用异步、有深度/目录/条目/时间上限的扫描，不跟随目录链接，返回候选路径后复用版本校验与配置。二维码使用 [Android 官方 ADB Wi-Fi 协议](https://android.googlesource.com/platform/packages/modules/adb/+/HEAD/docs/dev/adb_wifi.md) 的 `WIFI:T:ADB` 内容；独立短期会话在内存中保存随机服务名和口令，页面轮询触发有界的 mDNS/配对/连接操作，不启动永久后台扫描。只匹配本会话的配对广播及同一手机的连接服务；口令仅经 stdin 传给 ADB，状态接口不回传凭据。取消、到期、配置变化和页面离开时终止会话并清理口令。
+- TASK-021：帮助采用 Teleport 弹窗；ADB 配置由设置页的独立组件负责，调试页仅读取配置。`android-adb-commands.js` 提供不可变的命令目录与执行校验，经现有独占锁、进程超时及本机 API 执行；客户端只提交命令 ID、设备序列号及确认标记，不能注入参数。每次执行重新检查设备在线，重启须确认，输出为内存态。
+- TASK-022：`AndroidSettingsDialog.vue` 在调试页和设置页复用 ADB 配置弹窗，Teleport 到 body。调试页采用设备区与命令/日志区双栏。`android-logcat.js` 单独管理指定设备的 Logcat 子进程、UTF-8 行解析、有界环形缓存、增量游标与心跳过期，不占用普通命令的长期独占锁；日志会话停止不排队，配置变更/对应设备断开/重启会主动停止。浏览器停止、离页使用 keepalive 撤销，断网由闲置超时清理；日志内容不写入数据库、配置或服务器操作日志。
+- TASK-023：`android-apps.js` 使用明确设备的安装包、路径与进程查询读取包名和运行状态。`AndroidAppSelector.vue` 管理只在当前页生效的包名搜索、选择及状态快照。应用模式复用一个 Logcat 进程，在服务端按精确主进程名或 `包名:` 前缀获得的 PID 集合筛选，其他进程原文不进入缓存或 API；心跳轮询最多每两秒刷新一次 PID 集合，停止/切换会取消在途查询。保留设备日志模式，不新增应用控制或性能分析能力。
+- 进程查询固定为 `ps -A -w -o PID,NAME`：[Android Toybox 字段说明](https://android.git.googlesource.com/platform/external/toybox/+/d4ea1b3b845f13f6a3c354266b97abc4ada6b1c8/generated/help.h) 中 `NAME` 为 argv[0]，`-w` 禁止截断宽字段，避免长包名及子进程名被裁切。
+- TASK-024：`android-screen.js` 以明确设备和固定 `exec-out screencap -p` 读取二进制，独立限制一个在途截图、12 秒总时限、16 MiB 输出、PNG 块完整性和 32 Mi 像素。`/api/android/screen` 复用本机来源与请求头保护，以不缓存的 PNG 响应返回，不落盘；配置/目标连接变化会取消截图。`AndroidScreenPreview.vue` 用 Blob URL 展示当前图，替换时撤销旧 URL，连续刷新使用请求完成后的定时器，停止/设备变化/配置变化/离页/后台时取消，放大视图 Teleport 到 body。
+- TASK-026：`android-custom-commands.js` 负责单条 ADB 参数解析、限制、远端字面量转义与机器命令库；`data/android-commands.json` 版本 1 通过临时文件替换保存，最多 100 条，损坏时明确报错且拒绝覆盖。自定义命令与内置命令合并展示，执行仍只提交服务端保存的 ID，并携带版本和强制确认；更新/删除也核对版本。`AndroidCommandEditor.vue` 通过 body Teleport 弹窗编辑，保留失败草稿；常用命令组件负责选择、确认和结果。命令原文不进操作日志，不进入团队备份，无 SQLite 迁移。
+- TASK-027：内置命令精简为默认桌面锁定/恢复、IP、设备信息及内存/CPU 快照。`android-home.js` 查询当前用户及 HOME 组件，设置时重新校验，成功后复查默认包；`AndroidHomeSelector.vue` 管理设备相关候选与主动选择，设备/命令/配置变化清空。只设置默认桌面，不实现禁退或 Device Owner。依据 [AOSP set-home-activity 实现](https://android.googlesource.com/platform/frameworks/base/+/dec5b1985f6930856c6fde0be2e9ef47623c7306/services/core/java/com/android/server/pm/PackageManagerShellCommand.java)，使用显式用户和组件，兼容以包名决定 HOME 角色的系统；实际支持范围由设备返回，不猜测普通启动 Activity。
+
 - 基线日期：2026-10-16。本文描述目标架构与约束；进度以 [PROJECT_STATUS](PROJECT_STATUS.md) 为唯一来源。其中文档页面树已在迁移 002（`documents.parent_id` 自引用 + 级联删除）落地，其余仍为规划。
 
 ## 1. 总体形态

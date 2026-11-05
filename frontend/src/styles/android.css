@@ -1,0 +1,23 @@
+/* 原生下拉使用实底与明确文字色，避免半透明选项在系统菜单中失去对比。 */
+.adb-select.input {
+    color: var(--adb-select-text);
+    background-color: var(--adb-select-background);
+    border: 1px solid var(--adb-select-border);
+    border-radius: var(--radius-sm);
+    min-height: var(--adb-control-height);
+    padding: var(--adb-small-gap) var(--gap-column);
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    color-scheme: inherit;
+    cursor: pointer;
+    /* 文字与实底同时切换，避免主题过渡期间深色文字落在深色背景上。 */
+    transition: border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+}
+.adb-select.input:hover:not(:disabled) { border-color: var(--accent); }
+.adb-select.input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.adb-select.input:disabled { color: var(--adb-select-disabled); opacity: 1; cursor: default; }
+.adb-select option, .adb-select optgroup { color: var(--adb-select-text); background-color: var(--adb-select-menu); }
+.adb-select option { font-weight: var(--weight-regular); }
+.adb-select optgroup { font-weight: var(--weight-semibold); }
+.adb-select option:checked { color: var(--adb-select-text); background-color: var(--adb-select-selected); }
+.adb-select option:disabled { color: var(--adb-select-disabled); }

@@ -74,8 +74,8 @@
                     </div>
                     <h3 class="tool-name">{{ tool.name }}</h3>
                     <p class="tool-desc">{{ tool.desc }}</p>
-                    <button v-if="tool.status === 'planned'" class="btn btn-sm" @click="$router.push({ name: tool.routeName })">
-                        查看详情
+                    <button class="btn btn-sm" @click="$router.push({ name: tool.routeName })">
+                        {{ tool.status === 'planned' ? '查看详情' : '打开工具' }}
                     </button>
                 </div>
             </div>
@@ -93,6 +93,20 @@ export default {
     data() {
         return {
             tools: [
+                {
+                    id: 'unity-logs',
+                    name: 'Unity 设备日志',
+                    desc: '搜索局域网设备，查看和下载 Unity 历史日志',
+                    routeName: 'tool-unity-logs',
+                    status: 'ready'
+                },
+                {
+                    id: 'android-wireless',
+                    name: '安卓无线调试',
+                    desc: '搜索、配对和管理服务器电脑连接的安卓设备',
+                    status: 'ready',
+                    routeName: 'tool-android-wireless'
+                },
                 {
                     id: 'json-fmt',
                     name: 'JSON 格式化',

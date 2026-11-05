@@ -1,0 +1,51 @@
+.page-unity-logs { display: flex; flex-direction: column; overflow: hidden; }
+.ulog-head, .ulog-section-title, .ulog-actions, .ulog-options, .ulog-preview-meta { display: flex; align-items: center; justify-content: space-between; gap: var(--ulog-gap-sm); flex-wrap: wrap; }
+.ulog-head { flex-shrink: 0; }
+.ulog-workspace { display: grid; grid-template-columns: minmax(0, var(--ulog-device-width)) minmax(0, 1fr); gap: var(--gap-column); flex: 1; min-height: 0; }
+.ulog-panel { background: var(--panel-background); border: var(--ulog-border-width) solid var(--panel-border); border-radius: var(--radius-lg); padding: var(--ulog-gap-md); min-width: 0; }
+.ulog-devices { overflow-y: auto; }
+.ulog-reader { display: flex; flex-direction: column; gap: var(--ulog-gap-sm); min-height: 0; overflow-y: auto; }
+.ulog-panel h2 { font-size: var(--text-section-title); font-weight: var(--weight-semibold); margin: 0; }
+.ulog-note, .ulog-device > span, .ulog-scan-report, .ulog-preview-meta { font-size: var(--text-secondary); color: var(--text-secondary); line-height: var(--line-normal); }
+.ulog-note { margin: 0; }
+.ulog-devices > .ulog-note, .ulog-devices > .ulog-actions, .ulog-advanced { margin-top: var(--ulog-gap-md); }
+.ulog-actions { justify-content: flex-start; }
+.ulog-actions label, .ulog-options label { display: inline-flex; align-items: center; gap: var(--ulog-gap-xs); font-size: var(--text-secondary); }
+.ulog-badge { display: inline-flex; padding: var(--ulog-gap-xs) var(--ulog-gap-sm); border-radius: var(--radius-pill); background: var(--surface-sunken); color: var(--text-secondary); font-size: var(--text-tag); font-weight: var(--weight-medium); }
+.ulog-badge.connected { background: var(--success-soft); color: var(--success); }
+.ulog-badge.interrupted { background: var(--danger-soft); color: var(--danger); }
+.ulog-advanced summary { color: var(--text-secondary); font-size: var(--text-secondary); cursor: pointer; }
+.ulog-advanced label, .ulog-file-picker, .ulog-filters label { display: flex; flex-direction: column; gap: var(--ulog-gap-xs); font-size: var(--text-secondary); color: var(--text-secondary); }
+.ulog-advanced label, .ulog-advanced .ulog-note { margin-top: var(--ulog-gap-sm); }
+.page-unity-logs input:not([type=checkbox]), .page-unity-logs select { box-sizing: border-box; min-width: 0; width: 100%; min-height: var(--ulog-control-height); padding: var(--ulog-gap-xs) var(--ulog-gap-sm); color: var(--adb-select-text); background: var(--adb-select-background); border: var(--ulog-border-width) solid var(--adb-select-border); border-radius: var(--radius-sm); font-family: var(--font-sans); font-size: var(--text-body); }
+.page-unity-logs select option { color: var(--adb-select-text); background: var(--adb-select-menu); }
+.page-unity-logs input[type=checkbox] { accent-color: var(--accent); }
+.page-unity-logs :focus-visible { outline: var(--ulog-focus-width) solid var(--accent); outline-offset: var(--ulog-focus-width); }
+.ulog-scan-report { display: flex; flex-direction: column; gap: var(--ulog-gap-sm); margin-top: var(--ulog-gap-md); padding: var(--ulog-gap-sm); border-radius: var(--radius-sm); background: var(--surface-sunken); overflow-wrap: anywhere; }
+.ulog-warning { color: var(--warning); }
+.ulog-device-list { display: flex; flex-direction: column; gap: var(--ulog-gap-sm); margin-top: var(--ulog-gap-md); }
+.ulog-device { display: flex; flex-direction: column; gap: var(--ulog-gap-xs); padding: var(--ulog-gap-sm); border: var(--ulog-border-width) solid var(--panel-border); border-radius: var(--radius-md); background: var(--panel-background); color: var(--text-primary); text-align: left; cursor: pointer; font-family: var(--font-sans); overflow-wrap: anywhere; transition: background var(--dur-base), border-color var(--dur-base); }
+.ulog-device:hover { background: var(--panel-background-hover); border-color: var(--accent-border); }
+.ulog-device.selected { background: var(--accent-soft); border-color: var(--accent); }
+.ulog-device .ulog-device-name { display: flex; align-items: center; justify-content: space-between; gap: var(--ulog-gap-xs); font-size: var(--text-body); color: var(--text-primary); font-weight: var(--weight-semibold); }
+.ulog-mono { font-family: var(--font-mono); }
+.ulog-empty { margin: 0; padding: var(--ulog-gap-lg) var(--ulog-gap-sm); color: var(--text-secondary); font-size: var(--text-body); line-height: var(--line-relaxed); }
+.ulog-error { margin: 0; padding: var(--ulog-gap-sm); color: var(--danger); background: var(--danger-soft); border-radius: var(--radius-sm); font-size: var(--text-secondary); overflow-wrap: anywhere; }
+.ulog-file-toolbar { display: flex; align-items: flex-end; gap: var(--ulog-gap-sm); }
+.ulog-file-picker, .ulog-keyword { flex: 1; min-width: 0; }
+.ulog-options { justify-content: flex-start; }
+.ulog-filters { display: flex; align-items: end; gap: var(--ulog-gap-sm); }
+.ulog-preview-meta { font-size: var(--text-tag); }
+.ulog-log-list { flex: 1; min-height: var(--ulog-log-min-height); overflow-y: auto; overscroll-behavior: contain; background: var(--adb-log-background); border: var(--ulog-border-width) solid var(--panel-border); border-radius: var(--radius-md); }
+.ulog-log-entry { border-bottom: var(--ulog-border-width) solid var(--panel-border); padding: var(--ulog-gap-sm); }
+.ulog-log-entry summary { display: grid; grid-template-columns: var(--ulog-time-width) var(--ulog-level-width) minmax(0, 1fr); gap: var(--ulog-gap-xs); cursor: pointer; font-family: var(--font-mono); font-size: var(--text-secondary); line-height: var(--line-normal); }
+.ulog-log-entry time { color: var(--text-secondary); }
+.ulog-log-level { font-weight: var(--weight-semibold); color: var(--text-secondary); }
+.ulog-log-entry.error .ulog-log-level, .ulog-log-entry.exception .ulog-log-level, .ulog-log-entry.assert .ulog-log-level { color: var(--danger); }
+.ulog-log-entry.warning .ulog-log-level { color: var(--warning); }
+.ulog-log-message { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ulog-log-entry[open] .ulog-log-message { white-space: normal; overflow-wrap: anywhere; }
+.ulog-log-entry pre { margin: var(--ulog-gap-sm) 0 0; padding: var(--ulog-gap-sm); border-radius: var(--radius-sm); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface-sunken); color: var(--text-primary); font-family: var(--font-mono); font-size: var(--text-secondary); line-height: var(--line-relaxed); }
+.ulog-reader-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--ulog-gap-md); color: var(--text-secondary); }
+.ulog-reader-empty p { margin: 0; font-size: var(--text-body); line-height: var(--line-relaxed); }
+.ulog-copy-source { position: absolute; top: var(--ulog-copy-offset); }

@@ -1,13 +1,13 @@
 <template>
-    <div class="set-page">
+    <div class="view-page set-page">
         <header class="set-head">
             <h1 class="set-title">设置</h1>
             <p class="set-desc">
-                版本信息与自动更新。更新源指向一个放着
-                <code>manifest.json</code> 与发布包的位置，可以是内网共享目录，
-                也可以是任意静态文件服务。
+                配置安卓 ADB 工具、更新源与程序版本。
             </p>
         </header>
+
+        <section class="set-card"><h2 class="set-card-title">安卓调试</h2><AndroidSettingsDialog /></section>
 
         <div v-if="loading" class="state-loading">加载中…</div>
 
@@ -126,12 +126,14 @@
 
 <script>
 import { api } from '../api/client.js';
+import AndroidSettingsDialog from '../components/AndroidSettingsDialog.vue';
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 180000;
 
 export default {
     name: 'SettingsView',
+    components: { AndroidSettingsDialog },
     data() {
         return {
             loading: true,
@@ -326,13 +328,14 @@ export default {
 </script>
 
 <style scoped>
-.set-page { padding: 8px 0 40px; max-width: 820px; }
+.set-page { width: 100%; padding: var(--page-padding); max-width: var(--settings-max-width); box-sizing: border-box; margin: 0 auto; }
+.set-page > * { flex-shrink: 0; }
 
 .set-head { margin-bottom: 20px; }
-.set-title { margin: 0 0 6px; font-size: var(--font-size-xl); color: var(--text-primary); }
+.set-title { margin: 0 0 var(--adb-small-gap); font-size: var(--text-page-title); color: var(--text-primary); }
 .set-desc {
     margin: 0;
-    font-size: var(--font-size-sm);
+    font-size: var(--text-body);
     line-height: 1.65;
     color: var(--text-secondary);
 }
