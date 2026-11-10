@@ -7,7 +7,7 @@
         <div class="ulog-workspace">
             <aside class="ulog-panel ulog-devices" aria-label="局域网设备">
                 <div class="ulog-section-title"><h2>局域网设备</h2><ToolIcon tool-id="unity-logs" /></div>
-                <p class="ulog-note">电脑和设备连接同一网络，设备应用保持在前台。无需 ADB、扫码或访问码。</p>
+                <p class="ulog-note">工具箱服务器和设备连接同一网络，设备应用保持在前台。无需 ADB、扫码或访问码。</p>
                 <div class="ulog-actions">
                     <button v-if="!searching" class="btn btn-primary" @click="searchDevices">搜索局域网</button>
                     <button v-else class="btn" @click="cancelSearch">取消搜索</button>
@@ -88,6 +88,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ToolIcon from '../components/ToolIcon.vue';
 import { unityLogApi as api } from '../api/unity-log-client.js';
 import { parseUnityLogs, filterUnityLogs, formatLogBytes } from '../utils/unity-log-view.js';
+import { copyText } from '../utils/clipboard.js';
 
 const devices = ref([]), scanReport = ref(null), port = ref(17523), address = ref(''), searching = ref(false), searchError = ref('');
 const session = ref(null), connecting = ref(false), connectingName = ref(''), connectError = ref(''), files = ref([]), selectedFile = ref('');
@@ -167,11 +168,7 @@ async function copyMatches() {
     actionError.value = ''; actionMessage.value = '';
     try {
         const text = matches.value.map(entry => entry.detail).join('\n');
-        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
-        else {
-            const area = document.createElement('textarea'); area.value = text; area.className = 'ulog-copy-source'; document.body.append(area);
-            try { area.select(); if (!document.execCommand('copy')) throw new Error('浏览器未允许复制，请使用下载'); } finally { area.remove(); }
-        }
+        await copyText(text);
         actionMessage.value = `已复制 ${matches.value.length} 条匹配日志`;
     } catch (error) { actionError.value = '复制失败：' + error.message; }
 }

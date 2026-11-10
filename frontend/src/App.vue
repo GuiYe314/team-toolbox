@@ -210,6 +210,7 @@ import { api } from './api/client.js';
 import PageTree from './components/PageTree.vue';
 import ThemeToggle from './components/ThemeToggle.vue';
 import AssetQrDialog from './components/assets/AssetQrDialog.vue';
+import { copyText } from './utils/clipboard.js';
 
 const EXPANDED_KEY = 'kb-tree-expanded';
 
@@ -394,7 +395,7 @@ export default {
             this.menu = null;
             const url = window.location.origin + '/kb/' + node.id;
             try {
-                await navigator.clipboard.writeText(url);
+                await copyText(url);
             } catch {
                 // 剪贴板被浏览器禁用时退化为手动复制
                 window.prompt('复制页面链接', url);

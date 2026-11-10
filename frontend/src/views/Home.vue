@@ -86,6 +86,7 @@
 <script>
 import { api } from '../api/client.js';
 import ToolIcon from '../components/ToolIcon.vue';
+import { integrationTools } from '../utils/integration-tools.js';
 
 export default {
     name: 'Home',
@@ -93,6 +94,7 @@ export default {
     data() {
         return {
             tools: [
+                ...integrationTools.map(tool => ({ ...tool, status: 'ready' })),
                 {
                     id: 'unity-logs',
                     name: 'Unity 设备日志',
@@ -106,6 +108,13 @@ export default {
                     desc: '搜索、配对和管理服务器电脑连接的安卓设备',
                     status: 'ready',
                     routeName: 'tool-android-wireless'
+                },
+                {
+                    id: 'earth-sunlight',
+                    name: '地球光照',
+                    desc: '查看当前太阳直射点、昼夜分界和太阳光方向',
+                    status: 'ready',
+                    routeName: 'tool-earth-sunlight'
                 },
                 {
                     id: 'json-fmt',

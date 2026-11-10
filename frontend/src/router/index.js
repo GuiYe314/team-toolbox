@@ -60,6 +60,26 @@ const routes = [
         component: () => import('../views/RatioLock.vue')
     },
     {
+        path: '/tools/yoinks',
+        name: 'tool-yoinks',
+        component: () => import('../views/YoinksDownload.vue')
+    },
+    {
+        path: '/tools/freellmapi',
+        name: 'tool-freellmapi',
+        component: () => import('../views/FreeLlmChat.vue')
+    },
+    {
+        path: '/tools/artcraft',
+        name: 'tool-artcraft',
+        component: () => import('../views/ArtcraftStudio.vue')
+    },
+    {
+        path: '/tools/earth-sunlight',
+        name: 'tool-earth-sunlight',
+        component: () => import('../views/EarthSunlight.vue')
+    },
+    {
         path: '/tools/json-fmt',
         name: 'tool-json-fmt',
         component: () => import('../views/ToolEmptyState.vue')

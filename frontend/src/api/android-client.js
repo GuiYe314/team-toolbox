@@ -29,7 +29,71 @@ async function request(method, path, payload, signal, binary = false) {
     }
 }
 
+function uploadApk(file, target, signal, onProgress = () => {}, onUpdate = () => {}) {
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) { reject(new Error('APK 安装请求已取消，请核对手机实际安装状态')); return; }
+        const xhr = new XMLHttpRequest();
+        const abort = () => xhr.abort();
+        const batch = Array.isArray(target);
+        let settled = false, offset = 0, completed;
+        const finish = (error, result) => {
+            if (settled) return;
+            settled = true; signal?.removeEventListener('abort', abort);
+            if (error) reject(error); else resolve(result);
+        };
+        xhr.open('POST', '/api/android/apk/' + (batch ? 'install-batch' : 'install'));
+        xhr.timeout = batch ? 360000 + target.length * 300000 : 660000;
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.setRequestHeader('X-Toolbox-Adb', '1');
+        xhr.setRequestHeader(batch ? 'X-Toolbox-Adb-Serials' : 'X-Toolbox-Adb-Serial', batch ? JSON.stringify(target) : target);
+        xhr.setRequestHeader('X-Toolbox-Adb-Confirm', '1');
+        xhr.setRequestHeader('X-Toolbox-Apk-Name', encodeURIComponent(file.name));
+        xhr.setRequestHeader('X-Toolbox-Apk-Size', String(file.size));
+        xhr.upload.onprogress = event => { if (!settled && event.lengthComputable) onProgress(Math.round(event.loaded * 100 / event.total), 'upload'); };
+        xhr.upload.onload = () => { if (!settled) onProgress(100, 'install'); };
+        const readUpdates = () => {
+            if (settled || !batch || xhr.status !== 200 || !xhr.getResponseHeader('Content-Type')?.startsWith('application/x-ndjson')) return;
+            try {
+                // 兼容最多 20 台的逐台事件及最终汇总，包含 JSON 转义后的有界 ADB 输出。
+                if (xhr.responseText.length > 16 * 1024 * 1024) throw new Error('批量安装结果超出读取上限，请核对设备状态');
+                let end;
+                while ((end = xhr.responseText.indexOf('\n', offset)) !== -1) {
+                    const event = JSON.parse(xhr.responseText.slice(offset, end)); offset = end + 1;
+                    if (event.type === 'error') { finish(new Error(event.message || '批量安装中断，请核对手机实际状态')); return; }
+                    if (event.type === 'complete') completed = event.result;
+                    else if (event.type === 'device' && target.includes(event.result?.serial)
+                        && ['installing', 'success', 'failed'].includes(event.result.status)) onUpdate(event.result);
+                }
+            } catch (error) { finish(error instanceof SyntaxError ? new Error('批量安装响应不完整，请核对手机实际状态') : error); xhr.abort(); }
+        };
+        xhr.onprogress = readUpdates;
+        xhr.onload = () => {
+            if (batch && xhr.status === 200 && xhr.getResponseHeader('Content-Type')?.startsWith('application/x-ndjson')) {
+                readUpdates();
+                if (completed?.message && Array.isArray(completed.results)) finish(null, completed);
+                else finish(new Error('批量安装连接已结束，但未收到完整结果，请核对手机实际状态'));
+                return;
+            }
+            let body;
+            try { body = JSON.parse(xhr.responseText); } catch { body = {}; }
+            if (xhr.status >= 200 && xhr.status < 300 && body.message) finish(null, body);
+            else finish(new Error(body.message || `APK 安装请求失败（${xhr.status}）`));
+        };
+        xhr.onerror = () => finish(new Error('无法连接工具箱服务器，请检查服务后重试，并核对手机实际安装状态'));
+        xhr.ontimeout = () => finish(new Error('APK 安装请求超时，请检查连接并核对手机实际安装状态'));
+        xhr.onabort = () => finish(new Error('APK 安装请求已取消，请核对手机实际安装状态'));
+        signal?.addEventListener('abort', abort, { once: true });
+        if (signal?.aborted) { abort(); finish(new Error('APK 安装请求已取消')); return; }
+        xhr.send(file);
+    });
+}
+
+const installApk = (file, serial, signal, onProgress) => uploadApk(file, serial, signal, onProgress);
+const installApkBatch = (file, serials, signal, onProgress, onUpdate) => uploadApk(file, serials, signal, onProgress, onUpdate);
+
 export const androidApi = {
+    installApk,
+    installApkBatch,
     config: (signal) => request('GET', '/config', undefined, signal),
     captureScreen: (serial, signal) => request('POST', '/screen', { serial }, signal, true),
     listApps: (serial, signal) => request('POST', '/apps', { serial }, signal),

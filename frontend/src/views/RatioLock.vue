@@ -88,6 +88,7 @@
 </template>
 
 <script>
+import { copyText } from '../utils/clipboard.js';
 // 比例锁定换算：输入原始尺寸（如 1920*1080）→ 锁定比例 → 输入目标宽度即得对应高度（反之亦然）。
 // 纯前端计算，不涉及后端与数据存储。
 export default {
@@ -240,7 +241,7 @@ export default {
         async copyResult() {
             const text = `${this.resultW} × ${this.resultH}`;
             try {
-                await navigator.clipboard.writeText(text);
+                await copyText(text);
             } catch {
                 window.prompt('复制结果', text);
                 return;

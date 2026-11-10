@@ -36,6 +36,12 @@ try {
                     if (-not $entry) { $entry = $entryMatch.Groups[2].Value }
                     if ([IO.Path]::IsPathRooted($entry)) {
                         $matched = [IO.Path]::GetFullPath($entry) -ieq $service.Entry
+                        if ($matched -and $service.Name -eq 'frontend') {
+                            $arguments = $process.CommandLine.Substring($entryMatch.Length).TrimStart()
+                            # Vite uses the same executable for serve and build/preview.
+                            # A build is not a background development service.
+                            if ($arguments -match '^(?:"?)(build|preview|optimize)(?:"?)(?:\s|$)') { $matched = $false }
+                        }
                     }
                 }
             }

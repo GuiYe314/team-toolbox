@@ -12,6 +12,7 @@ import { createAndroidApps } from './android-apps.js';
 import { createAndroidScreen } from './android-screen.js';
 import { createAndroidCustomCommands } from './android-custom-commands.js';
 import { createAndroidHome } from './android-home.js';
+import { createAndroidApk } from './android-apk.js';
 export { AdbError, parseDevices, parseMdns, validateEndpoint } from './android-adb-protocol.js';
 
 function redact(text, secrets = []) {
@@ -74,7 +75,7 @@ function validateExecutable(raw) {
     return resolve(path);
 }
 
-export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'android-adb.json'), commandFile = join(dirname(configFile), 'android-commands.json'), env = process.env, runner = runAdbProcess, logcatSpawn = spawn, screenSpawn = spawn, now = Date.now, log = (entry) => console.info('[android-adb]', JSON.stringify(entry)) } = {}) {
+export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'android-adb.json'), commandFile = join(dirname(configFile), 'android-commands.json'), env = process.env, runner = runAdbProcess, logcatSpawn = spawn, screenSpawn = spawn, apkOptions = {}, now = Date.now, log = (entry) => console.info('[android-adb]', JSON.stringify(entry)) } = {}) {
     let busy = false;
     let discovered = [];
     let discoveredAt = 0;
@@ -111,6 +112,7 @@ export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'a
     const readDevices = async (signal) => parseDevices((await run(['devices', '-l'], { signal })).stdout);
     const apps = createAndroidApps({ run, readDevices });
     const home = createAndroidHome({ run, readDevices });
+    const apk = createAndroidApk({ ...apkOptions, run, readDevices, log });
     const screen = createAndroidScreen({ executable: () => validateExecutable(config().path), readDevices, spawnProcess: screenSpawn, log });
     const logcat = createAndroidLogcat({ executable: () => validateExecutable(config().path), readDevices, spawnProcess: logcatSpawn, log,
         readApplication: (serial, packageName, signal) => apps.status(serial, packageName, signal), readProcesses: apps.processes });
@@ -138,7 +140,9 @@ export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'a
         pollLogcat: async (id, after, signal) => { logcat.poll(id, after); await logcat.refreshApplication(id, signal); return logcat.poll(id, after); },
         stopLogcat: (id) => logcat.stop(id),
         captureScreen: (serial, signal) => screen.capture(serial, signal),
-        dispose: () => { qr.invalidate(); logcat.dispose(); screen.dispose(); },
+        installApk: (request, input, signal) => exclusive('apk_install', () => apk.install(request, input, signal)),
+        installApkBatch: (request, input, signal, onUpdate) => exclusive('apk_install_batch', () => apk.installBatch(request, input, signal, onUpdate)),
+        dispose: () => { qr.invalidate(); logcat.dispose(); screen.dispose(); apk.dispose(); },
         searchFolder: (folder, signal) => exclusive('search_folder', () => findAdbInFolder(folder, { signal })),
         startQr: (signal) => exclusive('qr_start', () => qr.start(signal)),
         pollQr: (id, signal) => exclusive('qr_poll', () => qr.poll(id, signal)),

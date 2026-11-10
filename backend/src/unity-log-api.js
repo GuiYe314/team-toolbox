@@ -2,16 +2,12 @@ import express from 'express';
 import { pipeline } from 'node:stream/promises';
 import { createUnityLogService } from './unity-logs.js';
 import { UnityLogError } from './unity-log-http.js';
+import { createToolAccess } from './tool-access.js';
 
-const localHost = host => ['localhost', '127.0.0.1', '[::1]'].includes(host);
-export function requireLocalUnityLogRequest(req, res, next) {
-    let host, originAllowed = true;
-    try { host = new URL(`http://${req.headers.host}`).hostname; } catch { /* 非法 Host */ }
-    if (req.get('origin')) { try { originAllowed = localHost(new URL(req.get('origin')).hostname); } catch { originAllowed = false; } }
-    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) || !localHost(host) || !originAllowed
-        || req.get('sec-fetch-site') && !['same-origin', 'none'].includes(req.get('sec-fetch-site'))
+export function requireLocalUnityLogRequest(req, res, next, access = createToolAccess()) {
+    if (!access.allows(req, { browser: true })
         || !req.is('application/json') || req.get('x-toolbox-unity-log') !== '1')
-        return res.status(403).json({ error: 'local_only', message: '请在工具箱电脑通过 localhost 或 127.0.0.1 打开 Unity 设备日志工具' });
+        return res.status(403).json({ error: access.allowLan ? 'access_denied' : 'local_only', message: '请在同源工具箱页面使用 Unity 日志；局域网访问需要以 Lan 模式启动' });
     res.setHeader('Cache-Control', 'no-store'); next();
 }
 function fields(body, allowed) {
@@ -19,8 +15,8 @@ function fields(body, allowed) {
         throw new UnityLogError('invalid_input', '日志请求参数无效');
     return body;
 }
-export function registerUnityLogApi(app, { service = createUnityLogService() } = {}) {
-    const router = express.Router(); router.use(requireLocalUnityLogRequest);
+export function registerUnityLogApi(app, { service = createUnityLogService(), access = createToolAccess() } = {}) {
+    const router = express.Router(); router.use((req, res, next) => requireLocalUnityLogRequest(req, res, next, access));
     const action = (fn, onCanceled) => async (req, res) => {
         const controller = new AbortController();
         const cancel = () => { if (!res.writableEnded) controller.abort(); }; res.once('close', cancel);

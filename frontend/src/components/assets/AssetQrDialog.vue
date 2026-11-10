@@ -64,6 +64,7 @@
 </template>
 
 <script>
+import { copyText } from '../../utils/clipboard.js';
 import {
     toQrSvg, getShareOrigin, setShareOrigin, buildPageUrl, buildDownloadUrl, detectLanAddress
 } from '../../assets/qr-share.js';
@@ -170,7 +171,7 @@ export default {
         },
         async copyUrl() {
             try {
-                await navigator.clipboard.writeText(this.targetUrl);
+                await copyText(this.targetUrl);
                 this.copied = true;
                 setTimeout(() => { this.copied = false; }, 1600);
             } catch {

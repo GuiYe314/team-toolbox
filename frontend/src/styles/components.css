@@ -4,6 +4,16 @@
    不同作用域元素上；集中一处可避免重复定义与不一致。
    ========================================================================== */
 
+/* 兼容 HTTP 复制的临时元素由工具函数直接挂到 body，不参与页面布局。 */
+.clipboard-source {
+    position: fixed;
+    inset: 0 auto auto 0;
+    width: var(--clipboard-size);
+    height: var(--clipboard-size);
+    opacity: 0;
+    pointer-events: none;
+}
+
 /* ── 导航项（一级/ 二级树/ 分类共用视觉语言）───────────────────── */
 .nav-item {
     display: flex;

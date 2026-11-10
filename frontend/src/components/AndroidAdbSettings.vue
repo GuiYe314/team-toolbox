@@ -7,7 +7,7 @@
         <button v-if="!config && !busy" class="btn" @click="load">重新读取 ADB 配置</button>
         <template v-if="config">
             <form id="adb-folder-form" class="adb-settings-row" @submit.prevent="searchFolder">
-                <label class="adb-settings-grow" for="adb-folder">ADB 搜索文件夹（本机）
+                <label class="adb-settings-grow" for="adb-folder">ADB 搜索文件夹（工具箱服务器）
                     <input id="adb-folder" v-model="folderInput" class="input" placeholder="C:\Android 或 C:\Android\platform-tools" :disabled="busy || config.origin === 'env'" autocomplete="off" spellcheck="false" @input="candidates = []; selectedCandidate = ''" />
                 </label>
                 <button class="btn btn-primary" type="submit" :disabled="busy || config.origin === 'env'">{{ busy ? '处理中…' : '搜索并配置' }}</button>

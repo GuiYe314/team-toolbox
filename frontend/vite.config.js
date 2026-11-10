@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue';
 import { createRequire } from 'node:module';
 import { cpSync, createReadStream, existsSync, mkdirSync, rmSync, readdirSync, unlinkSync, rmdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { toolAccessPlugin } from './tool-access-plugin.js';
 
 const require = createRequire(import.meta.url);
 
@@ -117,12 +118,13 @@ function vditorAssets() {
 // 仅支持本机/内网部署；与 ARCHITECTURE 第 7、8 节一致。
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
-    const devHost = env.VITE_DEV_HOST || '127.0.0.1';
+    const allowLan = env.TOOLBOX_ALLOW_LAN === '1';
+    const devHost = env.VITE_DEV_HOST || (allowLan ? '0.0.0.0' : '127.0.0.1');
     const devPort = Number(env.VITE_DEV_PORT) || 5173;
     const apiBase = env.VITE_API_BASE || '/api';
 
     return {
-        plugins: [vue(), vditorAssets()],
+        plugins: [toolAccessPlugin({ allowLan }), vue(), vditorAssets()],
         server: {
             host: devHost,
             port: devPort,
@@ -130,12 +132,13 @@ export default defineConfig(({ mode }) => {
             // 开发期把 /api 前缀代理到 backend，避免跨域；生产构建由 Nginx/Node 静态托管时另行配置。
             proxy: {
                 [apiBase]: {
-                    target: 'http://127.0.0.1:3000',
+                    target: `http://127.0.0.1:${Number(env.PORT) || 3000}`,
                     changeOrigin: false,
                     rewrite: (path) => path.replace(new RegExp(`^${apiBase}`), '/api')
                 }
             }
         },
+        preview: { host: devHost },
         build: {
             outDir: 'dist',
             sourcemap: false,

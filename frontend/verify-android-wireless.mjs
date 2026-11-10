@@ -2,7 +2,7 @@
 // 不操作真实手机、不读取本机 ADB 配置，也不修改团队数据库。
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,7 @@ import { PassThrough } from 'node:stream';
 import { crc32, deflateSync } from 'node:zlib';
 import { AdbError, createAndroidAdbService } from '../backend/src/android-adb.js';
 import { registerAndroidApi } from '../backend/src/android-api.js';
+import { createToolAccess } from '../backend/src/tool-access.js';
 
 const require = createRequire(new URL('../backend/package.json', import.meta.url));
 const express = require('express');
@@ -27,6 +28,13 @@ const adbPath = join(adbFolder, 'platform-tools', adbName);
 mkdirSync(dirname(adbPath), { recursive: true });
 writeFileSync(adbPath, 'offline fixture', { mode: 0o700 });
 const emptyFolder = join(temporary, 'empty'); mkdirSync(emptyFolder);
+const apkArchive = require('archiver')('zip', { zlib: { level: 0 } }), apkChunks = [];
+const apkEnded = new Promise((resolve, reject) => { apkArchive.on('data', chunk => apkChunks.push(chunk)); apkArchive.on('end', resolve); apkArchive.on('error', reject); });
+apkArchive.append('manifest fixture', { name: 'AndroidManifest.xml' }); apkArchive.append('dex fixture', { name: 'classes.dex' });
+await apkArchive.finalize(); await apkEnded;
+const apkBytes = Buffer.concat(apkChunks), apkPath = join(temporary, '应用安装测试.apk'), invalidApkPath = join(temporary, 'broken.apk');
+writeFileSync(apkPath, apkBytes); writeFileSync(invalidApkPath, 'not an apk');
+const apkCalls = []; let holdApk = false, holdApkSerial = '', failApk = false, failApkSerial = '', releaseApk, cancelledApks = 0, batchUploads = 0;
 const manyFolder = join(temporary, 'many');
 for (const name of ['sdk-one', 'sdk-two']) {
     mkdirSync(join(manyFolder, name), { recursive: true });
@@ -66,7 +74,7 @@ function screenFixture() {
 }
 const screenPng = screenFixture();
 const logLine = (text, level = 'I', tag = 'Unity', pid = '1234') => `11-05 12:34:56.789  ${pid}  5678 ${level} ${tag} : ${text}\n`;
-const service = createAndroidAdbService({ configFile, env: {}, now: () => Date.now() + qrClockOffset, log: () => {}, screenSpawn: (_path, args, options) => {
+const service = createAndroidAdbService({ configFile, env: {}, apkOptions: { temporaryBase: temporary }, now: () => Date.now() + qrClockOffset, log: () => {}, screenSpawn: (_path, args, options) => {
     assert.deepEqual(args.slice(2), ['exec-out', 'screencap', '-p']); assert.equal(options.shell, false);
     const child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.killed = false; child.closed = false; child.args = args;
     child.kill = () => { child.killed = true; child.closed = true; clearTimeout(child.timer); child.emit('close', null); return true; };
@@ -93,6 +101,17 @@ const service = createAndroidAdbService({ configFile, env: {}, now: () => Date.n
     if (command === 'version') stdout = 'Android Debug Bridge version 1.0.41\nVersion offline-fixture';
     if (command === 'devices') stdout = 'USB123 unauthorized model:Pixel_8\nemulator-5554 offline\n' + (connected ? `192.168.1.20:37123 ${commandDeviceOffline ? 'offline' : 'device'} model:Pixel_9\n` : '') + (qrConnected ? '192.168.1.30:37124 device model:QR_Phone\n' : '');
     if (command === '-s') {
+        if (args[2] === 'install') {
+            assert.ok(['192.168.1.20:37123', '192.168.1.30:37124'].includes(args[1]));
+            assert.deepEqual([args[0], ...args.slice(2, 4)], ['-s', 'install', '-r']); assert.equal(args.length, 5);
+            assert.deepEqual(readFileSync(args[4]), apkBytes); apkCalls.push(args);
+            if (holdApk && (!holdApkSerial || holdApkSerial === args[1])) await new Promise((resolve, reject) => {
+                const abort = () => { cancelledApks++; reject(new AdbError('cancelled', 'cancelled fixture', 499)); };
+                options.signal.addEventListener('abort', abort, { once: true });
+                releaseApk = () => { options.signal.removeEventListener('abort', abort); resolve(); };
+            });
+            return { stdout: failApk || failApkSerial === args[1] ? 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE]' : 'Success\n<script>window.__apkInjected=true</script>', stderr: '' };
+        }
         const home = args[1] === '192.168.1.20:37123' ? phoneHome : otherHome;
         if (args[2] === 'shell' && args[3] === 'am' && args[4] === 'get-current-user') return { stdout: String(home.userId), stderr: '' };
         if (args[2] === 'shell' && args[3] === 'cmd' && args[4] === 'package') {
@@ -151,15 +170,20 @@ service.startQr = async (signal) => {
 };
 
 const app = express();
+const lan = process.env.TT_VERIFY_LAN === '1', access = createToolAccess({ allowLan: lan });
+const pageHost = lan ? access.addresses()[0] : '127.0.0.1';
+assert.ok(pageHost, '局域网验收需要实际私网 IPv4 网卡');
+app.use(access.middleware);
 app.use(express.json());
-registerAndroidApi(app, { service });
+app.use('/api/android/apk/install-batch', (_req, _res, next) => { batchUploads++; next(); });
+registerAndroidApi(app, { service, access });
 app.get('/api/documents/tree', (_req, res) => res.json({ items: [] }));
 app.get('/api/documents', (_req, res) => res.json({ items: [], total: 0 }));
 app.get('/api/update/status', (_req, res) => res.json({ current: '0.1.2', configured: false, source: '', sourceOrigin: 'none' }));
 app.use(express.static(dist, { index: false }));
 app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(join(dist, 'index.html')));
-const server = await new Promise((resolvePromise) => { const s = app.listen(0, '127.0.0.1', () => resolvePromise(s)); });
-const base = `http://127.0.0.1:${server.address().port}`;
+const server = await new Promise((resolvePromise) => { const s = app.listen(0, lan ? '0.0.0.0' : '127.0.0.1', () => resolvePromise(s)); });
+const base = `http://${pageHost}:${server.address().port}`;
 const browserExe = process.env.BROWSER_EXE || ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
 assert.ok(browserExe, '未找到测试浏览器，可通过 BROWSER_EXE 指定');
 const browser = spawn(browserExe, ['--headless=new', '--disable-gpu', '--no-first-run', '--disable-extensions', '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0', `--user-data-dir=${browserProfile}`, '--window-size=1700,1100', 'about:blank'], { windowsHide: true, stdio: 'ignore' });
@@ -194,6 +218,12 @@ function check(name, value) { assert.ok(value, name); console.log(`PASS ${++chec
 const click = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
 const fill = (selector, value) => evaluate(`{const el=document.querySelector(${JSON.stringify(selector)});el.value=${JSON.stringify(value)};el.dispatchEvent(new Event('input',{bubbles:true}));}`);
 const select = (selector, value) => evaluate(`{const el=document.querySelector(${JSON.stringify(selector)});el.value=${JSON.stringify(value)};el.dispatchEvent(new Event('change',{bubbles:true}));}`);
+async function chooseApk(file) {
+    const document = await send('DOM.getDocument');
+    const input = await send('DOM.querySelector', { nodeId: document.root.nodeId, selector: '#adb-apk-file' });
+    await send('DOM.setFileInputFiles', { nodeId: input.nodeId, files: [file] });
+}
+const apkClean = () => !readdirSync(temporary).some(name => name.startsWith('team-toolbox-apk-'));
 const textIncludes = (value) => evaluate(`document.body.textContent.includes(${JSON.stringify(value)})`);
 
 try {
@@ -218,10 +248,13 @@ try {
     await wait("document.querySelector('#adb-help') && document.querySelector('#adb-refresh')?.disabled");
     check('调试页说明默认收起且不再显示 ADB 选择', !await textIncludes('配对端口与连接端口不同') && !await evaluate("!!document.querySelector('#adb-folder') || !!document.querySelector('[role=dialog]')"));
     check('未配置时设备操作禁用', await evaluate("document.querySelector('#adb-refresh').disabled"));
+    check('APK 安装默认禁用且仅接受 APK 文件', await evaluate("document.querySelector('#adb-apk-install').disabled && document.querySelector('#adb-apk-file').accept.includes('.apk')"));
     await click('#adb-help'); await wait("!!document.querySelector('[role=dialog]')");
     check('点击帮助才显示准备、扫码和故障说明', await textIncludes('使用二维码配对设备') && await textIncludes('配对端口与连接端口不同') && await textIncludes('常见问题'));
     check('帮助包含自定义命令用法、持久化与参数范围', await textIncludes('添加自己的常用命令') && await textIncludes('shell dumpsys meminfo') && await textIncludes('最多保存 100 条'));
     check('帮助说明六项命令、HOME 选择限制和性能快照', await textIncludes('内置六项') && await textIncludes('普通应用需要先声明 HOME 入口') && await textIncludes('内存与 CPU 返回系统查询快照'));
+    check('帮助说明 APK 确认、进度范围、覆盖安装和取消限制', await textIncludes('传送 APK 并安装') && await textIncludes('上传百分比只表示') && await textIncludes('不能撤销手机已经完成的安装'));
+    check('帮助说明多手机选择、一次上传及部分失败重试', await textIncludes('同一 APK 安装到多台手机') && await textIncludes('最多 20 台') && await textIncludes('上传一次') && await textIncludes('只选择失败设备'));
     check('帮助弹窗 Teleport 到 body 且居中、遮罩铺满视口', await evaluate("{const o=document.querySelector('.overlay'),d=document.querySelector('[role=dialog]'),r=o.getBoundingClientRect(),b=d.getBoundingClientRect();o.parentElement===document.body && r.left===0 && r.top===0 && Math.abs(r.width-innerWidth)<1 && Math.abs(r.height-innerHeight)<1 && Math.abs(b.left+b.width/2-innerWidth/2)<1 && Math.abs(b.top+b.height/2-innerHeight/2)<1;}"));
     await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 760, deviceScaleFactor: 1, mobile: false });
     check('较小窗口的帮助正文可滚动且关闭按钮留在视口', await evaluate("{const d=document.querySelector('[role=dialog]').getBoundingClientRect(),b=document.querySelector('.adb-help-body');d.top>=0 && d.bottom<=innerHeight && b.scrollHeight>b.clientHeight && document.querySelector('#adb-help-close').getBoundingClientRect().bottom<innerHeight;}"));
@@ -326,6 +359,117 @@ try {
     await click('.adb-service button');
     await wait("document.querySelectorAll('.adb-table tbody tr').length===3 && !document.querySelector('#adb-refresh').disabled");
     check('连接成功后自动刷新设备', connected && await textIncludes('无线 ADB'));
+    check('APK 设备只列已在线授权项，未选择时禁用安装', await evaluate("document.querySelectorAll('#adb-apk-device option').length===2 && document.querySelector('#adb-apk-device').value==='' && document.querySelector('#adb-apk-install').disabled"));
+    await select('#adb-apk-device', '192.168.1.20:37123');
+    await evaluate("{const files=new DataTransfer();files.items.add(new File(['fixture'],'app.aab'));const input=document.querySelector('#adb-apk-file');input.files=files.files;input.dispatchEvent(new Event('change',{bubbles:true}));}");
+    check('APK 面板拒绝 AAB 且不发送安装请求', apkCalls.length === 0 && await evaluate("document.querySelector('#adb-apk-error').textContent.includes('不支持 AAB') && document.querySelector('#adb-apk-install').disabled"));
+    await evaluate("{const files=new DataTransfer();files.items.add(new File([],'empty.apk'));const input=document.querySelector('#adb-apk-file');input.files=files.files;input.dispatchEvent(new Event('change',{bubbles:true}));}");
+    check('APK 面板拒绝空文件', await textIncludes('APK 文件为空'));
+    await evaluate("{const files=new DataTransfer(),file=new File(['x'],'large.apk');Object.defineProperty(file,'size',{value:1024*1024*1024+1});files.items.add(file);const input=document.querySelector('#adb-apk-file');input.files=files.files;input.dispatchEvent(new Event('change',{bubbles:true}));}");
+    check('APK 面板拒绝超过 1 GiB 的文件', await textIncludes('APK 超出 1 GiB'));
+    await chooseApk(apkPath); await click('#adb-apk-install');
+    check('APK 选择后先显示文件和设备确认，不自动执行', apkCalls.length === 0 && await evaluate("!!document.querySelector('#adb-apk-confirm') && document.querySelector('.adb-apk-confirm').textContent.includes('应用安装测试.apk') && document.querySelector('.adb-apk-confirm').textContent.includes('192.168.1.20:37123')"));
+    await click('#adb-apk-dismiss');
+    check('取消 APK 确认保留文件且不执行', apkCalls.length === 0 && await evaluate("!document.querySelector('#adb-apk-confirm') && document.querySelector('#adb-apk-selected').textContent.includes('应用安装测试.apk')"));
+    await click('#adb-apk-install'); await select('#adb-apk-device', '');
+    check('更换 APK 目标清除旧确认', !await evaluate("!!document.querySelector('#adb-apk-confirm')") && apkCalls.length === 0);
+    await select('#adb-apk-device', '192.168.1.20:37123'); holdApk = true;
+    await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelector('.adb-apk-progress')?.textContent.includes('通过 ADB 传送安装')");
+    for (let attempt = 0; attempt < 100 && !apkCalls.length; attempt++) await delay(50);
+    check('上传结束仍等待 ADB 结果，安装期间锁定目标和其他操作', apkCalls.length === 1 && await evaluate("!document.querySelector('#adb-apk-result') && document.querySelector('#adb-apk-device').disabled && document.querySelector('#adb-apk-file').disabled && document.querySelector('#adb-refresh').disabled && !!document.querySelector('#adb-apk-cancel')"));
+    holdApk = false; releaseApk();
+    await wait("document.querySelector('#adb-apk-result')?.textContent.includes('APK 安装成功') && !document.querySelector('#adb-refresh').disabled");
+    check('APK 成功显示明确目标，输出 HTML 作为纯文本且临时包清理', apkClean() && await evaluate("document.querySelector('#adb-apk-result').textContent.includes('192.168.1.20:37123') && document.querySelector('#adb-apk-result').textContent.includes('<script>') && !document.querySelector('#adb-apk-result script') && !window.__apkInjected"));
+    failApk = true; await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelector('#adb-apk-error')?.textContent.includes('INSTALL_FAILED_UPDATE_INCOMPATIBLE') && !document.querySelector('#adb-apk-install').disabled");
+    check('APK 安装失败显示原因并保留文件供重试', apkClean() && await evaluate("!document.querySelector('#adb-apk-result') && !!document.querySelector('#adb-apk-selected')"));
+    failApk = false; await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelector('#adb-apk-result')?.textContent.includes('APK 安装成功') && !document.querySelector('#adb-apk-install').disabled");
+    check('APK 失败后可重新确认并安装成功', apkCalls.length === 3);
+    await chooseApk(invalidApkPath); await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelector('#adb-apk-error')?.textContent.includes('安装包结构无效') && !document.querySelector('#adb-apk-install').disabled");
+    check('伪装 APK 由服务端拒绝且未执行 ADB 安装', apkCalls.length === 3 && apkClean());
+    await chooseApk(apkPath); holdApk = true; await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    for (let attempt = 0; attempt < 100 && apkCalls.length < 4; attempt++) await delay(50);
+    await click('#adb-apk-cancel'); await wait("!document.querySelector('#adb-apk-cancel') && document.body.textContent.includes('最终安装状态')");
+    for (let attempt = 0; attempt < 100 && !apkClean(); attempt++) await delay(50);
+    check('取消 APK 安装终止请求、清理文件并提示核对手机状态', cancelledApks === 1 && apkClean() && !await evaluate("!!document.querySelector('#adb-apk-result')"));
+    await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    for (let attempt = 0; attempt < 100 && apkCalls.length < 5; attempt++) await delay(50);
+    await click('.adb-page .view-head > button'); await wait("!document.querySelector('.adb-page')");
+    for (let attempt = 0; attempt < 100 && !apkClean(); attempt++) await delay(50);
+    check('离开安卓页面取消 APK 在途安装并清理临时文件', cancelledApks === 2 && apkClean()); holdApk = false;
+    await send('Page.navigate', { url: base + '/tools/android-wireless' });
+    await wait("document.querySelectorAll('.adb-table tbody tr').length===3 && !document.querySelector('#adb-refresh').disabled");
+    check('返回安卓页不保留旧 APK、目标或安装结果', await evaluate("document.querySelector('#adb-apk-device').value==='' && document.querySelector('#adb-apk-file').files.length===0 && !document.querySelector('#adb-apk-result') && document.querySelector('#adb-apk-install').disabled"));
+    qrConnected = true; await click('#adb-refresh');
+    await wait("document.querySelectorAll('.adb-table tbody tr').length===4 && !document.querySelector('#adb-refresh').disabled");
+    await click('#adb-apk-batch-mode');
+    check('批量选择仅列两台在线授权设备，未选时禁用安装', await evaluate("document.querySelectorAll('.adb-apk-device-list input').length===2 && !document.querySelector('#adb-apk-device') && document.querySelector('#adb-apk-install').disabled"));
+    await chooseApk(apkPath); await click('.adb-apk-device-list input');
+    check('可单独勾选批量目标且显示已选数量', await evaluate("document.querySelector('#adb-apk-install').textContent.includes('1 台') && !document.querySelector('#adb-apk-install').disabled"));
+    await click('#adb-apk-select-all'); await click('#adb-apk-select-none');
+    check('取消全选后保留 APK 并禁用安装', await evaluate("!!document.querySelector('#adb-apk-selected') && document.querySelector('#adb-apk-install').disabled && [...document.querySelectorAll('.adb-apk-device-list input')].every(input=>!input.checked)"));
+    await click('#adb-apk-select-all'); await click('#adb-apk-install');
+    check('批量安装前确认完整文件和全部目标，尚未请求安装', apkCalls.length === 5 && batchUploads === 0 && await evaluate("document.querySelector('#adb-apk-confirm-targets').children.length===2 && document.querySelector('.adb-apk-confirm').textContent.includes('应用安装测试.apk') && document.querySelector('#adb-apk-confirm-targets').textContent.includes('Pixel 9') && document.querySelector('#adb-apk-confirm-targets').textContent.includes('192.168.1.20:37123') && document.querySelector('#adb-apk-confirm-targets').textContent.includes('QR Phone') && document.querySelector('#adb-apk-confirm-targets').textContent.includes('192.168.1.30:37124')"));
+    await click('#adb-apk-dismiss');
+    check('取消批量确认不发请求且保留选择', batchUploads === 0 && await evaluate("!document.querySelector('#adb-apk-confirm') && [...document.querySelectorAll('.adb-apk-device-list input')].every(input=>input.checked)"));
+    await click('#adb-apk-install'); await click('.adb-apk-device-list input');
+    check('更改批量目标会清除旧确认', !await evaluate("!!document.querySelector('#adb-apk-confirm')") && batchUploads === 0);
+    await click('#adb-apk-select-all'); holdApk = true;
+    const batchStart = apkCalls.length; await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelectorAll('.adb-apk-result-list [data-status=installing]').length===1");
+    check('批量安装实时显示当前设备和等待队列，锁定选择与刷新', apkCalls.length === batchStart + 1 && await evaluate("document.querySelectorAll('.adb-apk-result-list [data-status=pending]').length===1 && document.querySelector('#adb-apk-batch-mode').disabled && document.querySelector('.adb-apk-devices').disabled && document.querySelector('#adb-apk-file').disabled && document.querySelector('#adb-refresh').disabled"));
+    holdApk = false; releaseApk();
+    await wait("document.querySelectorAll('.adb-apk-result-list [data-status=success]').length===2 && !document.querySelector('#adb-refresh').disabled");
+    check('同一 APK 只上传一次并复用临时文件逐台安装', batchUploads === 1 && apkCalls.length === batchStart + 2 && apkCalls.at(-1)[4] === apkCalls.at(-2)[4] && apkClean());
+    check('批量成功明确汇总两台结果且安全展示输出', await evaluate("document.querySelector('#adb-apk-batch-results').textContent.includes('成功 2 台，失败 0 台') && document.querySelector('#adb-apk-batch-results').textContent.includes('<script>') && !document.querySelector('#adb-apk-batch-results script') && !window.__apkInjected"));
+    failApkSerial = '192.168.1.20:37123';
+    await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelector('#adb-apk-batch-results')?.textContent.includes('成功 1 台，失败 1 台') && !document.querySelector('#adb-refresh').disabled");
+    check('一台失败后仍安装另一台，分别展示结果和失败原因', apkCalls.length === batchStart + 4 && apkClean() && await evaluate("document.querySelectorAll('.adb-apk-result-list [data-status=failed]').length===1 && document.querySelectorAll('.adb-apk-result-list [data-status=success]').length===1 && document.querySelector('#adb-apk-batch-results').textContent.includes('INSTALL_FAILED_UPDATE_INCOMPATIBLE')"));
+    await click('#adb-apk-retry-failed');
+    check('失败重试只选择失败设备，需再次确认且不自动执行', apkCalls.length === batchStart + 4 && await evaluate("JSON.stringify([...document.querySelectorAll('.adb-apk-device-list input:checked')].map(input=>input.value))===JSON.stringify(['192.168.1.20:37123']) && !document.querySelector('#adb-apk-confirm')"));
+    failApkSerial = ''; await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelector('#adb-apk-batch-results')?.textContent.includes('成功 1 台，失败 0 台') && !document.querySelector('#adb-refresh').disabled");
+    check('失败设备可重新安装成功且不重复安装上次成功的设备', apkCalls.length === batchStart + 5 && apkCalls.at(-1)[1] === '192.168.1.20:37123');
+    await click('#adb-apk-select-all'); commandDeviceOffline = true;
+    await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelector('#adb-apk-batch-results')?.textContent.includes('成功 1 台，失败 1 台') && !document.querySelector('#adb-refresh').disabled");
+    check('安装前重新检查掉线设备，记录失败后继续在线目标', apkCalls.length === batchStart + 6 && apkCalls.at(-1)[1] === '192.168.1.30:37124' && await textIncludes('安装设备未连接或未授权'));
+    commandDeviceOffline = false;
+    await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 760, deviceScaleFactor: 1, mobile: false });
+    for (const theme of ['light', 'dark']) {
+        await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)};{const pane=document.querySelector('.adb-tools-pane'),apk=document.querySelector('.adb-apk');pane.scrollTop=apk.offsetTop-pane.offsetTop;}`);
+        await delay(300);
+        check(`${theme} 批量设备选择与结果在较小窗口可读且无横向溢出`, await evaluate("[...document.querySelectorAll('.adb-apk,.adb-apk-devices,.adb-apk-result-list,.adb-tools-pane')].every(el=>el.scrollWidth<=el.clientWidth+1) && [...document.querySelectorAll('.adb-apk-device-option')].every(el=>{const style=getComputedStyle(el);return style.color!==style.backgroundColor;})"));
+        writeFileSync(join(root, 'build', `android-apk-batch-${theme}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+    }
+    await send('Emulation.clearDeviceMetricsOverride');
+    holdApk = true; holdApkSerial = '192.168.1.30:37124';
+    await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelectorAll('.adb-apk-result-list [data-status=success]').length===1 && document.querySelectorAll('.adb-apk-result-list [data-status=installing]').length===1");
+    await click('#adb-apk-cancel');
+    await wait("!document.querySelector('#adb-apk-cancel') && document.body.textContent.includes('已完成安装不回滚')");
+    for (let attempt = 0; attempt < 100 && !apkClean(); attempt++) await delay(50);
+    check('取消批量安装保留已成功结果，终止当前设备并清理文件', cancelledApks === 3 && apkClean() && await evaluate("document.querySelectorAll('.adb-apk-result-list [data-status=success]').length===1 && document.querySelectorAll('.adb-apk-result-list [data-status=cancelled]').length===1"));
+    holdApkSerial = ''; await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelectorAll('.adb-apk-result-list [data-status=installing]').length===1");
+    const beforeBatchCancel = apkCalls.length;
+    await click('#adb-apk-cancel'); await wait("!document.querySelector('#adb-apk-cancel') && !document.querySelector('#adb-refresh').disabled");
+    for (let attempt = 0; attempt < 100 && !apkClean(); attempt++) await delay(50);
+    check('取消正在安装的首台后不执行后续设备', cancelledApks === 4 && apkClean() && apkCalls.length === beforeBatchCancel && await evaluate("document.querySelectorAll('.adb-apk-result-list [data-status=stopped]').length===1"));
+    await click('#adb-apk-install'); await click('#adb-apk-confirm');
+    await wait("document.querySelectorAll('.adb-apk-result-list [data-status=installing]').length===1");
+    const beforeBatchLeave = apkCalls.length;
+    await click('.adb-page .view-head > button'); await wait("!document.querySelector('.adb-page')");
+    for (let attempt = 0; attempt < 100 && !apkClean(); attempt++) await delay(50);
+    check('离开页面取消批量安装及后续队列，释放临时文件', cancelledApks === 5 && apkClean() && apkCalls.length === beforeBatchLeave);
+    holdApk = false; qrConnected = false;
+    await send('Page.navigate', { url: base + '/tools/android-wireless' });
+    await wait("document.querySelectorAll('.adb-table tbody tr').length===3 && !document.querySelector('#adb-refresh').disabled");
+    check('返回页面恢复单台模式，文件、批量选择和结果均不保留', await evaluate("!document.querySelector('#adb-apk-batch-mode').checked && document.querySelector('#adb-apk-file').files.length===0 && document.querySelector('#adb-apk-device').value==='' && !document.querySelector('#adb-apk-batch-results')"));
     check('常用命令只保留六项，设备只列已连接项且要求主动选择', await evaluate("JSON.stringify([...document.querySelectorAll('#adb-command-select option')].map(o=>o.value))===JSON.stringify(['lock-home','unlock-home','ip-address','device-info','memory','cpu']) && document.querySelectorAll('#adb-command-device option').length===2 && document.querySelector('#adb-command-run').disabled"));
     await select('#adb-command-device', '192.168.1.20:37123'); await select('#adb-command-select', 'memory');
     check('选择设备和命令不会自动执行', commandCalls.length === 0);

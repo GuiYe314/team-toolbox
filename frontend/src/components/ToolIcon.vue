@@ -25,6 +25,20 @@
             <rect x="5" y="2.5" width="14" height="19" rx="2" />
             <path d="M8.5 7h7M8.5 11h7M8.5 15h4M11 18.5h2" />
         </svg>
+        <svg v-else-if="resolved === 'solar-globe'" class="icon" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8.5" />
+            <path d="M3.8 12h16.4M12 3.5c2.1 2.2 3.2 5 3.2 8.5S14.1 18.3 12 20.5M12 3.5C9.9 5.7 8.8 8.5 8.8 12s1.1 6.3 3.2 8.5" />
+            <path d="M5.1 7.6c2 1 4.3 1.5 6.9 1.5s4.9-.5 6.9-1.5M5.1 16.4c2-1 4.3-1.5 6.9-1.5s4.9.5 6.9 1.5" />
+        </svg>
+        <svg v-else-if="resolved === 'yoinks'" class="icon" viewBox="0 0 24 24">
+            <path d="M12 3v11m-4-4 4 4 4-4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+        </svg>
+        <svg v-else-if="resolved === 'freellmapi'" class="icon" viewBox="0 0 24 24">
+            <path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z" /><path d="M7 9h10M7 13h7" />
+        </svg>
+        <svg v-else-if="resolved === 'artcraft'" class="icon" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8" cy="8" r="1.5" /><path d="m3 17 5-5 4 4 4-6 5 7" />
+        </svg>
         <svg v-else class="icon" viewBox="0 0 24 24">
             <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
             <path d="M3.5 9.5h17M9.5 9.5v10" />
@@ -34,6 +48,9 @@
 
 <script>
 const MAP = {
+    yoinks: 'yoinks',
+    freellmapi: 'freellmapi',
+    artcraft: 'artcraft',
     'unity-logs': 'unity-logs',
     'android-wireless': 'android-wireless',
     'json-fmt': 'braces',
@@ -42,7 +59,9 @@ const MAP = {
     'qr-code': 'qrcode',
     'ratio': 'ratio',
     'ratio-lock': 'ratio',
-    'ratiolock': 'ratio'
+    'ratiolock': 'ratio',
+    'earth-sunlight': 'solar-globe',
+    'solar-globe': 'solar-globe'
 };
 
 export default {

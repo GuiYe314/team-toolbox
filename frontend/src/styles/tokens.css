@@ -5,6 +5,7 @@
    ========================================================================== */
 
 :root {
+    --clipboard-size: 1px;
     /* ── 字体层级（高信息密度：主标题克制，不做超大字号）───────────── */
     --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
         "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
@@ -75,6 +76,48 @@
     --adb-screen-dialog-offset: 150px;
     --adb-command-editor-width: 680px;
     --adb-command-editor-input-height: 100px;
+
+    /* 开源工具接入 */
+    --ext-page-width: 1480px;
+    --ext-sidebar-width: 340px;
+    --ext-dialog-width: 640px;
+    --ext-gap-xs: 6px;
+    --ext-gap-sm: 10px;
+    --ext-gap-md: 16px;
+    --ext-gap-lg: 22px;
+    --ext-control-height: 40px;
+    --ext-conversation-height: 440px;
+    --ext-conversation-min-height: 200px;
+    --ext-editor-height: 320px;
+    --ext-border-width: 1px;
+    --ext-focus-width: 2px;
+    --ext-message-width: 94%;
+
+    /* 地球光照工具 */
+    --solar-page-width: 1500px;
+    --solar-info-width: 310px;
+    --solar-coordinate-size: 29px;
+    --solar-info-padding: 28px;
+    --solar-gap-xs: 4px;
+    --solar-gap-sm: 8px;
+    --solar-gap-md: 14px;
+    --solar-gap-lg: 22px;
+    --solar-gap-xl: 32px;
+    --solar-border-width: 1px;
+    --solar-focus-width: 2px;
+    --solar-focus-offset: 2px;
+    --solar-dot-size: 7px;
+    --solar-swatch-size: 10px;
+    --solar-swatch-radius: 3px;
+    --solar-line-size: 18px;
+    --solar-icon-offset: 2px;
+    --solar-globe-aspect: 680 / 500;
+    --solar-fallback-aspect: 680 / 470;
+    --solar-zoom-button: 32px;
+    --solar-label-size: 11px;
+    --solar-label-coordinate-size: 10px;
+    --solar-label-padding: 2px 7px;
+    --solar-sun-letter-spacing: 2px;
 
     /* ── 侧栏宽度（三栏：主导航 / 页面树 / 主内容）─────────────────── */
     --w-main-sidebar: 214px;

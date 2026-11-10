@@ -80,6 +80,47 @@
     --adb-select-selected: #dce5ff;
     --adb-select-disabled: #58677f;
     --adb-log-background: #f4f7fc;
+
+    /* 地球光照视图：浅色主题下保持地球与昼夜的层次 */
+    --solar-stage-background: rgba(235, 241, 250, 0.78);
+    --solar-stage-border: rgba(76, 110, 245, 0.14);
+    --solar-info-background: rgba(255, 255, 255, 0.48);
+    --solar-stat-background: rgba(228, 233, 242, 0.58);
+    --solar-note-background: rgba(76, 110, 245, 0.07);
+    --solar-globe-shadow: rgba(31, 45, 79, 0.16);
+    --solar-globe-outline: #8da8cf;
+    --solar-ocean-light: #8cb8e6;
+    --solar-ocean: #4c78ad;
+    --solar-ocean-deep: #213a62;
+    --solar-day: #76bf8e;
+    --solar-grid: rgba(226, 240, 255, 0.40);
+    --solar-land: #b5d7a8;
+    --solar-land-stroke: #80a77d;
+    --solar-terminator: #f8c05b;
+    --solar-ray: #ec9c34;
+    --solar-sun-halo: #f6be4c;
+    --solar-sun: #ffd76a;
+    --solar-sun-stroke: #c8831f;
+    --solar-marker: #ffd24d;
+    --solar-marker-stroke: #fff4c2;
+    --solar-space-near: #132c47;
+    --solar-space-far: #091321;
+    --solar-transparent: rgba(0, 0, 0, 0);
+    --solar-atmosphere: #76b9ff;
+    --solar-cloud: #ffffff;
+    --solar-twilight: #edb57c;
+    --solar-stars: #b7cbe5;
+    --solar-stage-text: #e5edf9;
+    --solar-zoom-background: #182c43;
+    --solar-zoom-hover: #244364;
+    --solar-sun-core: #fff5d6;
+    --solar-sun-rim: #ef7f28;
+    --solar-sun-corona: #ffbe64;
+    --solar-sun-corona-soft: rgba(255, 178, 76, 0.24);
+    --solar-equator: #68dce2;
+    --solar-tropic: #c8b6ff;
+    --solar-label-background: rgba(12, 27, 45, 0.88);
+    --solar-label-border: rgba(187, 210, 239, 0.24);
 }
 
 [data-theme="dark"] {
@@ -141,4 +182,45 @@
     /* 二维码专用色：不透明。深色下前景用近白，否则深底深码扫不出来 */
     --qr-foreground: #e7ecf5;
     --qr-background: #101827;
+
+    /* 地球光照视图：深色主题下避免纯黑与低对比 */
+    --solar-stage-background: rgba(11, 26, 47, 0.72);
+    --solar-stage-border: rgba(125, 149, 248, 0.20);
+    --solar-info-background: rgba(18, 25, 37, 0.58);
+    --solar-stat-background: rgba(0, 0, 0, 0.20);
+    --solar-note-background: rgba(125, 149, 248, 0.10);
+    --solar-globe-shadow: rgba(0, 0, 0, 0.36);
+    --solar-globe-outline: #6e85aa;
+    --solar-ocean-light: #2c6aa0;
+    --solar-ocean: #17456e;
+    --solar-ocean-deep: #0b213c;
+    --solar-day: #4d9a74;
+    --solar-grid: rgba(175, 213, 245, 0.30);
+    --solar-land: #6da47e;
+    --solar-land-stroke: #9bcf9f;
+    --solar-terminator: #ffd166;
+    --solar-ray: #ffb454;
+    --solar-sun-halo: #f6be4c;
+    --solar-sun: #ffd166;
+    --solar-sun-stroke: #f3a52f;
+    --solar-marker: #ffe07a;
+    --solar-marker-stroke: #fff5c7;
+    --solar-space-near: #112840;
+    --solar-space-far: #09121f;
+    --solar-transparent: rgba(0, 0, 0, 0);
+    --solar-atmosphere: #6cafff;
+    --solar-cloud: #eef6ff;
+    --solar-twilight: #f2be88;
+    --solar-stars: #9eb4d2;
+    --solar-stage-text: #e5edf9;
+    --solar-zoom-background: #15283e;
+    --solar-zoom-hover: #234262;
+    --solar-sun-core: #fff3d2;
+    --solar-sun-rim: #f58b31;
+    --solar-sun-corona: #ffc571;
+    --solar-sun-corona-soft: rgba(255, 186, 94, 0.22);
+    --solar-equator: #68dce2;
+    --solar-tropic: #c8b6ff;
+    --solar-label-background: rgba(11, 25, 42, 0.88);
+    --solar-label-border: rgba(180, 204, 236, 0.24);
 }

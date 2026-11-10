@@ -104,6 +104,7 @@
 </template>
 
 <script>
+import { copyText } from '../utils/clipboard.js';
 /**
  * Markdown 语法速查弹窗。
  *
@@ -213,9 +214,9 @@ export default {
             this.show = false;
         },
         async copy(item) {
-            // clipboard 需安全上下文；不可用时静默降级，不打扰用户
+            // 局域网 HTTP 使用兼容复制；失败时不显示成功。
             try {
-                await navigator.clipboard.writeText(item.syntax);
+                await copyText(item.syntax);
                 this.copied = true;
                 clearTimeout(this._copyTimer);
                 this._copyTimer = setTimeout(() => { this.copied = false; }, 1600);

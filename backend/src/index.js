@@ -16,6 +16,8 @@ import { registerAssetApi } from './asset-api.js';
 import { registerUpdateApi } from './update-api.js';
 import { registerAndroidApi } from './android-api.js';
 import { registerUnityLogApi } from './unity-log-api.js';
+import { registerIntegrationApi } from './integration-api.js';
+import { createToolAccess } from './tool-access.js';
 import { backfillPreviews } from './asset-preview.js';
 import { runMigrations } from './migrate.js';
 import { ensureIndexSynced } from './search-index.js';
@@ -27,10 +29,12 @@ import { confirmStartupOk, readRollbackNotice } from './updater.js';
 //   <包根>/backend/src/index.js  →  <包根>/frontend/dist
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const HOST = process.env.HOST || '127.0.0.1';
+const access = createToolAccess();
+const HOST = process.env.HOST || (access.allowLan ? '0.0.0.0' : '127.0.0.1');
 const PORT = Number(process.env.PORT) || 3000;
 
 const app = express();
+app.use(access.middleware);
 // 导入备份会携带全部文档正文，默认 2mb 不足以承载较大知识库，这里放宽到 16mb。
 app.use(express.json({ limit: '16mb' }));
 
@@ -43,8 +47,9 @@ registerAssetApi(app, { getDb: getDefaultDatabase });
 // 自动更新接口：检查更新源、下载校验、安装重启。
 // 默认不启用 —— 未配置更新源时所有接口都只返回「未配置」。
 registerUpdateApi(app);
-const androidService = registerAndroidApi(app);
-const unityLogService = registerUnityLogApi(app);
+const androidService = registerAndroidApi(app, { access });
+const unityLogService = registerUnityLogApi(app, { access });
+const integrationService = registerIntegrationApi(app, { access });
 
 // 健康检查：返回 DB 路径与可达性
 app.get('/api/health', (_req, res) => {
@@ -216,7 +221,9 @@ function shutdown(signal) {
     console.log(`[server] received ${signal}, shutting down`);
     androidService.dispose();
     unityLogService.dispose();
-    server.close(() => {
+    const integrationsStopped = integrationService.dispose();
+    server.close(async () => {
+        await integrationsStopped;
         closeDefaultDatabase();
         process.exit(0);
     });

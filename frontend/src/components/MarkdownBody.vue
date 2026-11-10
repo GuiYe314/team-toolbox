@@ -23,6 +23,7 @@
 </template>
 
 <script>
+import { copyText } from '../utils/clipboard.js';
 export default {
     name: 'MarkdownBody',
     props: {
@@ -103,9 +104,7 @@ export default {
             if (!box) return;
             const src = box.dataset.mdSrc || '';
             if (!src) return;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(src).catch(() => {});
-            }
+            copyText(src).catch(() => window.prompt('复制图片地址', src));
         }
     }
 };

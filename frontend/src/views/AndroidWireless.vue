@@ -88,8 +88,9 @@
             </section>
             </section>
             <section class="adb-pane adb-tools-pane" aria-labelledby="adb-tools-pane-title">
-            <h2 id="adb-tools-pane-title" class="adb-pane-title">命令、屏幕与日志</h2>
+            <h2 id="adb-tools-pane-title" class="adb-pane-title">命令、APK、屏幕与日志</h2>
             <AndroidCommands :devices="devices" :disabled="unavailable || !configured" @busy-change="commandActivityChanged" />
+            <AndroidApkInstaller :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="apkActivityChanged" />
             <AndroidScreenPreview :key="logVersion" :devices="devices" :disabled="unavailable || !configured" />
             <AndroidLogcat :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="logActivityChanged" />
             </section>
@@ -107,10 +108,11 @@ import AndroidCommands from '../components/AndroidCommands.vue';
 import AndroidSettingsDialog from '../components/AndroidSettingsDialog.vue';
 import AndroidLogcat from '../components/AndroidLogcat.vue';
 import AndroidScreenPreview from '../components/AndroidScreenPreview.vue';
+import AndroidApkInstaller from '../components/AndroidApkInstaller.vue';
 
 export default {
     name: 'AndroidWireless',
-    components: { AndroidQrPairing, AndroidHelp, AndroidCommands, AndroidSettingsDialog, AndroidLogcat, AndroidScreenPreview },
+    components: { AndroidQrPairing, AndroidHelp, AndroidCommands, AndroidSettingsDialog, AndroidLogcat, AndroidScreenPreview, AndroidApkInstaller },
     data() {
         return { config: null, qrActive: false, settingsActive: false, logVersion: 0, endpoint: '', devices: [], services: [], searched: false, loadedDevices: false,
             pairService: null, pairCode: '', pendingDisconnect: '', busy: '', error: '', notice: '', warning: '' };
@@ -122,6 +124,7 @@ export default {
         configurationSaved(config) { this.config = config; this.devices = []; this.services = []; this.searched = false; this.loadedDevices = false; this.pendingDisconnect = ''; this.cancelPair(); this.logVersion++; },
         logActivityChanged(active) { this.busy = active ? '读取日志设备信息' : ''; },
         commandActivityChanged(active) { this.busy = active ? '执行 ADB 命令' : ''; },
+        apkActivityChanged(active) { this.busy = active ? '传送并安装 APK' : ''; },
         qrActivityChanged(active) {
             this.qrActive = active;
             if (active) { this.cancelPair(); this.pendingDisconnect = ''; this.notice = ''; this.error = ''; this.warning = ''; }

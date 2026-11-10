@@ -19,6 +19,7 @@ import './styles/hint.css';
 import './styles/assets.css';
 import './styles/android.css';
 import './styles/unity-logs.css';
+import './styles/integrations.css';
 
 // 全局指令：v-hint（延迟 1 秒的悬停提示）
 import hintDirective from './directives/hint.js';

@@ -2,10 +2,11 @@
 # ============================================================================
 #  team-toolbox 发布打包脚本
 #
-#  产出三份发布资产（与 docs/VERSION_POLICY.md 的约定一致）：
+#  产出四份发布资产（与 docs/VERSION_POLICY.md 的约定一致）：
 #    1. team-toolbox-<版本>.zip              便携包（解压即用，含生产依赖）
 #    2. team-toolbox-Setup-<版本>.exe        安装包（Inno Setup 编译）
 #    3. team-toolbox-<版本>-SHA256.txt       校验清单
+#    4. manifest.json                      自动更新清单
 #
 #  与参考项目 TravelMap 的差异（必须理解，否则会照搬出错）：
 #    TravelMap 用 PyInstaller 把 Python 后端冻结成单文件 EXE。
@@ -242,6 +243,7 @@ New-Item -ItemType Directory -Path $docsOut -Force | Out-Null
 if (Test-Path (Join-Path $projectRoot "docs\USER_GUIDE.md")) {
     Copy-Item (Join-Path $projectRoot "docs\USER_GUIDE.md") $docsOut -Force
 }
+Copy-Item (Join-Path $projectRoot "docs\OPEN_SOURCE_INTEGRATIONS.md") $docsOut -Force
 if (Test-Path (Join-Path $projectRoot "README.md")) {
     Copy-Item (Join-Path $projectRoot "README.md") $appDir -Force
 }
@@ -267,13 +269,11 @@ Say "      生产依赖就绪" "Green"
 # ── 4. 写启动脚本 ─────────────────────────────────────────────────────────
 Say "[4/5] 写启动脚本..." "Cyan"
 
-# 以 UTF-8 with BOM 写入 —— cmd.exe 在中文系统上按 OEM 代码页解读无 BOM 的 UTF-8，
-# 中文会变乱码；有 BOM 时 cmd 会切到 UTF-8 代码页。
-# （JS 文件同理：Node 读无 BOM 的 UTF-8 没问题，但保持一致更省心。）
+# JS 自检沿用 UTF-8 BOM；CMD 模板使用 ASCII 正文、CRLF 和无 BOM，
+# 避免 cmd.exe 将 BOM 当作第一条命令的一部分。
 $utf8Bom = New-Object System.Text.UTF8Encoding($true)
 
-# 启动.cmd：双击即用。检查 Node、首次运行初始化数据库、启动后端并开浏览器。
-# 启动.cmd：双击即用。
+# 启动.cmd：检查 Node 后交由共享脚本启动后端并等待就绪，再打开浏览器。
 #
 # 运行时策略：**优先用包内自带的 runtime\node.exe**。
 # 随包分发的 better-sqlite3 原生二进制与该 Node 的 ABI 严格绑定，
@@ -401,69 +401,16 @@ probe();
 [System.IO.File]::WriteAllText((Join-Path $runtimeOut "check.js"), $runtimeCheck, $utf8Bom)
 [System.IO.File]::WriteAllText((Join-Path $runtimeOut "open-browser.js"), $openBrowser, $utf8Bom)
 
-$startCmd = @'
-@echo off
-chcp 65001 >nul
-setlocal
-cd /d "%~dp0"
-
-REM ---- 定位 Node 运行时 ----
-REM 优先用包内自带的 runtime\node.exe：它的 ABI 与随包分发的
-REM better-sqlite3 原生模块严格一致，因此不受用户系统 Node 版本影响。
-set "NODE_EXE=%~dp0runtime\node.exe"
-if exist "%NODE_EXE%" goto :runtime_ready
-
-echo [warn] 未找到包内运行时 runtime\node.exe，将改用系统 Node。
-echo [warn] 若随后报 NODE_MODULE_VERSION 错误，请重新下载完整发布包。
-where node >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] 未找到 Node.js，且包内运行时不完整，无法启动。
-    echo         请重新下载完整的发布包：https://github.com/GuiYe314/team-toolbox/releases
-    pause
-    exit /b 1
-)
-set "NODE_EXE=node"
-
-:runtime_ready
-REM ---- 运行时自检：确认数据库驱动能加载 ----
-"%NODE_EXE%" "%~dp0runtime\check.js"
-if errorlevel 1 (
-    echo.
-    pause
-    exit /b 1
-)
-
-REM ---- 启动后端（同时托管前端与 API，单端口）----
-echo [info] 正在启动 team-toolbox...
-REM TT_SKIP_BROWSER=1：由自动更新的换文件脚本设置。
-REM 升级后重开一个浏览器标签页没有意义（用户本来就在页面上），
-REM 而且会让「更新完自动回到应用」变成「多出一个重复标签」。
-if "%TT_SKIP_BROWSER%"=="1" goto :skip_browser
-echo [info] 就绪后会自动打开 http://127.0.0.1:3000/
-start "" /b "%NODE_EXE%" "%~dp0runtime\open-browser.js"
-:skip_browser
-
-pushd backend
-"%NODE_EXE%" src\index.js
-popd
-
-echo.
-echo 服务已停止。
-pause
-'@
-[System.IO.File]::WriteAllText((Join-Path $appDir "启动.cmd"), $startCmd, $utf8Bom)
-
-# 停止.cmd：按端口结束本机实例
-$stopCmd = @'
-@echo off
-chcp 65001 >nul
-for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3000" ^| findstr LISTENING') do (
-    echo [info] 结束 PID %%p ...
-    taskkill /PID %%p /F >nul 2>&1
-)
-echo [info] 已停止。
-'@
-[System.IO.File]::WriteAllText((Join-Path $appDir "停止.cmd"), $stopCmd, $utf8Bom)
+# Shared launcher: services have hidden consoles; the short-lived CMD exits only
+# after owned processes pass readiness checks. Preserve CRLF and keep CMD ASCII.
+$startupScripts = Join-Path $appDir 'scripts'
+New-Item -ItemType Directory -Path $startupScripts -Force | Out-Null
+Copy-Item (Join-Path $projectRoot 'scripts\start-services.ps1') $startupScripts -Force
+Copy-Item (Join-Path $projectRoot 'scripts\stop.ps1') $startupScripts -Force
+$startCmd = [IO.File]::ReadAllText((Join-Path $projectRoot 'scripts\release-start.cmd')) -replace '\r?\n', "`r`n"
+$stopCmd = [IO.File]::ReadAllText((Join-Path $projectRoot 'stop.bat')) -replace '\r?\n', "`r`n"
+[IO.File]::WriteAllText((Join-Path $appDir '启动.cmd'), $startCmd, [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $appDir '停止.cmd'), $stopCmd, [Text.UTF8Encoding]::new($false))
 Say "      启动脚本就绪" "Green"
 
 # ── 5. 打包 ZIP + 编译安装包 + 校验清单 ────────────────────────────────────

@@ -23,6 +23,7 @@
 
 <script>
 import ToolIcon from '../components/ToolIcon.vue';
+import { integrationTools } from '../utils/integration-tools.js';
 
 export default {
     name: 'Tools',
@@ -30,6 +31,7 @@ export default {
     data() {
         return {
             tools: [
+                ...integrationTools.map(tool => ({ ...tool, status: '可用' })),
                 {
                     id: 'unity-logs',
                     name: 'Unity 设备日志',
@@ -49,6 +51,13 @@ export default {
                     name: '比例锁定',
                     desc: '锁定宽高比，输入任一侧自动换算另一侧',
                     routeName: 'tool-ratio-lock',
+                    status: '可用'
+                },
+                {
+                    id: 'earth-sunlight',
+                    name: '地球光照',
+                    desc: '查看当前太阳直射点、昼夜分界和太阳光方向',
+                    routeName: 'tool-earth-sunlight',
                     status: '可用'
                 },
                 {

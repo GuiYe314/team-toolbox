@@ -1,23 +1,29 @@
 @echo off
-setlocal ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
+setlocal EnableExtensions DisableDelayedExpansion
 
 REM ============================================================
 REM  team-toolbox one-click starter (Windows)
-REM  Scope: Stage 1 TASK-001 scaffold only.
 REM  Steps:
 REM      1. Verify Node.js / npm.
 REM      2. Install backend & frontend deps on first run.
 REM      3. Run database migration if data file is missing.
-REM      4. Launch backend (3000) and frontend (5173) in separate
-REM         windows; open browser to frontend URL.
-REM  Stop: double-click stop.bat, or Ctrl+C in each service window.
+REM      4. Start hidden backend / Vite services and wait for readiness.
+REM      5. Open the browser and close this launcher on success.
+REM  Stop: double-click stop.bat. Diagnostics: project logs directory.
 REM ============================================================
 REM  IMPORTANT: this system has NO authentication.
-REM  Do NOT bind to 0.0.0.0 or expose to the public network.
+REM  Default: trusted LAN. Use /local for loopback-only access.
+REM  Do NOT expose this service to the public network.
 REM  See docs/ARCHITECTURE.md section 7.
 REM ============================================================
 
 cd /d "%~dp0"
+if /i "%~1"=="/local" set "TT_ACCESS_MODE=Local"
+
+if not exist "%~dp0scripts\start-services.ps1" (
+    echo [ERROR] Missing scripts\start-services.ps1. Restore the complete project.
+    goto failed
+)
 
 REM ---- Node.js check ----
 where node >nul 2>&1
@@ -31,7 +37,7 @@ if errorlevel 1 (
 for /f "delims=" %%v in ('node -v') do set NODE_VERSION=%%v
 for /f "delims=" %%v in ('npm -v')  do set NPM_VERSION=%%v
 echo [info] node %NODE_VERSION%  npm %NPM_VERSION%
-echo [info] project root: %CD%
+echo [info] project root: "%CD%"
 
 REM ---- Backend deps (skip if already present) ----
 if not exist "backend\node_modules" (
@@ -62,38 +68,11 @@ if not exist "frontend\node_modules" (
     popd
 )
 
-REM ---- Launch backend in a new titled window ----
-echo [step] starting backend on http://127.0.0.1:3000
-start "team-toolbox-backend" cmd /k "cd /d %~dp0backend && npm start"
-
-REM ---- Launch frontend in a new titled window ----
-echo [step] starting frontend on http://127.0.0.1:5173
-start "team-toolbox-frontend" cmd /k "cd /d %~dp0frontend && npm run dev"
-
-REM ---- Wait for frontend dev server then open browser ----
-echo [info] waiting for frontend dev server...
-set /a TRIES=0
-:wait_loop
-set /a TRIES+=1
-timeout /t 1 /nobreak >nul
-curl -sS -o nul -w "" http://127.0.0.1:5173/ 2>nul
-if errorlevel 1 (
-    if !TRIES! lss 30 goto wait_loop
-    echo [warn] frontend did not respond in 30s. Check the frontend window.
-) else (
-    echo [info] frontend is up.
-    start "" "http://127.0.0.1:5173/"
-)
-
-echo.
-echo ============================================================
-echo  team-toolbox started.
-echo    backend : http://127.0.0.1:3000  (window: team-toolbox-backend)
-echo    frontend: http://127.0.0.1:5173  (window: team-toolbox-frontend)
-echo  Stop: double-click stop.bat.
-echo  WARN: NO auth. Do NOT bind 0.0.0.0 / expose publicly.
-echo ============================================================
-echo.
-
-endlocal
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-services.ps1" -ProjectRoot "%~dp0."
+if errorlevel 1 goto failed
 exit /b 0
+
+:failed
+echo [ERROR] Startup failed. Review the error and the project logs directory.
+if /i not "%~1"=="/nopause" pause
+exit /b 1
