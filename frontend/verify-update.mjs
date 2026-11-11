@@ -14,7 +14,7 @@
 //   3. 已配置、有新版本（含说明与体积）
 //   4. 清单损坏时的错误提示
 //
-// 更新源指向一个临时目录，脚本结束时清空配置 —— 不污染真实部署。
+// 通过 verify-update-isolated.mjs 运行，更新源指向临时目录，禁止安装与上游访问。
 
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
@@ -105,13 +105,11 @@ async function goto() {
 }
 
 try {
-    // ── 准备：清空更新源，保证从「未配置」开始 ──
     const health = await (await fetch(API + '/health')).json();
-    await fetch(API + '/update/source', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: '' })
-    });
+    if (health.verificationMode !== 'isolated-update') throw new Error('请通过 verify-update-isolated.mjs 在临时数据上运行');
+    const projectSource = 'https://github.com/GuiYe314/team-toolbox/releases/latest/download';
+    const initial = await (await fetch(API + '/update/status')).json();
+    check('新配置默认项目 GitHub 且不主动检查网络', initial.source === projectSource && initial.sourceOrigin === 'default' && initial.lastCheck === null);
 
     await goto();
     console.log('\n── 1. 页面与导航 ──');
@@ -119,10 +117,26 @@ try {
     check('侧栏有「设置」入口', await ev(`[...document.querySelectorAll('.nav-item')].some(a=>a.textContent.trim()==='设置')`));
     check('当前版本与后端一致', (await text('.set-code')) === health.version,
         `页面 ${await text('.set-code')} vs 后端 ${health.version}`);
+    check('界面标明默认 GitHub 源', /项目 GitHub（默认）/.test(await text('.set-tag')));
+    check('默认源允许主动检查', await ev(`![...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='检查更新').disabled`));
+    await ev(`document.querySelector('.set-disable-update').click()`); await sleep(1000);
 
     console.log('\n── 2. 未配置更新源 ──');
-    check('显示「未配置」', (await text('.set-tag')) === '未配置', await text('.set-tag'));
+    check('关闭后显示未配置', /已关闭.*未配置/.test(await text('.set-tag')), await text('.set-tag'));
     check('提示先填地址', /先在上面填写更新源地址/.test(await ev(`document.querySelector('.set-card:last-child .set-note')?.textContent||''`)));
+    check('关闭后检查按钮禁用', await ev(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='检查更新').disabled`));
+    await ev(`document.querySelector('.set-project-source').click()`); await sleep(1000);
+    check('使用项目按钮重新启用正确源', (await (await fetch(API + '/update/source')).json()).source === projectSource);
+
+    await ev(`(() => { const input=document.querySelector('.set-input'); input.value='https://github.com/GuiYe314/team-toolbox.git'; input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await sleep(150);
+    await ev(`document.querySelector('.set-input').dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',bubbles:true}))`);
+    await sleep(1000);
+    check('回车保存仓库 .git 地址并显示规范化源', await ev(`document.querySelector('.set-input').value===${JSON.stringify(projectSource)} && document.body.innerText.includes('已保存')`));
+    await ev(`(() => { const input=document.querySelector('.set-input'); input.value='https://github.com/GuiYe314/team-toolbox/tree/main'; input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await sleep(150); await ev(`document.querySelector('.set-source-save').click()`); await sleep(700);
+    check('GitHub 代码浏览页被拒绝并明确提示', /不要填写代码浏览页/.test(await text('[role=alert]')));
+    check('错误地址未覆盖已保存源', (await (await fetch(API + '/update/source')).json()).source === projectSource);
 
     console.log('\n── 3. 保存更新源（界面可编辑）──');
     check('输入框可编辑（未被环境变量锁定）', (await ev(`!!(document.querySelector('.set-input')||{}).disabled`)) === false);
@@ -183,6 +197,13 @@ try {
     check('有「下载并安装」按钮', await ev(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='下载并安装')`));
     check('明示会备份与可回滚', /自动备份全部数据/.test(await text('.set-warn')));
 
+    await ev(`document.querySelector('.set-project-source').click()`); await sleep(700);
+    check('换源后移除旧版本的安装按钮', !(await ev(`!!document.querySelector('.set-update')`)));
+    await goto();
+    check('刷新后也不恢复其他更新源的缓存', !(await ev(`!!document.querySelector('.set-update')`)));
+    await ev(`(() => { const input=document.querySelector('.set-input'); input.value=${JSON.stringify(SRC)}; input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await sleep(150); await ev(`document.querySelector('.set-source-save').click()`); await sleep(700);
+
     console.log('\n── 6. 清单损坏 ──');
     writeManifest('{ this is not json');
     await clickCheck();
@@ -193,6 +214,7 @@ try {
     console.log('\n── 7. 控制台 ──');
     const realErrs = errs.filter((e) => !/favicon|DevTools/i.test(e));
     check('控制台无错误', realErrs.length === 0, realErrs.slice(0, 2).join(' | '));
+    check('说明发布包更新及重启方式', /安装会下载完整发布包/.test(await ev('document.body.innerText')) && /仅推送 Git 源码不会触发更新/.test(await ev('document.body.innerText')));
 } finally {
     // 还原：清空更新源 + 删临时目录
     await fetch(API + '/update/source', {

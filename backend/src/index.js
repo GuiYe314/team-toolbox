@@ -45,7 +45,7 @@ registerApi(app, { getDb: getDefaultDatabase });
 registerAssetApi(app, { getDb: getDefaultDatabase });
 
 // 自动更新接口：检查更新源、下载校验、安装重启。
-// 默认不启用 —— 未配置更新源时所有接口都只返回「未配置」。
+// 默认使用项目 GitHub Releases；保留自定义源及明确关闭，检查与安装均由用户发起。
 registerUpdateApi(app);
 const androidService = registerAndroidApi(app, { access });
 const unityLogService = registerUnityLogApi(app, { access });

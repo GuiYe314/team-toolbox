@@ -22,6 +22,10 @@
                 <button class="btn btn-sm" type="button" @click="dismissRollback">知道了</button>
             </div>
 
+            <div v-if="errorText" class="set-alert set-alert-danger" role="alert">
+                <div class="set-alert-body"><strong>更新操作失败</strong><p>{{ errorText }}</p></div>
+            </div>
+
             <!-- 版本信息 -->
             <section class="set-card">
                 <h2 class="set-card-title">当前版本</h2>
@@ -31,8 +35,9 @@
 
                     <dt>更新源</dt>
                     <dd>
-                        <span v-if="!status || !status.configured" class="set-tag set-tag-muted">未配置</span>
+                        <span v-if="!status || !status.configured" class="set-tag set-tag-muted">已关闭（未配置）</span>
                         <span v-else-if="status.sourceOrigin === 'env'" class="set-tag">由环境变量指定</span>
+                        <span v-else-if="status.sourceOrigin === 'default'" class="set-tag">项目 GitHub（默认）</span>
                         <code v-if="status && status.source" class="set-code">{{ status.source }}</code>
                     </dd>
 
@@ -45,9 +50,9 @@
             <section class="set-card">
                 <h2 class="set-card-title">更新源地址</h2>
                 <p class="set-hint">
-                    可以填目录，也可以直接填 <code>manifest.json</code> 的地址。支持内网共享目录
-                    （形如 <code>\\fileserver\share\team-toolbox</code>）与
-                    <code>http(s)://</code> 地址。
+                    默认从本项目 GitHub 的最新正式发布获取更新。可以直接粘贴仓库地址（含 <code>.git</code>），
+                    保存时会转换为 Releases 下载目录。也支持内网共享目录、<code>http(s)://</code> 目录或
+                    <code>manifest.json</code> 地址。
                 </p>
                 <div class="set-row">
                     <input
@@ -55,14 +60,20 @@
                         class="set-input"
                         type="text"
                         spellcheck="false"
-                        :disabled="saving || !editable"
-                        placeholder="\\fileserver\share\team-toolbox"
-                        @keyup.enter="saveSource"
+                        :disabled="saving || !!busy || !editable"
+                        aria-label="更新源地址"
+                        placeholder="https://github.com/GuiYe314/team-toolbox"
+                        @keyup.enter="saveSource()"
                     />
-                    <button class="btn" type="button" :disabled="saving || !editable || sourceInput === (status && status.source)" @click="saveSource">
+                    <button class="btn set-source-save" type="button" :disabled="saving || !!busy || !editable || sourceInput === (status && status.source)" @click="saveSource()">
                         {{ saving ? '保存中…' : '保存' }}
                     </button>
                 </div>
+                <div class="set-row set-note">
+                    <button class="btn set-project-source" type="button" :disabled="saving || !!busy || !editable || !status || !status.defaultSource" @click="saveSource(status.defaultSource)">使用项目 GitHub</button>
+                    <button class="btn set-disable-update" type="button" :disabled="saving || !!busy || !editable || !status || !status.configured" @click="saveSource('')">关闭更新</button>
+                </div>
+                <p class="set-note">点击“检查更新”后才联网；安装会下载完整发布包、校验并备份，随后重启服务。仅推送 Git 源码不会触发更新。</p>
                 <p v-if="!editable" class="set-note">
                     更新源由环境变量 <code>UPDATE_SOURCE</code> 指定，界面上的修改不会生效。
                 </p>
@@ -76,7 +87,7 @@
                     <button
                         class="btn"
                         type="button"
-                        :disabled="!!busy || !(status && status.configured)"
+                        :disabled="saving || !!busy || !(status && status.configured)"
                         @click="check"
                     >{{ busy === 'check' ? '检查中…' : '检查更新' }}</button>
                 </div>
@@ -88,11 +99,7 @@
                 <template v-else>
                     <p v-if="busyText" class="set-busy">{{ busyText }}</p>
 
-                    <div v-if="errorText" class="set-alert set-alert-danger">
-                        <div class="set-alert-body"><strong>检查失败</strong><p>{{ errorText }}</p></div>
-                    </div>
-
-                    <div v-else-if="result && result.hasUpdate" class="set-update">
+                    <div v-if="!errorText && result && result.hasUpdate" class="set-update">
                         <div class="set-update-head">
                             <span class="set-update-ver">{{ currentVersion }} → {{ result.latest }}</span>
                             <span v-if="result.mandatory" class="set-tag set-tag-warn">建议立即更新</span>
@@ -110,12 +117,12 @@
                         <button
                             class="btn btn-primary"
                             type="button"
-                            :disabled="!!busy"
+                            :disabled="saving || !!busy"
                             @click="install"
                         >下载并安装</button>
                     </div>
 
-                    <p v-else-if="result" class="set-note set-note-ok">
+                    <p v-else-if="!errorText && result" class="set-note set-note-ok">
                         已是最新版本（{{ result.current }}）。
                     </p>
                 </template>
@@ -178,9 +185,7 @@ export default {
                 this.status = body;
                 this.sourceInput = body.source || '';
                 // 有缓存结果就直接展示，避免进页面还要再点一次「检查」
-                if (body.lastCheck && !body.lastCheck.error) {
-                    this.result = body.lastCheck;
-                }
+                this.result = body.lastCheck && !body.lastCheck.error ? body.lastCheck : null;
             } catch (e) {
                 this.errorText = e.message || '读取更新状态失败';
             } finally {
@@ -202,13 +207,13 @@ export default {
             return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
         },
 
-        async saveSource() {
-            if (this.saving) return;
+        async saveSource(source = this.sourceInput) {
+            if (this.saving || this.busy || !this.editable) return;
             this.saving = true;
             this.savedOk = false;
             this.errorText = '';
             try {
-                const { res, body } = await api.setUpdateSource(this.sourceInput);
+                const { res, body } = await api.setUpdateSource(source);
                 if (!res.ok) throw new Error((body && body.message) || '保存失败');
                 this.savedOk = true;
                 this.result = null;
@@ -221,7 +226,7 @@ export default {
         },
 
         async check() {
-            if (this.busy) return;
+            if (this.busy || this.saving) return;
             this.busy = 'check';
             this.busyText = '正在读取更新源…';
             this.errorText = '';

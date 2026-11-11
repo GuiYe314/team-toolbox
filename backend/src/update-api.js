@@ -63,6 +63,11 @@ export function registerUpdateApi(app, { basePath = '/api' } = {}) {
     }));
 
     router.put('/update/source', wrap((req, res) => {
+        if (busy) {
+            const err = new Error(`正在${busy}，请完成后再修改更新源`);
+            err.code = 'conflict';
+            throw err;
+        }
         const { source } = req.body || {};
         res.json(setUpdateSource(source));
     }));

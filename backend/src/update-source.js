@@ -1,23 +1,6 @@
-// 更新源配置。
-//
-// ── 为什么更新源要可配置 ──
-//
-// 自动更新的第一版直觉是「直接读 GitHub Releases」。实测下来这条路在本项目
-// 上有三个硬障碍：
-//   1. 仓库是私有的。匿名访问 api.github.com 直接 404，每台客户端都得带
-//      token —— 而 token 随安装包分发等于把仓库读权限发给所有人，
-//      轮换一次就得重新分发安装包。
-//   2. 未认证 API 限流 60 次/小时/IP。公司 NAT 下十几台机器各查几次就打满，
-//      而 403 无法区分「限流」与「仓库不存在」，排查成本很高。
-//   3. 部署前提是受控内网，客户端机器可能根本出不了网；
-//      且 objects.githubusercontent.com 的可达性并不稳定。
-//
-// 但「更新源」本质上只需要是一个**能放静态文件的地址**：
-// manifest.json + 包 + 校验值。GitHub Releases、内网共享盘、nginx 目录、
-// 对象存储，都满足这个条件，实现上没有任何区别。
-//
-// 所以这里把源抽成配置：默认不启用，用户填什么就用什么。
-// 换源不需要改代码，也不需要重新发版。
+// 更新源配置。默认读取公开项目的 GitHub Releases 静态资产，不调用 GitHub API。
+// 保留自定义 HTTP/共享目录，以供不能访问 GitHub 的内网使用。
+// 仓库地址只规范化到发布资产目录，不拉源码、不调用 Git、不分发凭据。
 //
 // ── 支持的形态 ──
 //
@@ -30,7 +13,8 @@
 // 环境变量 UPDATE_SOURCE 优先于配置文件 —— 便于用组策略/快捷方式统一注入，
 // 不必逐台去界面里填。
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { dirname, isAbsolute, join } from 'node:path';
 import { APP_ROOT } from './version.js';
 
@@ -48,8 +32,21 @@ export const UPDATE_ROOT = process.env.TT_UPDATE_DIR
 
 export const SOURCE_FILE = join(UPDATE_ROOT, 'source.json');
 export const STATE_FILE = join(UPDATE_ROOT, 'state.json');
+export const DEFAULT_UPDATE_SOURCE = 'https://github.com/GuiYe314/team-toolbox/releases/latest/download';
 
 const MAX_SOURCE_LEN = 500;
+
+/** 仅把 GitHub 仓库和 Releases 首页映射为资产目录，其他源保持原样。 */
+export function normalizeUpdateSource(raw) {
+    const source = typeof raw === 'string' ? raw.trim() : '';
+    if (!/^https?:\/\//i.test(source)) return source;
+    let url;
+    try { url = new URL(source); } catch { return source; }
+    if (url.hostname.toLowerCase() !== 'github.com' || url.username || url.password || url.port || url.search || url.hash) return source;
+    const match = url.pathname.match(/^\/([a-z\d][a-z\d-]*)\/([a-z\d_.-]+?)(?:\.git)?(?:\/(?:releases(?:\/latest)?))?\/?$/i);
+    if (!match) return source;
+    return `https://github.com/${match[1]}/${match[2]}/releases/latest/download`;
+}
 
 /** 确保更新目录存在。所有写操作前调用。 */
 export function ensureUpdateRoot() {
@@ -67,7 +64,20 @@ export function classifySource(raw) {
     if (!s) return { kind: 'invalid', value: '', reason: 'empty' };
     if (s.length > MAX_SOURCE_LEN) return { kind: 'invalid', value: s, reason: 'too_long' };
 
-    if (/^https?:\/\//i.test(s)) return { kind: 'http', value: s };
+    if (/^https?:\/\//i.test(s)) {
+        let url;
+        try { url = new URL(s); } catch { return { kind: 'invalid', value: s, reason: 'invalid_url' }; }
+        if (!url.hostname || url.username || url.password) return { kind: 'invalid', value: s, reason: 'invalid_url' };
+        const value = normalizeUpdateSource(s);
+        if (url.hostname.toLowerCase() === 'github.com') {
+            const normalized = new URL(value);
+            // 代码浏览页和单次发布页不是静态更新源，避免把 HTML 当清单。
+            if (url.port || url.search || url.hash || !/^\/[^/]+\/[^/]+\/releases\/(?:latest\/download|download\/[^/]+)(?:\/manifest\.json)?\/?$/i.test(normalized.pathname)) {
+                return { kind: 'invalid', value: s, reason: 'github_page' };
+            }
+        }
+        return { kind: 'http', value };
+    }
     // 刻意不支持 ftp/ssh 等：更新包必须能流式读取并用 sha256 校验，
     // 多一种协议就多一类失败模式，收益为零。
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) {
@@ -89,12 +99,13 @@ export function resolveManifestLocation(raw) {
     const c = classifySource(raw);
     if (c.kind === 'invalid') return null;
 
-    const looksLikeJson = /\.json$/i.test(c.value);
     if (c.kind === 'http') {
-        const url = looksLikeJson ? c.value : c.value.replace(/\/+$/, '') + '/manifest.json';
-        return { kind: 'http', url };
+        const url = new URL(c.value);
+        if (!/\.json$/i.test(url.pathname)) url.pathname = url.pathname.replace(/\/+$/, '') + '/manifest.json';
+        return { kind: 'http', url: url.href };
     }
 
+    const looksLikeJson = /\.json$/i.test(c.value);
     const base = isAbsolute(c.value) ? c.value : join(APP_ROOT, c.value);
     const target = looksLikeJson ? base : join(base, 'manifest.json');
     return { kind: 'file', url: target, dir: looksLikeJson ? dirname(base) : base };
@@ -103,23 +114,25 @@ export function resolveManifestLocation(raw) {
 /**
  * 读取当前生效的更新源。
  *
- * @returns {{ source: string, origin: 'env'|'file'|'none' }}
+ * @returns {{ source: string, origin: 'env'|'file'|'default'|'none' }}
  */
 export function getUpdateSource() {
     const fromEnv = String(process.env.UPDATE_SOURCE || '').trim();
-    if (fromEnv) return { source: fromEnv, origin: 'env' };
+    if (fromEnv) return { source: normalizeUpdateSource(fromEnv), origin: 'env' };
 
     try {
         if (existsSync(SOURCE_FILE)) {
             const j = JSON.parse(readFileSync(SOURCE_FILE, 'utf8'));
-            const s = String((j && j.url) || '').trim();
-            if (s) return { source: s, origin: 'file' };
+            // 空字符串是明确关闭，兼容此前已清空的配置；不可退回默认源。
+            if (!j || typeof j.url !== 'string') return { source: '', origin: 'none' };
+            const s = normalizeUpdateSource(j.url);
+            return { source: s, origin: s ? 'file' : 'none' };
         }
     } catch {
-        // 配置文件损坏按「未配置」处理，不要因此让调用方抛错：
-        // 更新是附加能力，它坏掉不该影响主服务。
+        // 损坏配置保持关闭，不擅自切换到另一个可信源。
+        return { source: '', origin: 'none' };
     }
-    return { source: '', origin: 'none' };
+    return { source: DEFAULT_UPDATE_SOURCE, origin: 'default' };
 }
 
 /**
@@ -131,23 +144,30 @@ export function getUpdateSource() {
  * @returns {{ source: string, origin: string }}
  */
 export function setUpdateSource(raw) {
-    const s = String(raw || '').trim();
-    if (s) {
-        const c = classifySource(s);
+    let s = typeof raw === 'string' ? raw.trim() : '';
+    if (typeof raw !== 'string' || s) {
+        const c = typeof raw === 'string' ? classifySource(s) : { kind: 'invalid' };
         if (c.kind === 'invalid') {
             const err = new Error(
                 c.reason === 'unsupported_scheme'
                     ? '只支持 http(s) 地址或本地/共享目录路径'
-                    : '更新源地址无效'
+                    : c.reason === 'github_page'
+                        ? '请填写 GitHub 仓库地址或 Releases 下载目录，不要填写代码浏览页或单次发布页'
+                        : '更新源地址无效，请填写 http(s) 地址或本地/共享目录'
             );
             err.code = 'invalid_input';
             throw err;
         }
+        s = c.value;
     }
 
     ensureUpdateRoot();
-    writeFileSync(SOURCE_FILE, JSON.stringify({ url: s, updated_at: new Date().toISOString() }, null, 2), 'utf8');
-    return s ? { source: s, origin: 'file' } : { source: '', origin: 'none' };
+    const temporary = `${SOURCE_FILE}.${randomUUID()}.tmp`;
+    try {
+        writeFileSync(temporary, JSON.stringify({ url: s, updated_at: new Date().toISOString() }, null, 2), 'utf8');
+        renameSync(temporary, SOURCE_FILE);
+    } finally { rmSync(temporary, { force: true }); }
+    return getUpdateSource();
 }
 
 /** 读取上次检查结果（缓存，供页面首屏直接展示，不触发网络请求）。 */

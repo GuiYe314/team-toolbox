@@ -42,7 +42,7 @@ import {
     statSync,
     writeFileSync
 } from 'node:fs';
-import { dirname, join, resolve as resolvePath, sep } from 'node:path';
+import { dirname, isAbsolute, join, resolve as resolvePath, sep } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { spawn, spawnSync } from 'node:child_process';
@@ -50,8 +50,11 @@ import yauzl from 'yauzl';
 import { getDefaultDatabase } from './db.js';
 import { exportFullBackup } from './full-backup.js';
 import { getAppVersion, compareVersions, APP_ROOT } from './version.js';
+import { withUpdateResponse, readUpdateText, describeUpdateNetworkError } from './update-http.js';
 import {
     UPDATE_ROOT,
+    DEFAULT_UPDATE_SOURCE,
+    normalizeUpdateSource,
     ensureUpdateRoot,
     getUpdateSource,
     readUpdateState,
@@ -103,43 +106,6 @@ function versionDir(version) {
 // ─────────────────────────────────────────────────
 
 /**
- * 把网络层异常翻译成人能看懂的说明。
- *
- * 原生 fetch 失败只给一句 "fetch failed"，真正的原因藏在 e.cause 里
- * （连接超时 / DNS / 证书）。而失败原因不同，用户该做的事完全不同：
- * 代理问题去改源，证书问题去查防火墙，超时可能是网络慢。
- *
- * 特别地：**Node 的 fetch 不读取 HTTPS_PROXY 环境变量**。
- * 这意味着「浏览器能打开、命令行 curl 也能下载，但应用说源不可达」——
- * 在需要代理的公司网络里这是常态，而且从报错上完全看不出来。
- */
-function describeNetworkError(err) {
-    const msg = (err && err.message) || String(err);
-    const cause = err && err.cause;
-    const code = cause && (cause.code || cause.message);
-    const detail = code ? `（${code}）` : '';
-
-    const hasProxyEnv = Boolean(
-        process.env.HTTPS_PROXY || process.env.https_proxy
-        || process.env.HTTP_PROXY || process.env.http_proxy
-    );
-
-    let hint = '';
-    if (hasProxyEnv) {
-        hint = '。检测到系统设置了代理环境变量，但当前网络库不自动使用它 —— '
-            + '请改用内网共享目录作为更新源，或改为无需代理的地址';
-    } else if (code && /CERT|SSL|TLS/i.test(String(code))) {
-        hint = '。证书校验失败，可能被网络中间设备拦截，请联系网络管理员';
-    } else if (code && /ENOTFOUND|EAI_AGAIN/i.test(String(code))) {
-        hint = '。域名解析失败，请确认地址拼写与网络连通性';
-    } else if (code && /TIMEOUT|ETIMEDOUT/i.test(String(code))) {
-        hint = '。连接超时，可能是网络较慢或目标不可达';
-    }
-
-    return `${msg}${detail}${hint}`;
-}
-
-/**
  * 读取并校验清单。
  *
  * @param {{kind:'http'|'file', url:string, dir?:string}} loc
@@ -148,23 +114,19 @@ function describeNetworkError(err) {
 async function readManifest(loc) {
     let text;
     if (loc.kind === 'http') {
-        let res;
         try {
-            res = await fetch(loc.url, { signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS) });
+            text = await withUpdateResponse(loc.url, { timeoutMs: MANIFEST_TIMEOUT_MS }, async (res) => {
+                if (!res.ok) {
+                    const hint = res.status === 404 ? '（地址不存在，或私有仓库未授权）'
+                        : res.status === 403 ? '（可能触发了访问频率限制）' : '';
+                    throw fail(`更新源返回 HTTP ${res.status}${hint}`, 'source_unreachable');
+                }
+                return readUpdateText(res, 1024 * 1024);
+            });
         } catch (e) {
-            throw fail(`无法访问更新源：${describeNetworkError(e)}`, 'source_unreachable');
+            if (e.code === 'source_unreachable') throw e;
+            throw fail(`无法访问更新源：${describeUpdateNetworkError(e)}`, 'source_unreachable');
         }
-        if (!res.ok) {
-            // 403 与 404 分开说 —— 私有仓库匿名访问返回 404，
-            // 限流返回 403，两者处置方式完全不同。
-            const hint = res.status === 404
-                ? '（404：地址不存在，或仓库是私有的且未授权）'
-                : res.status === 403
-                    ? '（403：可能触发了访问频率限制）'
-                    : '';
-            throw fail(`更新源返回 HTTP ${res.status}${hint}`, 'source_unreachable');
-        }
-        text = await res.text();
     } else {
         if (!existsSync(loc.url)) {
             throw fail(`更新源里找不到 manifest.json：${loc.url}`, 'source_unreachable');
@@ -389,14 +351,15 @@ export async function downloadUpdate(version) {
 
     try {
         if (src.kind === 'http') {
-            let res;
             try {
-                res = await fetch(src.url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+                await withUpdateResponse(src.url, { timeoutMs: DOWNLOAD_TIMEOUT_MS }, async (res, signal) => {
+                    if (!res.ok) throw fail(`下载返回 HTTP ${res.status}`, 'download_failed');
+                    await pipeline(Readable.fromWeb(res.body), meter, createWriteStream(tmpPath), { signal });
+                });
             } catch (e) {
-                throw fail(`下载失败：${describeNetworkError(e)}`, 'download_failed');
+                if (['package_too_large', 'download_failed'].includes(e.code)) throw e;
+                throw fail(`下载失败：${describeUpdateNetworkError(e)}`, 'download_failed');
             }
-            if (!res.ok) throw fail(`下载返回 HTTP ${res.status}`, 'download_failed');
-            await pipeline(Readable.fromWeb(res.body), meter, createWriteStream(tmpPath));
         } else {
             if (!existsSync(src.url)) throw fail(`包文件不存在：${src.url}`, 'download_failed');
             const st = statSync(src.url);
@@ -655,16 +618,33 @@ async function backupBeforeUpdate(version) {
 }
 
 /**
- * 生成 apply.cmd 的内容。
+ * 校验并生成换文件脚本使用的 Unicode 环境。
  *
  * 导出供验收脚本使用：这段脚本是「换文件 + 回滚」的全部逻辑，
  * 也是整个更新链路里唯一无法靠单元测试覆盖的部分（它有副作用且会重启服务）。
  * 把它做成纯函数，验收就能在隔离目录里真跑一遍换文件，而不动真实部署。
  *
  * @param {{ appRoot:string, staged:string, pid:number, logPath:string }} opts
- * @returns {string}
+ * @returns {Record<string,string>}
  */
-export function buildApplyScript({ appRoot, staged, pid, logPath }) {
+export function createApplyEnvironment({ appRoot, staged, pid, logPath }) {
+    for (const path of [appRoot, staged, logPath]) {
+        if (typeof path !== 'string' || !isAbsolute(path) || /[\x00-\x1f"]/.test(path)) {
+            throw fail('更新路径必须是有效的绝对路径', 'invalid_input');
+        }
+    }
+    if (!Number.isSafeInteger(pid) || pid <= 0) throw fail('更新进程编号无效', 'invalid_input');
+    return {
+        TT_UPDATE_APP_ROOT: appRoot,
+        TT_UPDATE_STAGED_ROOT: staged,
+        TT_UPDATE_OLD_PID: String(pid),
+        TT_UPDATE_LOG_FILE: logPath,
+        TT_UPDATE_LAUNCHER: join(appRoot, '启动.cmd')
+    };
+}
+
+/** 纯 ASCII、CRLF；Unicode 路径经环境传入，后台运行无需控制台代码页。 */
+export function buildApplyScript() {
     // ── 两条硬约束，写错任何一条这个脚本就跑不起来 ──
     //
     // 1. **必须 CRLF 换行**。cmd.exe 解析纯 LF 的批处理文件是坏的：它会把
@@ -679,12 +659,14 @@ export function buildApplyScript({ appRoot, staged, pid, logPath }) {
     //    日志内容也只用 ASCII 单词（start / success / rolling back）。
     const lines = [
         '@echo off',
-        'chcp 65001 >nul',
-        'setlocal enabledelayedexpansion',
-        `set "APP=${appRoot}"`,
-        `set "STAGED=${staged}"`,
-        `set "LOG=${logPath}"`,
-        `set "OLD_PID=${pid}"`,
+        'setlocal EnableExtensions DisableDelayedExpansion',
+        'set "APP=%TT_UPDATE_APP_ROOT%"',
+        'set "STAGED=%TT_UPDATE_STAGED_ROOT%"',
+        'set "LOG=%TT_UPDATE_LOG_FILE%"',
+        'set "OLD_PID=%TT_UPDATE_OLD_PID%"',
+        'if not defined APP exit /b 8',
+        'if not defined STAGED exit /b 8',
+        'if not defined LOG exit /b 8',
         '',
         'echo [update] %DATE% %TIME% start >> "%LOG%"',
         '',
@@ -701,8 +683,8 @@ export function buildApplyScript({ appRoot, staged, pid, logPath }) {
         'set /a TRIES=0',
         ':wait',
         'if %TRIES% GEQ 120 goto timeout',
-        'tasklist /FI "PID eq %OLD_PID%" /NH 2>nul | find /I "node.exe" >nul',
-        'if not errorlevel 1 (',
+        '"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoLogo -NoProfile -NonInteractive -Command "if (Get-Process -Id $env:TT_UPDATE_OLD_PID -ErrorAction SilentlyContinue) { exit 1 }; exit 0" >nul 2>&1',
+        'if errorlevel 1 (',
         '    ping -n 2 127.0.0.1 >nul',
         '    set /a TRIES+=1',
         '    goto wait',
@@ -729,7 +711,7 @@ export function buildApplyScript({ appRoot, staged, pid, logPath }) {
         'rem The new version deletes pending.json once it is listening. If the marker',
         'rem survives, the new version never came up.',
         'set TT_SKIP_BROWSER=1',
-        'start "" "%APP%\\启动.cmd"',
+        'start "" /b "%ComSpec%" /d /s /c ""%TT_UPDATE_LAUNCHER%" /nopause"',
         '',
         'rem ---- 6. wait for the new version to prove itself ----',
         'set /a WAIT=0',
@@ -753,7 +735,7 @@ export function buildApplyScript({ appRoot, staged, pid, logPath }) {
         'robocopy "%APP%\\data\\updates\\rollback" "%APP%" /E /XD "%APP%\\data" /NFL /NDL /NJH /NJS /NP >> "%LOG%" 2>&1',
         'echo [update] rolled back to previous version at %DATE% %TIME% >> "%APP%\\data\\updates\\ROLLBACK.txt"',
         'set TT_SKIP_BROWSER=1',
-        'start "" "%APP%\\启动.cmd"',
+        'start "" /b "%ComSpec%" /d /s /c ""%TT_UPDATE_LAUNCHER%" /nopause"',
         'exit /b 2',
         '',
         ':timeout',
@@ -772,7 +754,7 @@ export function buildApplyScript({ appRoot, staged, pid, logPath }) {
         'echo [update] copy failed, restoring previous version >> "%LOG%"',
         'del /q "%APP%\\data\\updates\\pending.json" 2>nul',
         'robocopy "%APP%\\data\\updates\\rollback" "%APP%" /E /XD "%APP%\\data" /NFL /NDL /NJH /NJS /NP >> "%LOG%" 2>&1',
-        'start "" "%APP%\\启动.cmd"',
+        'start "" /b "%ComSpec%" /d /s /c ""%TT_UPDATE_LAUNCHER%" /nopause"',
         'exit /b 6',
         '',
         ':fail_norollback',
@@ -811,22 +793,24 @@ export async function applyUpdate({ version }) {
     }, null, 2), 'utf8');
 
     const scriptPath = join(dir, 'apply.cmd');
-    // 前置 UTF-8 BOM：脚本里必须提到 `启动.cmd`（文件名就是中文，改不了），
-    // 而中文系统的 cmd 默认按 OEM 代码页读文件。带 BOM 时 cmd 会切到 UTF-8，
-    // 中文路径才能被正确识别 —— 这与打包脚本写 `启动.cmd` 用的是同一套约定。
-    writeFileSync(scriptPath, '\uFEFF' + buildApplyScript({
-        appRoot: APP_ROOT,
-        staged: appRoot,
-        pid: process.pid,
-        logPath: APPLY_LOG
-    }), 'utf8');
+    // 无 BOM：无控制台时不能依赖 chcp，所有路径通过 Unicode 环境传递。
+    writeFileSync(scriptPath, buildApplyScript(), 'ascii');
+    const applyEnvironment = createApplyEnvironment({
+        appRoot: APP_ROOT, staged: appRoot, pid: process.pid, logPath: APPLY_LOG
+    });
 
     // 用 cmd 而不是 node 执行换文件：node.exe 自己就在被替换的目录里，
     // 它跑着就换不了自己。cmd 是系统进程，不受影响。
-    const child = spawn('cmd.exe', ['/c', scriptPath], {
+    const child = spawn('cmd.exe', ['/d', '/s', '/c', '""%TT_UPDATE_SCRIPT%""'], {
         detached: true,
         stdio: 'ignore',
-        windowsHide: true
+        windowsHide: true,
+        windowsVerbatimArguments: true,
+        env: { ...process.env, ...applyEnvironment, TT_UPDATE_SCRIPT: scriptPath }
+    });
+    await new Promise((resolvePromise, reject) => {
+        child.once('spawn', resolvePromise);
+        child.once('error', reject);
     });
     child.unref();
 
@@ -882,12 +866,14 @@ export function readRollbackNotice() {
 /** 更新相关状态汇总，供 /api/update/status 使用。 */
 export function getUpdateSnapshot() {
     const { source, origin } = getUpdateSource();
+    const lastCheck = readUpdateState();
     return {
         current: getAppVersion(),
         source,
         sourceOrigin: origin,
+        defaultSource: DEFAULT_UPDATE_SOURCE,
         configured: Boolean(source),
-        lastCheck: readUpdateState(),
+        lastCheck: source && normalizeUpdateSource(lastCheck?.source) === source ? lastCheck : null,
         pending: readPending(),
         rollback: readRollbackNotice(),
         updateRoot: UPDATE_ROOT

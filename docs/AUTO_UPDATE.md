@@ -28,11 +28,12 @@
 | 本机目录 | `D:\releases\team-toolbox` |
 | 静态文件服务 | `https://example.com/team-toolbox` |
 | GitHub Releases 资产 | `https://github.com/<owner>/<repo>/releases/latest/download` |
+| GitHub 仓库地址（含 `.git`） | `https://github.com/GuiYe314/team-toolbox.git`，保存时自动转换为上一种 |
 
-**为什么把更新源做成可配置，而不是写死 GitHub**
+**默认使用项目 GitHub，保留自定义更新源**
 
 仓库是公开的，所以「匿名访问 404」这条障碍已经不存在了（2026-10-27 公开）。
-GitHub Releases 现在是**有效选项**，填这个地址即可：
+未保存更新源配置时，使用以下默认地址；已有自定义地址和明确关闭的旧配置继续生效：
 
 ```
 https://github.com/GuiYe314/team-toolbox/releases/latest/download
@@ -40,33 +41,38 @@ https://github.com/GuiYe314/team-toolbox/releases/latest/download
 
 它指向「最新一次 Release 的资产」，地址固定、不用改版本号，非常适合做更新源。
 
-但仍有三个现实理由让它不适合当**唯一**方案：
+直接填写仓库地址 `https://github.com/GuiYe314/team-toolbox`、`.git` 地址或 Releases 首页，也会映射到以上目录。代码浏览页、单次发布详情页不是更新源，会提示纠正。界面不会执行 `git pull`，只有发布新版 `manifest.json` 和完整 ZIP 后才能更新。
+
+内网仍可改用共享目录或静态服务：
 
 1. **受控内网可能出不了网** —— 部署前提就是内网，很多机器根本访问不到 GitHub。
-2. **未认证 API 限流 60 次/小时/IP**，`releases/latest` 接口也在限流范围内。
-   公司 NAT 下十几台机器各查几次就可能打满，且 403 无法区分「限流」与「仓库不存在」。
-   （用 `releases/latest/download/<文件名>` 直连资产不走 API，但检查版本仍需读清单。）
-3. **资产可达性不稳定** —— 实际下载会跳转到 `release-assets.githubusercontent.com`，
+2. **资产可达性不稳定** —— 实际下载会跳转到 `release-assets.githubusercontent.com`，
    部分地区时通时断。内网共享目录反而最可靠。
-4. **不认代理环境变量**（实测）—— Node 的原生 `fetch` 不读取 `HTTPS_PROXY` /
-   `HTTP_PROXY`。在需要代理才能访问 GitHub 的网络里，会出现
-   「浏览器能打开、`curl` 也能下载，但检查更新报源不可达」。
-   这类环境下请改用内网共享目录。
+3. **手动代理支持** —— 更新器优先使用 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` 环境变量，
+   否则读取 Windows 当前用户启用的手动 HTTP/HTTPS 代理及绕过列表。`NO_PROXY` 可指定直连域名；
+   回环地址始终直连。清单、ZIP 及下载重定向共用此逻辑，不改变其他工具的流量或系统设置。
+   不执行 PAC 或 SOCKS；代理不可用时明确提示，不自动改用镜像或跳过证书校验。
 
-所以：**能直连 GitHub 的小团队可以直接用 GitHub；纯内网或需要代理的环境指向共享目录**。
-换源不需要改代码。
+纯内网可使用共享目录；能直连或使用手动代理的环境可使用 GitHub。换源不需要改代码。
+代理地址和凭据只在本进程内存中，不保存到更新配置、不在错误或日志中显示；清单限 1 MiB，
+读取与消费响应共用超时，ZIP 仍流式校验 SHA256，连接在每次操作结束后释放。
 
 ### 配置方式
 
-两种，环境变量优先：
+按以下优先级读取：
 
 1. 环境变量 `UPDATE_SOURCE`
 2. 界面上「设置 → 更新源地址」保存（写入 `data/updates/source.json`）
+3. 项目内置 GitHub Releases 地址（仅配置文件不存在时）
+
+设置页可以点击「使用项目 GitHub」重新启用项目源，或点击「关闭更新」保存明确的空源。不会因为重新打开页面或升级而重新启用已关闭的配置。切换源后只展示当前源的检查结果。
+
+打开页面不会访问外部更新源；点击「检查更新」才读取清单，发现新版后点击「下载并安装」并确认。这里的热更新会备份并重启服务，页面短暂断开后刷新，不是无重启替换程序。清单通过静态资产下载，不调用 GitHub REST API 或要求 GitHub Token。
 
 用环境变量指定时，界面上的输入框会置灰并提示「由环境变量指定」——
 避免出现「界面上改了但没生效」的困惑。
 
-## 3. 发一个新版本
+### 旧版本更新器限制
 
 打包脚本现在会顺带产出 `manifest.json`：
 

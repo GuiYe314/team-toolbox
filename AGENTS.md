@@ -59,7 +59,7 @@
 | `verify-asset-reference.mjs` | 文档引用资源：插入、落库、渲染、失效降级 | — |
 | `verify-document-trash.mjs` | 文档回收站：软删、恢复、永久删除、二次确认、不误伤正常文档 | 9、10 |
 | `verify-asset-collections.mjs` | 资源集合：列表、详情、移除不删资源、删集合不删资源 | 9、10 |
-| `verify-update.mjs` | 自动更新：未配置/已最新/有新版/清单损坏四种状态，不执行安装 | 9、11 |
+| `verify-update-isolated.mjs` → `verify-update.mjs` | 自动更新：默认 GitHub、仓库转换、关闭/恢复、已最新/有新版/清单损坏与换源缓存；临时数据、禁止上游访问及安装 | 9、12 |
 | `verify-android-wireless.mjs` | 安卓调试：双栏与独立滚动、帮助/ADB 设置弹窗、六项常用命令、当前用户 HOME 选择/确认/复查/恢复/失效清理、自定义命令增改删/持久化/确认/版本冲突、APK 单台/多选/全选/完整确认/一次上传/逐台实时结果/部分失败/失败重选/取消/离页清理、实时 Logcat、单应用选择/状态/子进程隔离/重启跟随、屏幕单次/连续刷新/放大/取消/图片释放、二维码及六位码配对、单设备断开、错误恢复和明暗下拉对比度；使用离线 ADB 执行器 | 1、2、9 |
 | `verify-qr-share.mjs` | 二维码内容、颜色走 CSS 变量、主题切换 | 2、4 |
 | `verify-batch-mode.mjs` | 批量模式开关、菜单落在视口内 | 1、8 |
@@ -71,6 +71,13 @@
 | `ui-verify.mjs` | 既有页面通用断言 | 3、5 |
 | `verify-batch-delete.mjs` | 知识库批量删除 | 9 |
 
+
+## 更新器网络边界（F-OPS-003 / TASK-036）
+
+- `update-source.js` 规范化仓库地址；无文件配置才启用默认项目 Releases，显式空源继续关闭。源切换不得显示旧源检查结果，忙碌时不可改源。
+- `update-http.js` 仅为更新清单和 ZIP 提供请求级代理，环境优先于 Windows 手动 HTTP/HTTPS 代理，不执行 PAC，不改全局 dispatcher、环境或系统设置。重定向逐目标选路，回环始终直连；代理凭据不得回传、记录或持久化。读取注册表的固定进程必须隐藏、禁用 Shell、限制输出并设超时。
+- 换文件脚本必须纯 ASCII、无 BOM、CRLF，Unicode 路径经校验后通过环境传递，禁用延迟展开；等待旧进程不得用外部命令管道，重启显式 CMD /c /nopause 并后台运行。真实项目不得用于 apply 验收，成功替换/失败回滚只在新建独立副本使用合成数据验证。
+- 保留 TLS 校验、清单 1 MiB 上限、完整响应时限、ZIP 大小限制、流式 SHA256 与失败清理；任何浏览器验收都不得执行真实 apply。改动后运行完整后端测试（含 `update-http.test.js`）、前端构建和 `node frontend/verify-update-isolated.mjs`；真实源只读取清单，真实安装与回滚另行隔离验收。
 
 ## 开源工具接入边界（F-EXT-001～003 / TASK-034）
 

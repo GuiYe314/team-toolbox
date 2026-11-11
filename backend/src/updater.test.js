@@ -442,15 +442,12 @@ describe('换文件脚本（apply.cmd）', () => {
         );
     });
 
-    test('除启动器文件名外必须是纯 ASCII', () => {
-        // Windows 中文系统控制台默认 OEM 代码页，UTF-8 中文会把 rem 行
-        // 按字节错切成几条「命令」去执行 —— 除非文件带 BOM（由调用方添加）。
-        //
-        // 唯一允许出现的中文是 `启动.cmd` 这个文件名本身：它由打包脚本生成，
-        // 改不了。因此把它剥掉之后，其余内容必须全为 ASCII。
-        const stripped = script.split('启动.cmd').join('<LAUNCHER>');
-        const bad = [...stripped].filter((c) => c.charCodeAt(0) > 127);
-        assert.equal(bad.length, 0, `含非 ASCII 字符: ${JSON.stringify(bad.slice(0, 8))}`);
+    test('脚本全部为 ASCII，不依赖控制台代码页或延迟展开', () => {
+        assert.ok([...script].every(c => c.charCodeAt(0) < 128));
+        assert.doesNotMatch(script, /chcp|enabledelayedexpansion/i);
+        assert.match(script, /DisableDelayedExpansion/);
+        assert.doesNotMatch(script, /tasklist|find \/I/);
+        assert.match(script, /start "" \/b "%ComSpec%" \/d \/s \/c ""%TT_UPDATE_LAUNCHER%" \/nopause"/);
     });
 
     test('关键步骤都在脚本里', () => {
@@ -467,9 +464,21 @@ describe('换文件脚本（apply.cmd）', () => {
         });
     });
 
-    test('路径被写进脚本时保持绝对形式', () => {
-        assert.ok(script.includes('set "APP=C:\\app"'));
-        assert.ok(script.includes('set "OLD_PID=4321"'));
+    test('中文、空格和特殊字符路径通过 Unicode 环境传递', () => {
+        const appRoot = 'C:\\中文 空格 & !\\app';
+        const env = updater.createApplyEnvironment({ appRoot, staged: appRoot + '\\staged', pid: 4321, logPath: appRoot + '\\apply.log' });
+        assert.equal(env.TT_UPDATE_APP_ROOT, appRoot);
+        assert.equal(env.TT_UPDATE_OLD_PID, '4321');
+        assert.equal(env.TT_UPDATE_LAUNCHER, join(appRoot, '启动.cmd'));
+        assert.match(script, /set "APP=%TT_UPDATE_APP_ROOT%"/);
+        assert.match(script, /set "OLD_PID=%TT_UPDATE_OLD_PID%"/);
+    });
+
+    test('拒绝相对路径、控制符和无效 PID', () => {
+        const valid = { appRoot: 'C:\\app', staged: 'C:\\staged', pid: 1, logPath: 'C:\\app\\apply.log' };
+        for (const change of [{ appRoot: '..\\elsewhere' }, { logPath: 'C:\\app\\bad\nfile' }, { staged: 'C:\\x"y' }, { pid: 0 }]) {
+            assert.throws(() => updater.createApplyEnvironment({ ...valid, ...change }), error => error.code === 'invalid_input');
+        }
     });
 });
 
@@ -508,5 +517,87 @@ describe('更新源配置', () => {
         assert.equal(r.origin, 'env');
         assert.equal(r.source, 'https://env.example.com/m.json');
         process.env.UPDATE_SOURCE = SOURCE;
+    });
+
+    test('无配置时使用项目 GitHub 默认源，明确关闭后不会自动启用', () => {
+        delete process.env.UPDATE_SOURCE;
+        rmSync(updateSource.SOURCE_FILE, { force: true });
+        try {
+            assert.deepEqual(updateSource.getUpdateSource(), { source: updateSource.DEFAULT_UPDATE_SOURCE, origin: 'default' });
+            assert.equal(updater.getUpdateSnapshot().configured, true);
+            assert.equal(updater.getUpdateSnapshot().defaultSource, updateSource.DEFAULT_UPDATE_SOURCE);
+            updateSource.setUpdateSource('');
+            assert.deepEqual(updateSource.getUpdateSource(), { source: '', origin: 'none' });
+            assert.equal(updater.getUpdateSnapshot().configured, false);
+        } finally { process.env.UPDATE_SOURCE = SOURCE; }
+    });
+
+    test('仓库、git 后缀与 Releases 首页均定位到最新发布清单', () => {
+        for (const suffix of ['', '/', '.git', '.git/', '/releases', '/releases/', '/releases/latest']) {
+            const value = `https://github.com/GuiYe314/team-toolbox${suffix}`;
+            assert.equal(updateSource.classifySource(value).value, updateSource.DEFAULT_UPDATE_SOURCE);
+            assert.equal(updateSource.resolveManifestLocation(value).url, updateSource.DEFAULT_UPDATE_SOURCE + '/manifest.json');
+        }
+        assert.equal(updateSource.normalizeUpdateSource('https://github.com/team/repo.name.git'), 'https://github.com/team/repo.name/releases/latest/download');
+    });
+
+    test('已有 HTTP 清单、指定版本资产、本地及共享目录继续可用', () => {
+        assert.equal(updateSource.resolveManifestLocation('https://example.com/toolbox/manifest.json?channel=stable').url, 'https://example.com/toolbox/manifest.json?channel=stable');
+        const pinned = 'https://github.com/GuiYe314/team-toolbox/releases/download/v0.3.0/manifest.json';
+        assert.equal(updateSource.resolveManifestLocation(pinned).url, pinned);
+        for (const local of ['D:\\releases\\toolbox', '\\\\fileserver\\share\\toolbox']) {
+            assert.equal(updateSource.classifySource(local).kind, 'file');
+            assert.match(updateSource.resolveManifestLocation(local).url, /manifest\.json$/);
+        }
+        assert.equal(updateSource.classifySource('https://github.com.example.com/team/repo').value, 'https://github.com.example.com/team/repo');
+    });
+
+    test('拒绝无效 URL、含凭据地址和不能提供发布资产的 GitHub 页面', () => {
+        for (const value of ['https://', 'https://user:secret@github.com/owner/repo', 'https://github.com/owner/repo/tree/main', 'https://github.com/owner/repo/releases/tag/v1.0.0', 'https://github.com/owner/repo?tab=readme', 'ftp://x']) {
+            assert.equal(updateSource.resolveManifestLocation(value), null, value);
+            assert.throws(() => updateSource.setUpdateSource(value), error => error.code === 'invalid_input');
+        }
+        assert.throws(() => updateSource.setUpdateSource(undefined), error => error.code === 'invalid_input');
+    });
+
+    test('保存仓库源后持久化规范地址，环境变量仓库源仍优先', () => {
+        delete process.env.UPDATE_SOURCE;
+        try {
+            const saved = updateSource.setUpdateSource('  https://github.com/GuiYe314/team-toolbox.git  ');
+            assert.deepEqual(saved, { source: updateSource.DEFAULT_UPDATE_SOURCE, origin: 'file' });
+            assert.equal(JSON.parse(readFileSync(updateSource.SOURCE_FILE, 'utf8')).url, updateSource.DEFAULT_UPDATE_SOURCE);
+            process.env.UPDATE_SOURCE = 'https://github.com/other/toolbox.git';
+            assert.deepEqual(updateSource.getUpdateSource(), { source: 'https://github.com/other/toolbox/releases/latest/download', origin: 'env' });
+        } finally { process.env.UPDATE_SOURCE = SOURCE; }
+    });
+
+    test('旧配置保留自定义源及关闭，损坏配置不会悄悄切换到默认源', () => {
+        delete process.env.UPDATE_SOURCE;
+        try {
+            writeFileSync(updateSource.SOURCE_FILE, JSON.stringify({ url: SOURCE }));
+            assert.deepEqual(updateSource.getUpdateSource(), { source: SOURCE, origin: 'file' });
+            writeFileSync(updateSource.SOURCE_FILE, JSON.stringify({ url: '' }));
+            assert.deepEqual(updateSource.getUpdateSource(), { source: '', origin: 'none' });
+            for (const damaged of ['{broken', '{"url":false}']) {
+                writeFileSync(updateSource.SOURCE_FILE, damaged);
+                assert.deepEqual(updateSource.getUpdateSource(), { source: '', origin: 'none' });
+                assert.equal(readFileSync(updateSource.SOURCE_FILE, 'utf8'), damaged);
+            }
+        } finally { process.env.UPDATE_SOURCE = SOURCE; }
+    });
+
+    test('换源或关闭时不返回旧清单缓存，同一仓库的旧写法兼容', () => {
+        const cached = { source: SOURCE, current: '0.3.0', latest: '99.0.0', hasUpdate: true };
+        updateSource.writeUpdateState(cached);
+        assert.deepEqual(updater.getUpdateSnapshot().lastCheck, cached);
+        process.env.UPDATE_SOURCE = 'https://github.com/GuiYe314/team-toolbox';
+        try {
+            assert.equal(updater.getUpdateSnapshot().lastCheck, null);
+            updateSource.writeUpdateState({ ...cached, source: 'https://github.com/GuiYe314/team-toolbox.git' });
+            assert.equal(updater.getUpdateSnapshot().lastCheck.latest, '99.0.0');
+            delete process.env.UPDATE_SOURCE;
+            updateSource.setUpdateSource('');
+            assert.equal(updater.getUpdateSnapshot().lastCheck, null);
+        } finally { process.env.UPDATE_SOURCE = SOURCE; }
     });
 });
