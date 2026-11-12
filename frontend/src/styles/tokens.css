@@ -5,6 +5,7 @@
    ========================================================================== */
 
 :root {
+    --brand-mark-size: 32px;
     --adb-file-list-height: 340px;
     --adb-file-preview-height: 280px;
     /* 实时网速 */
@@ -139,6 +140,21 @@
     --solar-label-coordinate-size: 10px;
     --solar-label-padding: 2px 7px;
     --solar-sun-letter-spacing: 2px;
+
+    /* 端口查看 */
+    --ports-page-width: 1440px;
+    --ports-gap: 16px;
+    --ports-small-gap: 7px;
+    --ports-panel-padding: 22px;
+    --ports-cell-padding: 12px 10px;
+    --ports-control-height: 38px;
+    --ports-filter-width: 140px;
+    --ports-table-width: 780px;
+    --ports-stat-size: 30px;
+    --ports-border: 1px;
+    --ports-focus: 2px;
+    --ports-short-cell: 62px;
+    --ports-pid-cell: 65px;
 
     /* ── 侧栏宽度（三栏：主导航 / 页面树 / 主内容）─────────────────── */
     --w-main-sidebar: 214px;

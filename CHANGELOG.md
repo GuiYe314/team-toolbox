@@ -1,5 +1,10 @@
 # 变更记录（CHANGELOG）
 
+## 2026-11-12 — TASK-043 Windows 端口查看
+
+- 完整工具箱新增本机TCP/UDP端口快照、PID/进程名、本地/远端地址与连接状态，支持监听/协议/精确端口/关键词筛选、分页、复制和自动/手动刷新。
+- 使用有界固定Windows只读采集、共用在途请求与短期缓存、Local/Lan同源保护、超时与取消回收；失败保留并标注旧快照。不加入独立设备调试版，不扫描网络或结束进程。进度及证据见PROJECT_STATUS。
+
 ## 2026-11-12 — TASK-042 多 APK 安装队列
 
 - 安装面板支持多选APK和设备、逐设备顺序/两设备并行、按设备与APK显示结果及精确失败重试；保留覆盖安装、确认与取消清理。具体进度和验证见PROJECT_STATUS。
@@ -1334,3 +1339,11 @@ TravelMap 用 PyInstaller 把 Python 后端冻结成单文件 EXE。本项目后
 - 文档：补充 [docs/USER_GUIDE.md](docs/USER_GUIDE.md) 第 4 节"本机启动（已验证）"；[docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) 同步更新至"阶段一脚手架完成，待 Codex 验收"；[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 第 9 节决策落定。
 - 未启动：未执行 git commit/push、未做内网部署验证、未引入测试、未实现任何业务接口（CRUD/分类/标签/搜索/最近更新）；下一阶段待 Codex 验收通过后再启动。
 - WorkBuddy 使用模型：MiniMax-M3（M2/M3 派生）；积分：本次响应未返回积分字段，按 [AGENTS.md](AGENTS.md) 第 11 条记录为"积分未提供，无法确认"。
+
+## 2026-11-12 — TASK-044 06 石墨字标
+
+- 两产品采用选定的 TT/DD 石墨品牌图标，接入网页侧栏、favicon/触摸图标、安装器和开始菜单/桌面快捷方式；保存多尺寸 ICO/SVG，并提供只在本项目生成启动/关闭 .lnk 的入口，源码与便携目录均可重建。业务图标体系和数据格式不变，实际验证/分发见 PROJECT_STATUS。
+
+## 2026-11-12 — v0.5.0 发布准备
+
+- 统一源码与两份锁文件版本为0.5.0，补充本产品发布说明、升级方式与图标随包约定；包含端口查看与06石墨字标。发布及验证状态只记录于PROJECT_STATUS。

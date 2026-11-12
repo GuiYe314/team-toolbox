@@ -31,9 +31,10 @@ OutputBaseFilename="team-toolbox-Setup-0.1.1"
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\assets\icons\ico\toolbox.ico
 ; 32 位系统也允许安装（Node 运行时自带在包里）
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\backend\node_modules\.bin\*.*
+UninstallDisplayIcon={app}\assets\icons\ico\toolbox.ico
 ; 卸载时保留用户数据（文档与资源）——与 TravelMap 相同的取舍
 ; 如需彻底清理，用户手动删除安装目录即可。
 
@@ -48,9 +49,10 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 Source: "..\build\release\0.1.1\team-toolbox\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\启动.cmd"
-Name: "{group}\卸载 {#AppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\启动.cmd"; Tasks: desktopicon
+Name: "{group}\{#AppName}"; Filename: "{app}\启动.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\assets\icons\ico\toolbox.ico"
+Name: "{group}\停止 {#AppName}"; Filename: "{app}\停止.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\assets\icons\ico\stop.ico"
+Name: "{group}\卸载 {#AppName}"; Filename: "{uninstallexe}"; IconFilename: "{app}\assets\icons\ico\uninstall.ico"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\启动.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\assets\icons\ico\toolbox.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\启动.cmd"; Description: "立即启动 {#AppName}"; Flags: nowait postinstall skipifsilent

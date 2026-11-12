@@ -1,6 +1,6 @@
 {
   "name": "team-toolbox-backend",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "team-toolbox backend (Express + better-sqlite3)",
   "type": "module",
@@ -12,7 +12,7 @@
     "dev": "node --watch src/index.js",
     "migrate": "node src/migrate.js",
     "rebuild": "npm rebuild better-sqlite3",
-    "test": "node --test src/store.test.js src/api.test.js src/asset-store.test.js src/asset-api.test.js src/asset-mirror.test.js src/asset-preview.test.js src/db.test.js src/full-backup.test.js src/search-index.test.js src/asset-reference.test.js src/document-trash.test.js src/asset-collection.test.js src/updater.test.js src/update-http.test.js src/android-adb.test.js src/android-adb-search.test.js src/android-qr.test.js src/android-adb-commands.test.js src/android-home.test.js src/android-custom-commands.test.js src/android-logcat.test.js src/android-apps.test.js src/android-persistent.test.js src/android-screen.test.js src/android-apk.test.js src/android-apk-info.test.js src/unity-log-discovery.test.js src/unity-logs.test.js src/unity-log-api.test.js src/integrations.test.js src/media-tools.test.js src/tool-access.test.js src/network-speed.test.js src/android-apk-queue.test.js"
+    "test": "node --test src/store.test.js src/api.test.js src/asset-store.test.js src/asset-api.test.js src/asset-mirror.test.js src/asset-preview.test.js src/db.test.js src/full-backup.test.js src/search-index.test.js src/asset-reference.test.js src/document-trash.test.js src/asset-collection.test.js src/updater.test.js src/update-http.test.js src/android-adb.test.js src/android-adb-search.test.js src/android-qr.test.js src/android-adb-commands.test.js src/android-home.test.js src/android-custom-commands.test.js src/android-logcat.test.js src/android-apps.test.js src/android-persistent.test.js src/android-screen.test.js src/android-apk.test.js src/android-apk-info.test.js src/unity-log-discovery.test.js src/unity-logs.test.js src/unity-log-api.test.js src/integrations.test.js src/media-tools.test.js src/tool-access.test.js src/network-speed.test.js src/android-apk-queue.test.js src/port-viewer.test.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.11",

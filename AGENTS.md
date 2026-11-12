@@ -73,6 +73,13 @@
 | `verify-batch-delete.mjs` | 知识库批量删除 | 9 |
 
 
+## 端口查看边界（F-NET-002 / TASK-043）
+
+- `port-viewer.js`只以固定隐藏、禁用Shell的PowerShell读取本机TCP/UDP端点及PID/进程名；不接受目标或命令参数，不读取命令行/程序路径、不扫描远端、不结束进程、不主动提权。5000条、stdout 2MiB、stderr 8KiB、15秒采集时限，原始错误不回传或入日志。
+- `/api/ports/snapshot`仅GET、无附加参数，要求`X-Toolbox-Ports: 1`及共用Local/Lan真实来源/Host/同源校验，不信任转发头；成功快照仅在服务内存复用2秒，HTTP不缓存。多客户端共用在途采集，最后客户端取消/退出停止子进程，无常驻采集或数据文件。
+- `PortViewer.vue`筛选/分页/复制与5秒刷新均在当前页面，后台/离页取消并阻止迟到结果，失败明确标注旧快照。UDP绑定、权限缺失、PID复用、截断与非原子采集须在说明中展示。功能仅进入完整工具箱。
+- 修改后执行完整后端（包含port-viewer.test.js）、前端计算测试/构建及`node frontend/verify-port-viewer.mjs`。浏览器使用隔离服务及合成端点，真实Windows另建临时TCP/UDP监听并对照端口/PID，结束回收，不结束用户进程或修改网络。
+
 ## 实时网速边界（F-NET-001 / TASK-037）
 
 - `/tools/network-speed` 观察运行工具箱的 Windows 服务器。`network-speed.js` 只使用固定的隐藏 PowerShell `Get-NetAdapter` / `Get-NetAdapterStatistics`，禁用 Shell，使用参数列表；不得接收自由命令、下载测速文件、抓包、修改网络或自动提权。
@@ -182,3 +189,9 @@
 - /apk/install-many是唯一新增二进制端点，保持专用头、同源、真实网段和明确确认；64KiB元数据、1～20包/设备、每包1GiB及总4GiB，流式随机私有暂存，全部APK校验后才能执行。禁止接受路径或自由ADB参数。
 - 最多两设备并行、每台按文件顺序串行，每项五分钟/队列一小时；单项失败继续。可确认精确失败任务矩阵，不能以失败设备与文件的笛卡尔积误装成功项。取消/断连/后台/离页/退出停止全部活动/后续任务，等待全部工作线程退出后清理。保留旧单包安装端点。
 - 执行android-apk-queue.test.js、完整后端/构建、原安卓和新多APK浏览器回归，两产品及最终发布包同步验证；只用离线执行器和合成APK，不声称真机完成。
+
+## 品牌与快捷方式（F-UI-002 / TASK-044）
+
+- 用户选定的 06 石墨字标属于固定品牌画稿，允许 assets/icons 和 frontend/public/icons 中原创 SVG/ICO/PNG 的画稿色值；业务控件仍用 Lucide 和主题/token。独立版仅保留设备相关资产。
+- 创建快捷方式脚本只写本项目普通“快捷方式/”中的启动/关闭 .lnk，明确工作目录和固定入口/图标，不执行服务、不写桌面或改系统文件关联，拒绝链接目录。PS 为 UTF-8 BOM、CMD 为 ASCII/CRLF；机器快捷方式不提交。
+- 图标相关改动以构建、同源品牌资源及明暗布局、真实 Windows 快捷方式反读和隔离安装器验证为相关检查；未改业务模块时无需重跑安卓/Unity 全流程。禁止为验收覆盖已发布资产，状态只写 PROJECT_STATUS。

@@ -14,11 +14,7 @@
         <nav class="sidebar glass-panel glass-sheen main-sidebar" aria-label="主导航">
             <div class="ws-head">
                 <span class="ws-mark">
-                    <svg class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M21 8.4v7.2a1.8 1.8 0 0 1-.95 1.6l-6.4 3.4a1.8 1.8 0 0 1-1.7 0l-6.4-3.4a1.8 1.8 0 0 1-.95-1.6V8.4a1.8 1.8 0 0 1 .95-1.6l6.4-3.4a1.8 1.8 0 0 1 1.7 0l6.4 3.4A1.8 1.8 0 0 1 21 8.4z" />
-                        <path d="M3.5 7.6 12 12.3l8.5-4.7" />
-                        <path d="M12 21.1v-8.8" />
-                    </svg>
+                    <img class="brand-mark" src="/icons/brand.svg" alt="" aria-hidden="true" />
                 </span>
                 <span class="ws-name">工具箱</span>
                 <svg class="icon icon-sm ws-caret" viewBox="0 0 24 24" aria-hidden="true">
@@ -488,9 +484,15 @@ export default {
     padding: 4px 10px 14px;
 }
 .ws-mark {
+    position: relative;
     display: grid;
     place-items: center;
     color: var(--accent);
+}
+.brand-mark {
+    display: block;
+    width: var(--brand-mark-size);
+    height: var(--brand-mark-size);
 }
 .ws-name {
     flex: 1;

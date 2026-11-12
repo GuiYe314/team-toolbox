@@ -25,6 +25,9 @@
             <rect x="5" y="2.5" width="14" height="19" rx="2" />
             <path d="M8.5 7h7M8.5 11h7M8.5 15h4M11 18.5h2" />
         </svg>
+        <svg v-else-if="resolved === 'port-viewer'" class="icon" viewBox="0 0 24 24">
+            <rect x="5" y="7" width="14" height="10" rx="2" /><path d="M8 7V3M12 7V3M16 7V3M8 17v4M12 17v4M16 17v4M2 12h3M19 12h3M9 11v2M15 11v2" />
+        </svg>
         <svg v-else-if="resolved === 'network-speed'" class="icon" viewBox="0 0 24 24">
             <path d="M3 13a9 9 0 1 1 18 0v5H3zM12 13l4-5M6 13h.01M8 7h.01M16 13h.01" /><circle cx="12" cy="13" r="1.4" />
         </svg>
@@ -51,6 +54,7 @@
 
 <script>
 const MAP = {
+    'port-viewer': 'port-viewer',
     'network-speed': 'network-speed',
     yoinks: 'yoinks',
     freellmapi: 'freellmapi',

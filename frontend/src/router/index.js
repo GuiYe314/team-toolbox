@@ -75,6 +75,11 @@ const routes = [
         component: () => import('../views/ArtcraftStudio.vue')
     },
     {
+        path: '/tools/ports',
+        name: 'tool-ports',
+        component: () => import('../views/PortViewer.vue')
+    },
+    {
         path: '/tools/network-speed',
         name: 'tool-network-speed',
         component: () => import('../views/NetworkSpeed.vue')

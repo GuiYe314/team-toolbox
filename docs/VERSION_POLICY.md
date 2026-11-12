@@ -59,3 +59,5 @@ v0.4.0 的功能与升级方式见 [发布说明](releases/v0.4.0.md)。下载�
 各版本功能、资产与限制见 [v0.3.1 发布说明](releases/v0.3.1.md)、[封版验收报告](acceptance/V0_3_1_RELEASE_2026-11-11.md) 和 [v0.3.0 发布说明](releases/v0.3.0.md)、[封版验收报告](acceptance/V0_3_0_RELEASE_2026-11-10.md) 和 [v0.2.0 发布说明](releases/v0.2.0.md)。发布进度仅记录在 [PROJECT_STATUS](PROJECT_STATUS.md)，历史版本可在 GitHub Releases 中追溯。
 
 后续版本沿用 `0.y.z` 语义化编号：`0.y` 表示功能增量，`z` 表示修复。若 F-SEC-001 落地，版本号进入 `1.0.0` 并同步更新本文件。
+
+v0.5.0 的功能、图标与快捷方式使用及升级方式见[发布说明](releases/v0.5.0.md)；版本资产与验证仍以 PROJECT_STATUS 为准。

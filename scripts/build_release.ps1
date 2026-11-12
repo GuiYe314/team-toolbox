@@ -240,6 +240,11 @@ if ($pkgNew -notmatch ('"version"\s*:\s*"' + [regex]::Escape($Version) + '"')) {
 Say "      复制前端产物..."
 Copy-Item $dist $frontendOut -Recurse -Force
 
+# 用户选择的 06 石墨字标，随便携包与安装器保存完整 ICO/SVG。
+$assetsOut = Join-Path $appDir 'assets'
+New-Item -ItemType Directory -Path $assetsOut -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'assets\icons') -Destination $assetsOut -Recurse -Force
+
 # 数据目录：只建空的，不带任何用户数据与数据库
 New-Item -ItemType Directory -Path (Join-Path $appDir "data") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $appDir "data\assets") -Force | Out-Null
@@ -414,6 +419,8 @@ $startupScripts = Join-Path $appDir 'scripts'
 New-Item -ItemType Directory -Path $startupScripts -Force | Out-Null
 Copy-Item (Join-Path $projectRoot 'scripts\start-services.ps1') $startupScripts -Force
 Copy-Item (Join-Path $projectRoot 'scripts\stop.ps1') $startupScripts -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'scripts\create-shortcuts.ps1') -Destination $startupScripts -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot '创建快捷方式.cmd') -Destination $appDir -Force
 $startCmd = [IO.File]::ReadAllText((Join-Path $projectRoot 'scripts\release-start.cmd')) -replace '\r?\n', "`r`n"
 $stopCmd = [IO.File]::ReadAllText((Join-Path $projectRoot 'stop.bat')) -replace '\r?\n', "`r`n"
 [IO.File]::WriteAllText((Join-Path $appDir '启动.cmd'), $startCmd, [Text.UTF8Encoding]::new($false))

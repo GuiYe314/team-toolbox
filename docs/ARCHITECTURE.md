@@ -1,5 +1,12 @@
 # 架构说明（ARCHITECTURE）
 
+## 端口查看（2026-11-12，TASK-043 / F-NET-002）
+
+- `port-viewer.js`只以固定隐藏PowerShell参数读取本机TCP/UDP端点及PID/进程名，不读取命令行、路径或连接内容，不执行端口扫描/进程控制。快照最多5000条、输出2MiB、错误8KiB及15秒时限；全服务器共用一次在途采集，成功结果短期复用2秒，最后客户端取消或服务退出回收进程，无常驻采集。
+- `port-viewer-api.js`仅提供`GET /api/ports/snapshot`，要求共用Local/Lan真实来源/Host/同源保护及专用头，拒绝附加参数与写方法，不缓存HTTP结果。状态仅在内存，无新依赖或迁移；非Windows明确提示不支持，原始进程错误不回传或记日志。
+- `PortViewer.vue`提供TCP/UDP、监听/全部连接、精确本地端口和进程/PID/地址搜索，分页及主动复制，默认5秒刷新。后台/离页取消且阻止迟到回填，失败保留旧快照并明确标注；端点/进程是非原子瞬时快照，空白进程名称不能冒称无占用。功能只进入完整工具箱。
+- 验证覆盖固定参数、恶意/超量输出、超时/取消/多客户端、接口边界、隔离浏览器搜索/分页/恢复及明暗布局；另做本机真实TCP/UDP只读对照，不修改网络、防火墙或结束用户进程。
+
 ## 实时网速（2026-11-11，TASK-037 / F-NET-001）
 
 - 决策：沿用 Vue / Express，无新增依赖或持久化结构。`network-speed.js` 负责固定 Windows PowerShell 采集进程、uint64 累计计数差值、源端单调时钟间隔、状态和资源边界；`network-speed-api.js` 只提供共用 Local/Lan 策略保护的不缓存快照。
@@ -198,3 +205,7 @@ android-apk-manifest.js负责有界二进制XML解析；android-apk-info.js复�
 ## 多APK队列（TASK-042）
 
 android-apk-queue.js解析专用长度前缀元数据与连续APK流，严格验证数量/大小/目标/任务矩阵并临时落盘；同一ADB独占锁内调度最多两台设备，每台串行，逐项复核在线状态及install -r输出。全部工作线程退出后才清理，失败重试只接受已确认矩阵，日志不记文件名/设备输出；不增加依赖或持久化。旧单包接口不变。
+
+## 06 石墨字标资产与快捷方式（TASK-044）
+
+assets/icons/ico 与 svg 保存用户选定的 Windows 资产及矢量源；frontend/public/icons 提供 Vite 原样复制的同源品牌资源，index.html 引用 favicon，App.vue 使用静态品牌图像，尺寸走 tokens，业务图标体系不变。create-shortcuts.ps1 只通过 WScript.Shell 保存 .lnk，不执行应用；明确固定入口、工作目录与 ICO，不接受自由命令，拒绝链接输出目录。Windows PowerShell 脚本采用 UTF-8 BOM，CMD 为 ASCII/CRLF。打包脚本显式复制资产和创建入口，安装器指定 SetupIconFile、UninstallDisplayIcon 及各快捷方式 IconFilename；本机快捷方式被 Git 忽略，无新增数据结构或依赖。

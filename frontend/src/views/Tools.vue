@@ -33,6 +33,13 @@ export default {
             tools: [
                 ...integrationTools.map(tool => ({ ...tool, status: '可用' })),
                 {
+                    id: 'port-viewer',
+                    name: '端口查看',
+                    desc: '查看服务器电脑 TCP / UDP 端口和占用进程，搜索端口冲突',
+                    routeName: 'tool-ports',
+                    status: '可用'
+                },
+                {
                     id: 'network-speed',
                     name: '实时网速',
                     desc: '实时查看服务器电脑网卡的上传、下载速度与流量趋势',

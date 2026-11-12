@@ -96,6 +96,13 @@ export default {
             tools: [
                 ...integrationTools.map(tool => ({ ...tool, status: 'ready' })),
                 {
+                    id: 'port-viewer',
+                    name: '端口查看',
+                    desc: '查看电脑 TCP / UDP 端口、占用进程与连接状态',
+                    status: 'ready',
+                    routeName: 'tool-ports'
+                },
+                {
                     id: 'network-speed',
                     name: '实时网速',
                     desc: '实时查看服务器电脑上传、下载速度及最近流量趋势',
