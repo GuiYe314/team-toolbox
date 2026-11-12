@@ -100,7 +100,7 @@
 
 ## 安卓调试边界（F-ADB-001）
 
-- ADB 仅在服务器执行，模块 API 按 F-OPS-005 支持 Local/Lan，检查真实连接来源及服务器 Host；保留浏览器来源检查、JSON 和专用请求头要求，不信任代理转发头。仅 `POST /api/android/apk/install` 与 `POST /api/android/apk/install-batch` 接受带专用头的 `application/octet-stream`，不得放宽其他接口的 JSON 要求。
+- ADB 仅在服务器执行，模块 API 按 F-OPS-005 支持 Local/Lan，检查真实连接来源及服务器 Host；保留浏览器来源检查、JSON 和专用请求头要求，不信任代理转发头。仅 `POST /api/android/persistent/upload`、`POST /api/android/apk/install` 与 `POST /api/android/apk/install-batch` 接受带专用头的 `application/octet-stream`，不得放宽其他接口的 JSON 要求。
 - 进程调用使用参数数组、禁用本机 Shell、隐藏窗口、输出限制、超时与取消；自定义命令限 TASK-026 的已保存 ID、版本及确认执行，不增加临时自由执行接口或全局断开。
 - 六位码配对只使用短期缓存的 mDNS 配对服务；二维码配对只匹配当前短期会话生成的随机服务名。六位码与二维码随机口令仅经 stdin 传给 ADB，禁止写入进程参数、文件或日志。二维码内容仅在会话创建响应中返回当前通过访问校验的页面，状态接口不得回传口令。
 - 文件夹扫描必须异步、有深度/目录/条目/结果/时间上限，不跟随子目录链接；多个 ADB 候选由用户选择，校验版本成功后才能保存。兼容既有可执行文件路径和 `ADB_PATH`，不需要 SQLite 或配置结构迁移。
@@ -148,3 +148,9 @@
 - 在 USER_GUIDE 中添加未经验证的启动命令。
 - 删除或改写 CHANGELOG 历史条目（只允许追加）。
 - 在空状态或指南中展示伪造的运行结果、模拟成功数据。
+
+## Unity persistentDataPath（F-ADB-002 / TASK-039）
+
+- 两产品共享android-persistent与专用Vue面板。仅当前Android用户的标准外部files目录，明确在线设备/已安装包名；固定脚本逐级拒绝符号链接/越级，脚本及参数分别POSIX转义，不开放自由路径或命令。
+- 浏览1000项，预览256KiB，单文件上传/下载256MiB；流式私有临时文件，读取/替换SHA256复核。添加拒绝同名；替换必须选择原文件并确认。不能自动停止App，无法锁住App写入，帮助说明并发限制。
+- 二进制仅专用upload，专用头/同源/真实网段保护不变。失败/取消/断连/退出回收进程与临时文件，日志不含正文；不入数据库/备份。运行android-persistent.test.js与verify-android-persistent.mjs，真机另验。

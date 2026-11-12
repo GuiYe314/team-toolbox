@@ -5,6 +5,8 @@
    ========================================================================== */
 
 :root {
+    --adb-file-list-height: 340px;
+    --adb-file-preview-height: 280px;
     --clipboard-size: 1px;
     /* ── 字体层级（高信息密度：主标题克制，不做超大字号）───────────── */
     --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",

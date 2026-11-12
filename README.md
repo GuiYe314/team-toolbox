@@ -95,3 +95,5 @@
 ## 贡献与协作
 
 在本仓库工作前请先阅读 [AGENTS.md](AGENTS.md)；完成任务后必须更新状态文档，禁止把计划描述为已实现。
+
+安卓调试中的 **Unity persistentDataPath 文件** 支持选择设备与应用、浏览标准外部目录、文本预览/下载、添加及确认替换；读取时版本与传送内容使用SHA256复核。使用步骤见[用户指南](docs/USER_GUIDE.md)，验证范围见[项目状态](docs/PROJECT_STATUS.md)。

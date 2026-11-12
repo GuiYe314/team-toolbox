@@ -1,13 +1,14 @@
 import express from 'express';
 import { AdbError, createAndroidAdbService } from './android-adb.js';
 import { createToolAccess } from './tool-access.js';
+import { registerPersistentApi } from './android-persistent-api.js';
 
 /** 按启动模式校验真实来源，保留专用头及 APK 上传边界。 */
 export function requireLocalAndroidRequest(req, res, next, access = createToolAccess()) {
     if (!access.allows(req, { browser: true })) {
         return res.status(403).json({ error: access.allowLan ? 'access_denied' : 'local_only', message: '请在同源工具箱页面操作 ADB；局域网访问需要以 Lan 模式启动' });
     }
-    const apkUpload = req.method === 'POST' && ['/apk/install', '/apk/install-batch'].includes(req.path) && req.is('application/octet-stream');
+    const apkUpload = req.method === 'POST' && ['/apk/install', '/apk/install-batch', '/persistent/upload'].includes(req.path) && req.is('application/octet-stream');
     if (req.method !== 'GET' && ((!req.is('application/json') && !apkUpload) || req.get('x-toolbox-adb') !== '1')) {
         return res.status(403).json({ error: 'forbidden', message: '请从工具箱安卓调试页面执行操作' });
     }
@@ -18,6 +19,7 @@ export function requireLocalAndroidRequest(req, res, next, access = createToolAc
 export function registerAndroidApi(app, { service = createAndroidAdbService(), access = createToolAccess() } = {}) {
     const router = express.Router();
     router.use((req, res, next) => requireLocalAndroidRequest(req, res, next, access));
+    registerPersistentApi(router, service);
     const action = (fn, binary = false) => async (req, res) => {
         const controller = new AbortController();
         const cancel = () => { if (!res.writableEnded) controller.abort(); };
