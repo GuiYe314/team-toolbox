@@ -11,9 +11,15 @@
 
 ## v0.2.0 封版（2026-11-12）
 
-**本地封版验收完成；远端发布待执行。** 用户已授权上传并发布，范围为TASK-040及TASK-042；源码及两锁文件统一0.2.0。最终ZIP/EXE已完成隔离验收，详见[封版验收记录](acceptance/DEVICE_DEBUGGER_V0_2_0_2026-11-12.md)。资产摘要保存在本地build/final-publish-assets.json；后续文档补记不重建已验收文件。
+**正式发布完成**：[设备调试工具v0.2.0](https://github.com/GuiYe314/team-toolbox/releases/tag/device-debugger-v0.2.0)，Release ID **442766336**，非草稿、非预发布，明确设置非latest。范围为TASK-040及TASK-042；源码及两锁文件统一0.2.0，codex/device-debugger与新发布标签已推送，发行源码为 **a3d453b235154fb793f4fe585b0326c79ade8578**。结果另作文档提交，不移动已发布标签。
 
-下一步：检查暂存源码，推送codex/device-debugger和新device-debugger-v0.2.0标签；草稿上传四份资产，核对大小及SHA256后正式发布，明确保持非latest。原工具箱由v0.4.0主线清单分发，不覆盖原有标签/资产；真实源码服务待按本项目身份重启和只读冒烟，结果另补本文件。
+- 四份远端资产名称、大小、uploaded状态及SHA256 digest全部与最终本地文件一致；实际匿名下载精确标签下的device-debugger-manifest.json，1202字节，SHA256为`d2731a2513b9bc15d599aeb6abd76dd7050a89e26379c0b34a615bfdf63bd816`，与本地一致。证据：build/v020-release-draft.json、v020-release-published.json、v020-public-manifest.json，验收与四文件完整摘要见[封版记录](acceptance/DEVICE_DEBUGGER_V0_2_0_2026-11-12.md)。后续文档补记未重新构建二进制，也未覆盖旧资产。
+- 本产品发布后先确认主线latest仍为v0.3.1；之后[完整工具箱v0.4.0](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.4.0)正式发布并设置latest，ID **442766220**，主线发布源码 **0195eaeadd3db79803a45c736fdb0bd7fbad6d0a**。其manifest.json保持独立，本产品不提供该清单或主线自动更新器。
+- 当前独立源码服务已按项目身份隐藏启动为Release/Lan **3100**，健康自报device-debugger/0.2.0；原工具箱Development/Lan **3000/5173**自报0.4.0且数据库正常。本机与192.168.100.39的健康、安卓深链和新端点空无效请求400、缺少专用头/跨站403，两产品共 **20/20**。本地证据：build/v020-live-restart.log；综合冒烟日志位于原工具箱build/v040-v020-live-final.log。未发送APK或调用真实ADB，两产品配置未互相复制。
+
+下一步：刷新3100的安卓调试页，在安装面板多选APK和单/多台设备，核对后确认；分发使用本产品0.2.0安装包或ZIP。真机扫码、安装、文件权限及另一物理客户端仍未验收，取消不能回滚已完成安装；当前仍手动升级，不与主工具箱互换程序目录。
+
+Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
 
 ## TASK-040 查看 APK 包名（2026-11-12）
 
