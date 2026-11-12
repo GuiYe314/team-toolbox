@@ -4,7 +4,9 @@
 
 ## TASK-038（2026-11-12）
 
-独立产品代码与发行资产验收完成，远端发布待执行。基于主线 df1c7da 建立 codex/device-debugger 分支，只保留安卓调试、Unity 设备日志与设置；生产端口3100、开发5174、独立安装身份和 data/，不含 SQLite、其他工具或主线更新器。完整工具箱的原有未提交网速改动保留。
+**独立正式发布完成**：[设备调试工具 v0.1.0](https://github.com/GuiYe314/team-toolbox/releases/tag/device-debugger-v0.1.0)，Release ID 442506551，非草稿、非预发布，明确 make_latest=false。发布源码、远端分支及标签均为 f247a0c5ccf1c35bd2bfbabbc4315af45c0d4cd8；本条结果另作文档提交，不移动发布标签。
+
+基于主线 df1c7da 建立 codex/device-debugger 分支，只保留安卓调试、Unity 设备日志与设置；生产端口3100、开发5174、独立安装身份和 data/，不含 SQLite、其他工具或主线更新器。完整工具箱的原有未提交网速改动保留。
 
 ## 验证证据
 
@@ -13,10 +15,14 @@
 - 独立导航/设置及 Unity 合成 HTTP 浏览器 **18/18**，真实 TCP 开发代理 **7/7**，Windows 启停 **15/15**；全部使用临时配置、离线 ADB 或合成日志，未访问真实手机。日志：build/device-unity-browser.log、device-lan.log、device-startup.log。
 - 便携包与安装器隔离验收 **30/30**：全新目录解压、白名单与逐项哈希、双 Node 依赖加载、Local/Lan 中文 CMD 生产启停、深链、两模块 API/跨站拒绝、实际私网 IP、隔离安装/卸载及保留 data。原工具箱3000实例身份与健康保持。日志：build/device-release-verification.log。
 - 原工具箱同步完整后端 **624/624**、前端计算 **19/19**、安卓浏览器 **187/187**、新面板 **24/24** 和生产构建通过；2026-11-12 已按项目路径隐藏重启，本机与实际私网接口已生效，同源无效请求400、跨站403、健康含数据库正常。原实时网速页面与只读接口保留。
+- 原工具箱排除未提交网速模块后的精确暂存源码，在新建隔离副本中完整后端 **597/597**、生产构建通过；工作树未改动，临时junction与副本已清理。该功能单独提交到main，不将其他工具裁剪同步回主线。
+- 原工具箱功能提交3787948925f966f6babdb342b65f73c7e1a09762已推送main，21个文件仅含本轮功能/测试/文档；原实时网速改动仍未提交。远端main和独立标签均已读取核对。
 - 资产 SHA256、大小和执行范围见[独立封版验收记录](acceptance/DEVICE_DEBUGGER_V0_1_0_2026-11-12.md)。build/、release/ 与运行数据均不进入源码提交。
+- 远端四份资产的名称、大小、uploaded状态与 SHA256 digest 逐项匹配本地；公开精确标签的清单实际下载后字节一致，SHA256为9a1b9de69b30796c85cdc3af1897bbdca894025e615814b3158107762ff429d7。再次读取主线 releases/latest 仍为 v0.3.1；没有修改其manifest或资产。证据：build/device-release-draft.json、device-release-published.json、device-main-latest.json、device-public-manifest.json。
+- 当前独立源码目录已由start-services.ps1以Release/Lan隐藏启动，3100提供生产页面，本机与192.168.100.39的安卓深链200、新文件接口无效请求400，健康为device-debugger/0.1.0。原工具箱3000数据库健康、5173开发页面同时保持运行；独立ADB配置未从原工具箱自动复制。
 
 ## 下一步
 
-推送 codex/device-debugger，建立 device-debugger-v0.1.0 正式发布并明确 latest=false，核对四份资产与原主线 latest=v0.3.1 后记录结果。真实手机/平板、另一物理客户端、厂商文件权限及 App 并发写入仍需实际环境验证。
+用户可下载独立安装版或便携版，或使用当前3100端口，在安卓调试打开“Unity 替换 persistentDataPath 中文件”。真实手机/平板、另一物理客户端、厂商文件权限及 App 并发写入仍需实际环境验证；独立版当前手动下载安装更新。主线源码已同步，原网速改动继续保留。
 
-Codex 完成当前实现与验收，未调用 WorkBuddy；积分未提供，无法确认。
+Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
