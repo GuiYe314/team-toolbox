@@ -11,9 +11,16 @@
 
 ## v0.4.0 封版（2026-11-12）
 
-**本地封版验收完成；远端发布待执行。** 用户已授权上传并发布，范围为TASK-037、TASK-039～042；源码及两份锁文件统一0.4.0。最终ZIP/EXE、生产Local/Lan启动、内置组件真实下载、实际安装卸载及真实v0.3.1隔离升级均已验证，详见[封版验收记录](acceptance/V0_4_0_RELEASE_2026-11-12.md)。最终资产摘要保存在本地build/final-publish-assets.json；后续只补文档，不重建已验收资产。
+**正式发布完成**：[team-toolbox v0.4.0](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.4.0)，Release ID **442766220**，非草稿、非预发布，latest已指向v0.4.0。范围为TASK-037、TASK-039～042；源码及两份锁文件统一0.4.0，发布源码与标签指向 **0195eaeadd3db79803a45c736fdb0bd7fbad6d0a**。本次远端结果另作文档提交，不移动已发布标签。
 
-下一步：检查暂存源码，推送main和新v0.4.0标签；草稿上传四份资产并核对远端大小/SHA256后正式发布为latest。独立device-debugger-v0.2.0保持非latest；既有发布标签和资产不覆盖。真实源码服务仍待按项目身份重启并进行新端点只读冒烟，远端结果另补本文件。
+- main及新标签已推送，四份远端资产名称、大小、uploaded状态及SHA256 digest逐项与最终本地文件一致。最终ZIP/EXE、生产Local/Lan、内置组件真实下载、实际安装卸载和真实v0.3.1隔离升级证据与完整摘要见[封版记录](acceptance/V0_4_0_RELEASE_2026-11-12.md)。已验收二进制未因文档补记重建，旧发布资产未覆盖。
+- 实际匿名下载`releases/latest/download/manifest.json`，与本地656字节清单逐字节摘要一致：`62419a131fec91d4b04a1019f266923c296fd6f3506de0cdbce8f21f6d49e186`。清单指向0.4.0最终ZIP。证据：build/v040-release-draft.json、v040-release-published.json、v040-main-latest.json、v040-public-manifest.json。
+- [独立设备调试版v0.2.0](https://github.com/GuiYe314/team-toolbox/releases/tag/device-debugger-v0.2.0)亦已正式发布，ID **442766336**，源码/标签为 **a3d453b235154fb793f4fe585b0326c79ade8578**，明确保持非latest；其四份资产和公开精确清单均已核对，没有取代主工具箱自动更新清单。
+- 真实源码服务已按绝对项目身份隐藏启动并保持原模式：本产品Development/Lan **3000/5173**、独立版Release/Lan **3100**，健康分别自报0.4.0及0.2.0。本机及192.168.100.39的健康/安卓深链、新安装端点空无效请求400、缺少专用头/跨站403共 **20/20**。证据：build/v040-live-restart.log、v040-v020-live-final.log；没有发送APK、调用ADB、复制两产品配置或对真实项目执行apply。
+
+下一步：刷新本机5173或3100的安卓调试页，多选APK并核对目标后确认安装；分发可使用各自安装包或便携ZIP，原工具箱v0.3.1也可主动检查项目GitHub更新。实际多手机安装、扫码、Android权限及另一物理客户端仍未验收；取消不能回滚已经完成的安装。原MVP后续仍为TASK-010与TASK-009剩余范围。
+
+Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
 
 ## TASK-041 Yoinks 下载引擎内置（2026-11-12）
 
