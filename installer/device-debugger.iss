@@ -25,6 +25,8 @@ OutputBaseFilename=device-debugger-Setup-{#VersionValue}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\assets\icons\ico\device.ico
+UninstallDisplayIcon={app}\assets\icons\ico\device.ico
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
@@ -32,9 +34,10 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 [Files]
 Source: "{#AppSource}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 [Icons]
-Name: "{group}\Device Debugger"; Filename: "{app}\启动.cmd"; WorkingDir: "{app}"
-Name: "{group}\Stop Device Debugger"; Filename: "{app}\关闭.cmd"; WorkingDir: "{app}"
-Name: "{autodesktop}\Device Debugger"; Filename: "{app}\启动.cmd"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\Device Debugger"; Filename: "{app}\启动.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\assets\icons\ico\device.ico"
+Name: "{group}\Stop Device Debugger"; Filename: "{app}\关闭.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\assets\icons\ico\stop.ico"
+Name: "{group}\Uninstall Device Debugger"; Filename: "{uninstallexe}"; IconFilename: "{app}\assets\icons\ico\uninstall.ico"
+Name: "{autodesktop}\Device Debugger"; Filename: "{app}\启动.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\assets\icons\ico\device.ico"; Tasks: desktopicon
 [Run]
 Filename: "{app}\启动.cmd"; Description: "Start Device Debugger"; Flags: nowait postinstall skipifsilent
 

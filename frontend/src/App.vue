@@ -2,7 +2,7 @@
 <div class="app-layout col-single debugger-layout">
     <div class="app-backdrop" aria-hidden="true"></div>
     <nav class="sidebar glass-panel debugger-sidebar" aria-label="主导航">
-        <router-link to="/tools" class="debugger-brand"><ToolIcon tool-id="android-wireless" /><span>设备调试工具<small>Device Debugger</small></span></router-link>
+        <router-link to="/tools" class="debugger-brand"><img class="brand-mark" src="/icons/brand.svg" alt="" aria-hidden="true" /><span>设备调试工具<small>Device Debugger</small></span></router-link>
         <div class="debugger-nav">
             <router-link v-for="item in navigation" :key="item.route" :to="item.route" class="nav-item" :class="{'is-active':$route.path===item.route}"><ToolIcon :tool-id="item.icon" /><span>{{item.label}}</span></router-link>
         </div>

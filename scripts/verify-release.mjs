@@ -41,6 +41,16 @@ try {
     const audit=JSON.parse((await readFile(join(root,'build/release-audit.json'),'utf8')).replace(/^\uFEFF/,''));
     for(const source of audit.sources)assert.equal(createHash('sha256').update(await readFile(join(app,source.path))).digest('hex'),source.sha256);
     check('全部后端生产源码与当前来源逐项哈希一致');
+    for (const name of await readdir(join(root, 'assets/icons/ico'))) {
+        assert.deepEqual(await readFile(join(app, 'assets/icons/ico', name)), await readFile(join(root, 'assets/icons/ico', name)));
+    }
+    assert.deepEqual(await readFile(join(app, 'frontend/dist/icons/favicon.ico')), await readFile(join(root, 'assets/icons/ico/device.ico')));
+    assert.match(await readFile(join(app, 'frontend/dist/index.html'), 'utf8'), /\/icons\/brand\.svg/);
+    check('DD及设备相关ICO、网页品牌图标随最终ZIP分发');
+    const shortcut = await run('cmd.exe', ['/d','/s','/c',`""${join(app,'创建快捷方式.cmd')}" /nopause"`], app);
+    assert.equal(shortcut.code, 0, shortcut.output);
+    const links = await readdir(join(app, '快捷方式'));
+    check('最终ZIP可生成启动和关闭图标快捷方式', links.includes('启动设备调试工具.lnk') && links.includes('关闭设备调试工具.lnk'));
     for(const node of [join(app,'runtime/node.exe'),process.execPath]) { const result=await run(node,[join(app,'runtime/check.js')],app);check('Node '+node+'实际依赖加载',result.code===0); }
     for(const mode of ['Local','Lan']) {
         const port=await start(app,mode),base=`http://127.0.0.1:${port}`;const health=await(await fetch(base+'/api/health')).json();check(mode+'实际CMD生产启动',health.service==='device-debugger-backend'&&health.product==='device-debugger'&&health.accessMode===mode);

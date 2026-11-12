@@ -47,7 +47,9 @@ if (-not $SkipFrontendBuild) { Invoke-Checked $BuildNode @('node_modules\vite\bi
 if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'frontend\dist\index.html'))) { throw 'Frontend dist is missing.' }
 Reset-StagingDirectory $stage
 $null = New-Item -ItemType Directory -Path $releaseDirectory -Force
-foreach ($relative in @('backend\package.json', 'backend\package-lock.json', 'README.md', 'docs\USER_GUIDE.md', 'docs\VERSION_POLICY.md', 'scripts\start-services.ps1', 'scripts\stop.ps1')) { Copy-Source $relative }
+foreach ($relative in @('backend\package.json', 'backend\package-lock.json', 'README.md', 'docs\USER_GUIDE.md', 'docs\VERSION_POLICY.md', 'scripts\start-services.ps1', 'scripts\stop.ps1', 'scripts\create-shortcuts.ps1', '创建快捷方式.cmd')) { Copy-Source $relative }
+$null = New-Item -ItemType Directory -Path (Join-Path $stage 'assets') -Force
+Copy-Item -LiteralPath (Join-Path $repoRoot 'assets\icons') -Destination (Join-Path $stage 'assets\icons') -Recurse
 $productionSources = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'backend\src') -Filter '*.js' -File | Where-Object { $_.Name -notmatch '\.test\.js$' -and $_.Name -match '^(android-|unity-|tool-access\.js$|version\.js$|index\.js$|server\.js$)' }
 foreach ($file in $productionSources) { Copy-Source ('backend\src\' + $file.Name) }
 $null = New-Item -ItemType Directory -Path (Join-Path $stage 'frontend') -Force
