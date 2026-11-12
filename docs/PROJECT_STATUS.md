@@ -232,6 +232,8 @@
 
 **TASK-039 实际验证摘要（2026-11-12，Windows）**：
 
+- **源码上传**：原工具箱文件功能提交3787948925f966f6babdb342b65f73c7e1a09762已推送main，提交仅含本轮21个文件，原实时网速改动仍未提交。独立版代码f247a0c5ccf1c35bd2bfbabbc4315af45c0d4cd8已上传codex/device-debugger及标签，Release ID442506551正式且非latest；四份远端资产大小/digest与公开清单匹配，主线latest再次核对仍为v0.3.1。发布结果补记不移动标签。
+
 - **精确提交核对**：将暂存区导出到 build/ 下新建隔离目录，仅复用依赖、不含原网速模块，再运行该副本完整后端 **597/597、51 suites、0 fail/skip**，生产构建通过（14.07秒，仅既有大块体积提示）。验证后回收依赖junction及隔离目录，原工作树内容未变。证据：build/persistent-main-index-backend.log、persistent-main-index-build.log。
 - 原工具箱使用 Node v24.22.1 按 backend/package.json 的完整测试列表执行，**624/624、51 suites、0 fail/skip**；frontend 计算测试 **19/19**、最终 Vite 构建通过。工作树包含原有未提交的实时网速功能，本轮不会将该模块混入文件管理提交。日志：build/persistent-backend-final.log、persistent-build-final.log。
 - 新增 android-persistent.test.js **15/15**，覆盖参数/目录协议、在线与当前用户/已安装包、权限/符号链接、UTF-8 与二进制、大小上限、添加/确认替换、原文件冲突、失败/取消/退出/超时清理、API 同源边界；包含真实 Node 二进制子进程和 Git Bash 固定 POSIX 脚本执行，不是真实 ADB。
