@@ -66,7 +66,7 @@ export function inspectApk(file, signal) {
     });
 }
 
-async function receiveApk(input, file, expectedSize, maximum, signal) {
+export async function receiveApk(input, file, expectedSize, maximum, signal) {
     let size = 0;
     // 不让 pipeline 销毁 IncomingMessage，以便超限/写盘失败时仍可返回明确错误。
     const source = new PassThrough();

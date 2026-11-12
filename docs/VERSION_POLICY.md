@@ -2,6 +2,8 @@
 
 本文件只约束codex/device-debugger，完整工具箱的历史说明留在Git历史和历史发布文档。状态唯一来源为PROJECT_STATUS。
 
+v0.2.0 功能与手动升级说明见 [发布说明](releases/device-debugger-v0.2.0.md)。
+
 - 产品device-debugger，版本0.y.z，当前源码版本单一来源backend/package.json；frontend与两锁文件必须同步，构建脚本派生安装器/清单/资产版本。
 - 正式标签device-debugger-v<版本>；分支codex/device-debugger。不合并裁剪提交到main。
 - 四份资产：device-debugger-Setup-<版本>.exe、device-debugger-<版本>.zip、device-debugger-<版本>-SHA256.txt、device-debugger-manifest.json。清单记录本产品与ZIP/EXE大小、SHA256和精确标签下载地址。没有主工具箱manifest.json。

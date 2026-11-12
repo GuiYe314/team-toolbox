@@ -2,13 +2,14 @@ import express from 'express';
 import { AdbError, createAndroidAdbService } from './android-adb.js';
 import { createToolAccess } from './tool-access.js';
 import { registerPersistentApi } from './android-persistent-api.js';
+import { registerApkQueueApi } from './android-apk-queue-api.js';
 
 /** 按启动模式校验真实来源，保留专用头及 APK 上传边界。 */
 export function requireLocalAndroidRequest(req, res, next, access = createToolAccess()) {
     if (!access.allows(req, { browser: true })) {
         return res.status(403).json({ error: access.allowLan ? 'access_denied' : 'local_only', message: '请在同源工具箱页面操作 ADB；局域网访问需要以 Lan 模式启动' });
     }
-    const apkUpload = req.method === 'POST' && ['/apk/install', '/apk/install-batch', '/persistent/upload'].includes(req.path) && req.is('application/octet-stream');
+    const apkUpload = req.method === 'POST' && ['/apk/install', '/apk/install-batch', '/apk/install-many', '/apk/inspect', '/persistent/upload'].includes(req.path) && req.is('application/octet-stream');
     if (req.method !== 'GET' && ((!req.is('application/json') && !apkUpload) || req.get('x-toolbox-adb') !== '1')) {
         return res.status(403).json({ error: 'forbidden', message: '请从工具箱安卓调试页面执行操作' });
     }
@@ -20,6 +21,7 @@ export function registerAndroidApi(app, { service = createAndroidAdbService(), a
     const router = express.Router();
     router.use((req, res, next) => requireLocalAndroidRequest(req, res, next, access));
     registerPersistentApi(router, service);
+    registerApkQueueApi(router, service);
     const action = (fn, binary = false) => async (req, res) => {
         const controller = new AbortController();
         const cancel = () => { if (!res.writableEnded) controller.abort(); };
@@ -43,6 +45,15 @@ export function registerAndroidApi(app, { service = createAndroidAdbService(), a
         } finally { res.removeListener('close', cancel); }
     };
     router.get('/config', action(() => service.getConfig()));
+    router.post('/apk/inspect', action((req, signal) => {
+        if (!req.is('application/octet-stream') || Object.keys(req.query).length) throw new AdbError('invalid_input', '请从查看 APK 包名面板选择文件');
+        let fileName;
+        try { fileName = decodeURIComponent(req.get('x-toolbox-apk-name') || ''); }
+        catch { throw new AdbError('invalid_input', 'APK 文件名无效'); }
+        const sizeText = req.get('x-toolbox-apk-size') || '';
+        if (!/^[1-9][0-9]{0,12}$/.test(sizeText) || req.get('content-length') && req.get('content-length') !== sizeText) throw new AdbError('invalid_input', 'APK 文件大小无效或传送不完整');
+        return service.inspectApkPackage({ fileName, size: Number(sizeText) }, req, signal);
+    }));
     router.post('/apk/install', action((req, signal) => {
         if (!req.is('application/octet-stream') || Object.keys(req.query).length) throw new AdbError('invalid_input', '请从 APK 安装面板选择文件并确认');
         let fileName;

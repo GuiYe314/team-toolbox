@@ -12,6 +12,7 @@ import { probeLogDevice } from '../backend/src/unity-log-discovery.js';
 import { readLogJson, openLogResponse } from '../backend/src/unity-log-http.js';
 import { testBrowser, removeBrowserFixture, delay } from './verify-browser.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..'), temporary = await mkdtemp(join(tmpdir(), 'device-debugger-ui-'));
+const sourceVersion = JSON.parse(await readFile(join(root, 'frontend/package.json'), 'utf8')).version;
 const require = createRequire(new URL('../backend/package.json', import.meta.url)), archive = require('archiver')('zip', { zlib: { level: 0 } }), chunks = [];
 const log = '2026-11-12T09:00:00Z [Log] [thread:1] 启动成功\n2026-11-12T09:00:01Z [Warning] 温度提醒\n2026-11-12T09:00:02Z [Exception] 合成异常\nUnityEngine.TestMethod()\n<script>window.__unityInjected=true</script>\n';
 const old = '2026-11-11T09:00:00Z [Log] 历史记录\n';
@@ -39,9 +40,10 @@ let browser, checks = 0; const check = (name, condition = true) => { assert.ok(c
 try {
     browser = await testBrowser(temporary); const { send, evaluate, wait, click, fill, select } = browser, base = `http://127.0.0.1:${server.address().port}`;
     await send('Page.navigate', { url: base + '/tools' }); await wait("document.querySelectorAll('.tool-card').length===2");
-    check('独立首页仅安卓与Unity双入口，标题/版本正确', await evaluate("document.title.includes('Device Debugger') && document.querySelector('.version-tag').textContent.includes('0.1.0') && document.querySelectorAll('.debugger-nav a').length===4"));
+    check('独立首页仅安卓与Unity双入口，标题/版本正确', await evaluate(`document.title.includes('Device Debugger') && document.querySelector('.version-tag').textContent.includes(${JSON.stringify(sourceVersion)}) && document.querySelectorAll('.debugger-nav a').length===4`));
     check('页面未请求其他业务API', !browser.requests.some(url => /\/api\/(documents|assets|update|integrations|network-speed)/.test(url)));
     await click('a[href="/settings"]'); await wait("document.querySelector('.set-page #adb-open-settings')"); await click('#adb-open-settings'); await wait("document.querySelector('#adb-folder')");
+    check('设置发布链接指向当前独立产品标签', await evaluate(`document.querySelector('.set-page a[target="_blank"]').href === ${JSON.stringify('https://github.com/GuiYe314/team-toolbox/releases/tag/device-debugger-v' + sourceVersion)}`));
     check('设置弹窗挂body且支持焦点', await evaluate("document.querySelector('.adb-settings-dialog').parentElement.parentElement===document.body"));
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await wait("!document.querySelector('#adb-folder')"); check('Escape关闭并恢复焦点', await evaluate("document.activeElement.id==='adb-open-settings'"));
     await click('a[href="/tools/unity-logs"]'); await wait("document.querySelector('.page-unity-logs')");

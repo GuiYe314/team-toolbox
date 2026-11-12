@@ -1,6 +1,6 @@
 # 设备调试工具协作约定
 
-本分支维护 TASK-038 / F-DEV-001、TASK-039 / F-ADB-002 及已有 F-ADB-001、F-ULOG-001。先读 README、docs/FUNCTIONAL_SPEC、DEVELOPMENT_PLAN、ARCHITECTURE、PROJECT_STATUS，再读相关源码和测试。中文提示/文档，状态只进PROJECT_STATUS，功能变更同步规格/架构/指南/CHANGELOG；不改写CHANGELOG历史。
+本分支维护 TASK-038 / F-DEV-001、TASK-039 / F-ADB-002、TASK-040 / F-ADB-003 及已有 F-ADB-001、F-ULOG-001。先读 README、docs/FUNCTIONAL_SPEC、DEVELOPMENT_PLAN、ARCHITECTURE、PROJECT_STATUS，再读相关源码和测试。中文提示/文档，状态只进PROJECT_STATUS，功能变更同步规格/架构/指南/CHANGELOG；不改写CHANGELOG历史。
 
 - 只保留安卓与Unity日志，两模块固定API/参数/确认/取消/资源限制沿用下述原有边界。不得加回数据库、其他工具或主线更新器。
 - 分支 codex/device-debugger；正式标签 device-debugger-v<版本>，独立安装ID及目录；发布必须指定非latest，保持完整工具箱latest和manifest。禁止提交运行数据/Key/Token/.env/node_modules/build/release。
@@ -32,7 +32,7 @@
 
 ## 安卓调试边界（F-ADB-001）
 
-- ADB 仅在服务器执行，模块 API 按 F-OPS-005 支持 Local/Lan，检查真实连接来源及服务器 Host；保留浏览器来源检查、JSON 和专用请求头要求，不信任代理转发头。仅 `POST /api/android/persistent/upload`、`POST /api/android/apk/install` 与 `POST /api/android/apk/install-batch` 接受带专用头的 `application/octet-stream`，不得放宽其他接口的 JSON 要求。
+- ADB 仅在服务器执行，模块 API 按 F-OPS-005 支持 Local/Lan，检查真实连接来源及服务器 Host；保留浏览器来源检查、JSON 和专用请求头要求，不信任代理转发头。仅 `POST /api/android/persistent/upload`、`POST /api/android/apk/inspect`、`POST /api/android/apk/install` 、`POST /api/android/apk/install-batch` 与 `POST /api/android/apk/install-many` 接受带专用头的 `application/octet-stream`，不得放宽其他接口的 JSON 要求。
 - 进程调用使用参数数组、禁用本机 Shell、隐藏窗口、输出限制、超时与取消；自定义命令限 TASK-026 的已保存 ID、版本及确认执行，不增加临时自由执行接口或全局断开。
 - 六位码配对只使用短期缓存的 mDNS 配对服务；二维码配对只匹配当前短期会话生成的随机服务名。六位码与二维码随机口令仅经 stdin 传给 ADB，禁止写入进程参数、文件或日志。二维码内容仅在会话创建响应中返回当前通过访问校验的页面，状态接口不得回传口令。
 - 文件夹扫描必须异步、有深度/目录/条目/结果/时间上限，不跟随子目录链接；多个 ADB 候选由用户选择，校验版本成功后才能保存。兼容既有可执行文件路径和 `ADB_PATH`，不需要 SQLite 或配置结构迁移。
@@ -66,3 +66,16 @@
 - 两产品共享android-persistent与专用Vue面板。仅当前Android用户的标准外部files目录，明确在线设备/已安装包名；固定脚本逐级拒绝符号链接/越级，脚本及参数分别POSIX转义，不开放自由路径或命令。
 - 浏览1000项，预览256KiB，单文件上传/下载256MiB；流式私有临时文件，读取/替换SHA256复核。添加拒绝同名；替换必须选择原文件并确认。不能自动停止App，无法锁住App写入，帮助说明并发限制。
 - 二进制仅专用upload，专用头/同源/真实网段保护不变。失败/取消/断连/退出回收进程与临时文件，日志不含正文；不入数据库/备份。运行android-persistent.test.js与verify-android-persistent.mjs，真机另验。
+
+## 查看 APK 包名（F-ADB-003 / TASK-040）
+
+- apk/inspect独立于ADB配置/设备，只接收单个APK流；专用头、同源和真实网段规则不变，仅此精确端点新增二进制许可。不能执行/安装APK、运行SDK或接收本机路径。
+- 复用流式临时接收，单任务、1GiB APK、16MiB清单、五分钟总限；有界ZIP及二进制XML、CRC/长度校验，拒绝损坏/重复/加密清单和资源引用包名。取消/断连/离页/后台/退出回收，日志不记包名/文件名/正文，不入数据库或备份。
+- 修改后执行android-apk-info.test.js、两后端完整测试/前端构建、verify-android-apk-info.mjs及安卓回归；验收使用合成APK/隔离浏览器，不安装到真实手机。
+- `frontend/verify-android-apk-info.mjs` 覆盖无ADB读取、UTF8/UTF16、复制/失败重试、换文件/清空、错误恢复、取消/后台/离页及明暗布局；可补充公开APK哈希与源码包名核对，不得把只读解析当作手机安装验收。
+
+## 多 APK 安装队列（F-ADB-001 / TASK-042）
+
+- /apk/install-many是唯一新增二进制端点，保持专用头、同源、真实网段和明确确认；64KiB元数据、1～20包/设备、每包1GiB及总4GiB，流式随机私有暂存，全部APK校验后才能执行。禁止接受路径或自由ADB参数。
+- 最多两设备并行、每台按文件顺序串行，每项五分钟/队列一小时；单项失败继续。可确认精确失败任务矩阵，不能以失败设备与文件的笛卡尔积误装成功项。取消/断连/后台/离页/退出停止全部活动/后续任务，等待全部工作线程退出后清理。保留旧单包安装端点。
+- 执行android-apk-queue.test.js、完整后端/构建、原安卓和新多APK浏览器回归，两产品及最终发布包同步验证；只用离线执行器和合成APK，不声称真机完成。

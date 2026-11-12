@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDeviceDebuggerApp, readListenOptions } from './server.js';
@@ -30,7 +30,8 @@ test('Local/Lan默认端口与HOST严格校验', () => {
 
 test('健康检查提供独立产品身份和仅两模块，不创建DB或数据目录', async t => {
     const f = await fixture(t, false), response = await f.get('/api/health'), body = await response.json();
-    assert.equal(body.status, 'ok'); assert.equal(body.service, 'device-debugger-backend'); assert.equal(body.product, 'device-debugger'); assert.equal(body.version, '0.1.0');
+    const expectedVersion = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')).version;
+    assert.equal(body.status, 'ok'); assert.equal(body.service, 'device-debugger-backend'); assert.equal(body.product, 'device-debugger'); assert.equal(body.version, expectedVersion);
     assert.deepEqual(body.features, ['android', 'unity-logs']); assert.equal(body.db, undefined);
     assert.equal(response.headers.get('cache-control'), 'no-store'); assert.equal(response.headers.get('x-powered-by'), null);
     assert.deepEqual(await readdir(f.root), []);

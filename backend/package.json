@@ -1,6 +1,6 @@
 {
   "name": "device-debugger-backend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "独立安卓与Unity设备调试服务",
   "type": "module",
@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node --test src/android-adb-commands.test.js src/android-adb-search.test.js src/android-adb.test.js src/android-apk.test.js src/android-apps.test.js src/android-persistent.test.js src/android-custom-commands.test.js src/android-home.test.js src/android-logcat.test.js src/android-qr.test.js src/android-screen.test.js src/tool-access.test.js src/unity-log-api.test.js src/unity-log-discovery.test.js src/unity-logs.test.js src/server.test.js"
+    "test": "node --test src/android-adb-commands.test.js src/android-adb-search.test.js src/android-adb.test.js src/android-apk.test.js src/android-apk-info.test.js src/android-apps.test.js src/android-persistent.test.js src/android-custom-commands.test.js src/android-home.test.js src/android-logcat.test.js src/android-qr.test.js src/android-screen.test.js src/tool-access.test.js src/unity-log-api.test.js src/unity-log-discovery.test.js src/unity-logs.test.js src/server.test.js src/android-apk-queue.test.js"
   },
   "dependencies": {
     "express": "^5.0.1",

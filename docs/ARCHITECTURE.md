@@ -13,3 +13,11 @@
 ## Unity persistentDataPath 文件管理（2026-11-12 / TASK-039）
 
 `android-persistent.js`负责当前用户/已安装应用/标准外部目录定位、固定shell协议、路径隔离、目录/内容读取与确认版本替换。`android-persistent-api.js`单独注册在安卓router，共用真实网络/同源/专用头保护，仅其upload端点允许二进制；`AndroidPersistentFiles.vue`与`android-persistent-client.js`独立封装视图和传送，原安卓页面负责互斥状态与配置生命周期。两产品模块代码保持一致，不引入持久化结构或依赖。替换以用户主动选择+确认、版本检查和SHA256核验保护，无法阻止App并发写入，指南提醒先关闭App并下载备份。
+
+## APK 包名读取（TASK-040 / F-ADB-003）
+
+android-apk-manifest.js负责有界二进制XML解析；android-apk-info.js复用原APK流式临时接收/ZIP结构检查，读取根清单并校验CRC，不运行外部进程或依赖SDK。安卓服务注册独立单任务读取器，API仅对精确inspect端点接受二进制，仍走同源及真实网段保护。AndroidApkInfo.vue和专用客户端管理上传、复制、取消与迟到结果，不依赖ADB配置或设备。无新增依赖/持久化结构；两产品源码一致，任务结果只在当前页。
+
+## 多APK队列（TASK-042）
+
+android-apk-queue.js解析专用长度前缀元数据与连续APK流，严格验证数量/大小/目标/任务矩阵并临时落盘；同一ADB独占锁内调度最多两台设备，每台串行，逐项复核在线状态及install -r输出。全部工作线程退出后才清理，失败重试只接受已确认矩阵，日志不记文件名/设备输出；不增加依赖或持久化。旧单包接口不变。

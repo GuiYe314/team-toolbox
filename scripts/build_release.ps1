@@ -80,7 +80,7 @@ Compress-Archive -LiteralPath $stage -DestinationPath $zip -CompressionLevel Opt
 Invoke-Checked $InnoCompiler @('/Qp', "/DVersionValue=$Version", "/DAppSource=$stage", "/DReleaseOutput=$releaseDirectory", (Join-Path $repoRoot 'installer\device-debugger.iss')) $repoRoot
 $installer = Join-Path $releaseDirectory "device-debugger-Setup-$Version.exe"
 function Asset([string]$Path) { $file = Get-Item -LiteralPath $Path; return [ordered]@{ name = $file.Name; size = $file.Length; sha256 = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant(); url = "https://github.com/GuiYe314/team-toolbox/releases/download/device-debugger-v$Version/$($file.Name)" } }
-$manifest = [ordered]@{ schema = 1; product = 'device-debugger'; version = $Version; branch = 'codex/device-debugger'; releaseTag = "device-debugger-v$Version"; portable = (Asset $zip); installer = (Asset $installer); features = @('android', 'unity-logs', 'unity-persistent-files') }
+$manifest = [ordered]@{ schema = 1; product = 'device-debugger'; version = $Version; branch = 'codex/device-debugger'; releaseTag = "device-debugger-v$Version"; portable = (Asset $zip); installer = (Asset $installer); features = @('android', 'unity-logs', 'unity-persistent-files', 'apk-package-info', 'apk-install-queue') }
 $manifestPath = Join-Path $releaseDirectory 'device-debugger-manifest.json'
 $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 $hashes = foreach ($file in @($zip, $installer, $manifestPath)) { $item = Get-Item -LiteralPath $file; '{0}  {1}  {2}' -f (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant(), $item.Length, $item.Name }
