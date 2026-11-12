@@ -1,7 +1,7 @@
 <template>
     <div class="view-page adb-page">
         <header class="view-head">
-            <button class="btn btn-sm" @click="$router.push({ name: 'tools' })">返回工具箱</button>
+            <button class="btn btn-sm" @click="$router.push({ name: 'tools' })">返回调试首页</button>
             <h1 class="view-title">安卓无线调试</h1>
             <p class="view-subtitle">在运行工具箱的电脑上连接和管理安卓设备。</p>
             <div class="adb-row">
@@ -91,6 +91,7 @@
             <h2 id="adb-tools-pane-title" class="adb-pane-title">命令、APK、屏幕与日志</h2>
             <AndroidCommands :devices="devices" :disabled="unavailable || !configured" @busy-change="commandActivityChanged" />
             <AndroidApkInstaller :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="apkActivityChanged" />
+            <AndroidPersistentFiles :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="persistentActivityChanged" />
             <AndroidScreenPreview :key="logVersion" :devices="devices" :disabled="unavailable || !configured" />
             <AndroidLogcat :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="logActivityChanged" />
             </section>
@@ -109,10 +110,11 @@ import AndroidSettingsDialog from '../components/AndroidSettingsDialog.vue';
 import AndroidLogcat from '../components/AndroidLogcat.vue';
 import AndroidScreenPreview from '../components/AndroidScreenPreview.vue';
 import AndroidApkInstaller from '../components/AndroidApkInstaller.vue';
+import AndroidPersistentFiles from '../components/AndroidPersistentFiles.vue';
 
 export default {
     name: 'AndroidWireless',
-    components: { AndroidQrPairing, AndroidHelp, AndroidCommands, AndroidSettingsDialog, AndroidLogcat, AndroidScreenPreview, AndroidApkInstaller },
+    components: { AndroidQrPairing, AndroidHelp, AndroidCommands, AndroidSettingsDialog, AndroidLogcat, AndroidScreenPreview, AndroidApkInstaller, AndroidPersistentFiles },
     data() {
         return { config: null, qrActive: false, settingsActive: false, logVersion: 0, endpoint: '', devices: [], services: [], searched: false, loadedDevices: false,
             pairService: null, pairCode: '', pendingDisconnect: '', busy: '', error: '', notice: '', warning: '' };
@@ -125,6 +127,7 @@ export default {
         logActivityChanged(active) { this.busy = active ? '读取日志设备信息' : ''; },
         commandActivityChanged(active) { this.busy = active ? '执行 ADB 命令' : ''; },
         apkActivityChanged(active) { this.busy = active ? '传送并安装 APK' : ''; },
+        persistentActivityChanged(active) { this.busy = active ? '管理 Unity 应用文件' : ''; },
         qrActivityChanged(active) {
             this.qrActive = active;
             if (active) { this.cancelPair(); this.pendingDisconnect = ''; this.notice = ''; this.error = ''; this.warning = ''; }

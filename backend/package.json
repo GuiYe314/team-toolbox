@@ -1,30 +1,22 @@
 {
-  "name": "team-toolbox-backend",
-  "version": "0.3.1",
+  "name": "device-debugger-backend",
+  "version": "0.1.0",
   "private": true,
-  "description": "team-toolbox backend (Express + better-sqlite3)",
+  "description": "独立安卓与Unity设备调试服务",
   "type": "module",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.15.0"
   },
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "migrate": "node src/migrate.js",
-    "rebuild": "npm rebuild better-sqlite3",
-    "test": "node --test src/store.test.js src/api.test.js src/asset-store.test.js src/asset-api.test.js src/asset-mirror.test.js src/asset-preview.test.js src/db.test.js src/full-backup.test.js src/search-index.test.js src/asset-reference.test.js src/document-trash.test.js src/asset-collection.test.js src/updater.test.js src/update-http.test.js src/android-adb.test.js src/android-adb-search.test.js src/android-qr.test.js src/android-adb-commands.test.js src/android-home.test.js src/android-custom-commands.test.js src/android-logcat.test.js src/android-apps.test.js src/android-screen.test.js src/android-apk.test.js src/unity-log-discovery.test.js src/unity-logs.test.js src/unity-log-api.test.js src/integrations.test.js src/tool-access.test.js"
+    "test": "node --test src/android-adb-commands.test.js src/android-adb-search.test.js src/android-adb.test.js src/android-apk.test.js src/android-apps.test.js src/android-persistent.test.js src/android-custom-commands.test.js src/android-home.test.js src/android-logcat.test.js src/android-qr.test.js src/android-screen.test.js src/tool-access.test.js src/unity-log-api.test.js src/unity-log-discovery.test.js src/unity-logs.test.js src/server.test.js"
   },
   "dependencies": {
-    "@napi-rs/canvas": "^1.0.11",
-    "archiver": "^7.0.1",
-    "better-sqlite3": "^11.5.0",
-    "busboy": "^1.6.0",
-    "dotenv": "^16.4.7",
     "express": "^5.0.1",
-    "marked": "^14.1.3",
-    "sanitize-html": "^2.13.1",
-    "sharp": "^0.35.5",
-    "undici": "^6.29.1",
     "yauzl": "^3.4.0"
+  },
+  "devDependencies": {
+    "archiver": "^7.0.1"
   }
 }

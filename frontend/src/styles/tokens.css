@@ -5,6 +5,17 @@
    ========================================================================== */
 
 :root {
+    --adb-file-list-height: 340px;
+    --adb-file-preview-height: 280px;
+    --debug-gap-xs: 6px;
+    --debug-gap-sm: 10px;
+    --debug-gap-md: 16px;
+    --debug-gap-xl: 24px;
+    --debug-icon-size: 34px;
+    --debug-card-title: 22px;
+    --debug-letter-spacing: 1.2px;
+    --debug-border: 1px;
+    --debug-focus: 2px;
     --clipboard-size: 1px;
     /* ── 字体层级（高信息密度：主标题克制，不做超大字号）───────────── */
     --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",

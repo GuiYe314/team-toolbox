@@ -5,7 +5,7 @@
 //   2. 在 <html> 上设置 data-theme，所有 CSS 变量随之切换，避免闪烁。
 //   3. 主题切换只改 CSS 变量，不触发组件重渲染，性能开销极低。
 
-const KEY = 'tt-theme';
+const KEY = 'device-debugger-theme';
 
 export const THEMES = ['light', 'dark'];
 

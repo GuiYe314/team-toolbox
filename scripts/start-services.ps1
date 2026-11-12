@@ -3,8 +3,8 @@ param(
     [ValidateSet('Development', 'Release')][string]$Mode = 'Development',
     [ValidateSet('Local', 'Lan')][string]$AccessMode = 'Lan',
     [string]$NodeExecutable = 'node.exe',
-    [ValidateRange(1, 65535)][int]$BackendPort = 3000,
-    [ValidateRange(1, 65535)][int]$FrontendPort = 5173,
+    [ValidateRange(1, 65535)][int]$BackendPort = 3100,
+    [ValidateRange(1, 65535)][int]$FrontendPort = 5174,
     [ValidateRange(1, 300)][int]$TimeoutSeconds = 30,
     [switch]$NoBrowser
 )
@@ -110,7 +110,7 @@ try {
                 if ($response.StatusCode -ne 200) { throw 'HTTP response was not 200.' }
                 if ($service.Name -eq 'backend') {
                     $health = $response.Content | ConvertFrom-Json
-                    if ($health.status -ne 'ok' -or $health.service -ne 'team-toolbox-backend' -or $health.db.ok -ne $true) { throw 'Backend health check is not ready.' }
+                    if ($health.status -ne 'ok' -or $health.service -ne 'device-debugger-backend' -or $health.product -ne 'device-debugger') { throw 'Backend health check is not ready.' }
                 }
             } catch { $ready = $false; $lastReason = $_.Exception.Message }
         }

@@ -1,6 +1,16 @@
 # 变更记录（CHANGELOG）
 
+## 2026-11-12 — TASK-039 Unity persistentDataPath 文件管理
+
+- 两产品新增明确设备/应用下的标准persistentDataPath目录浏览、文本预览、下载、添加与确认替换；有界传送、版本复查、校验与清理边界见规格，实际验证状态见PROJECT_STATUS。
+
 格式：日期 + 类型 + 条目。**只追加，不改写历史。**当前进度以 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) 为唯一来源，本文件不承载状态。
+
+## 2026-11-12
+
+### Added：独立设备调试工具（TASK-038）
+
+- 新增 codex/device-debugger 分支，将安卓无线调试与Unity设备日志合成独立发行版，移除本分支其他业务和原生依赖。独立端口、安装身份、数据与发布标签，保留原主线及其更新渠道。验证/发布状态见docs/PROJECT_STATUS.md。
 
 ## 2026-11-11
 

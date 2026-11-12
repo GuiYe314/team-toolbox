@@ -11,7 +11,7 @@ import { createToolAccess } from '../backend/src/tool-access.js';
 
 if (process.platform !== 'win32') throw new Error('本验收需要 Windows PowerShell 5.1。');
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const sandbox = await mkdtemp(join(tmpdir(), 'team-toolbox-startup-'));
+const sandbox = await mkdtemp(join(tmpdir(), 'device-debugger-startup-'));
 const fixtures = [];
 let passed = 0;
 let invocation = 0;
@@ -66,7 +66,7 @@ async function fixture(label, behavior = 'ok') {
     await copyFile(join(repo, 'scripts/release-start.cmd'), join(root, 'launch.cmd'));
     await copyFile(join(repo, 'start.bat'), join(root, 'start.bat'));
     await copyFile(join(repo, 'stop.bat'), join(root, 'stop.bat'));
-    await writeFile(join(root, 'data/team-toolbox.sqlite3'), 'not a real database');
+    await writeFile(join(root, 'data/device-debugger.sqlite3'), 'not a real database');
     await writeFile(join(root, 'runtime/check.js'), 'console.log("fixture runtime check");');
     await writeFile(join(root, 'backend/src/index.js'), serverSource(behavior, true));
     await writeFile(join(root, 'frontend/node_modules/vite/bin/vite.js'), serverSource('ok', false));
@@ -89,10 +89,10 @@ else {
         if (req.url === '/write-logs') { console.log('after launcher exit'); console.error('error after launcher exit'); }
         if (behavior === '503' || (behavior === 'delayed' && Date.now() - since < 1800)) { res.writeHead(503); res.end('waiting'); return; }
         if (behavior === 'invalid') { res.end('not JSON'); return; }
-        if (behavior === 'wrong') { res.end(JSON.stringify({status:'ok',service:'different',db:{ok:true}})); return; }
-        if (behavior === 'bad-db') { res.end(JSON.stringify({status:'ok',service:'team-toolbox-backend',db:{ok:false}})); return; }
+        if (behavior === 'wrong') { res.end(JSON.stringify({status:'ok',service:'different',product:'device-debugger'})); return; }
+        if (behavior === 'bad-product') { res.end(JSON.stringify({status:'ok',service:'device-debugger-backend',product:'different'})); return; }
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify(${backend ? "{status:'ok',service:'team-toolbox-backend',db:{ok:true}}" : "{frontend:true}"}));
+        res.end(JSON.stringify(${backend ? "{status:'ok',service:'device-debugger-backend',product:'device-debugger'}" : "{frontend:true}"}));
     }).listen(Number(${backend ? 'process.env.PORT' : 'process.env.VITE_DEV_PORT'}), ${backend ? 'process.env.HOST' : 'process.env.VITE_DEV_HOST'});
 }
 `;
@@ -208,7 +208,7 @@ try {
         await stop(first);
     });
 
-    for (const behavior of ['exit', 'never', '503', 'invalid', 'wrong', 'bad-db']) {
+    for (const behavior of ['exit', 'never', '503', 'invalid', 'wrong', 'bad-product']) {
         await check(`失败分支 ${behavior} 返回非零、显示诊断并清理本轮子进程`, async () => {
             const item = await fixture(behavior, behavior);
             const result = await start(item, 'Development', 2);
@@ -265,6 +265,6 @@ try {
     }
     const boundary = resolve(tmpdir());
     assert.equal(dirname(sandbox), boundary);
-    assert.ok(sandbox.startsWith(join(boundary, 'team-toolbox-startup-')));
+    assert.ok(sandbox.startsWith(join(boundary, 'device-debugger-startup-')));
     if (!cleanupFailed) await rm(sandbox, { recursive: true, force: true });
 }

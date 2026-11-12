@@ -53,7 +53,7 @@ try {
     }
 
     if ($targets.Count -eq 0) {
-        Write-Host '[info] No running team-toolbox services found for this project folder.'
+        Write-Host '[info] No running device-debugger services found for this project folder.'
         exit 0
     }
 
@@ -77,7 +77,7 @@ try {
     }
 
     if ($failed) { exit 1 }
-    Write-Host '[info] team-toolbox stopped. Data files are kept.'
+    Write-Host '[info] device-debugger stopped. Data files are kept.'
     exit 0
 } catch {
     Write-Host "[ERROR] Unable to inspect project services: $($_.Exception.Message)"

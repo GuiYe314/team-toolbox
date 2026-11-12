@@ -13,6 +13,7 @@ import { createAndroidScreen } from './android-screen.js';
 import { createAndroidCustomCommands } from './android-custom-commands.js';
 import { createAndroidHome } from './android-home.js';
 import { createAndroidApk } from './android-apk.js';
+import { createAndroidPersistent } from './android-persistent.js';
 export { AdbError, parseDevices, parseMdns, validateEndpoint } from './android-adb-protocol.js';
 
 function redact(text, secrets = []) {
@@ -75,7 +76,7 @@ function validateExecutable(raw) {
     return resolve(path);
 }
 
-export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'android-adb.json'), commandFile = join(dirname(configFile), 'android-commands.json'), env = process.env, runner = runAdbProcess, logcatSpawn = spawn, screenSpawn = spawn, apkOptions = {}, now = Date.now, log = (entry) => console.info('[android-adb]', JSON.stringify(entry)) } = {}) {
+export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'android-adb.json'), commandFile = join(dirname(configFile), 'android-commands.json'), env = process.env, runner = runAdbProcess, logcatSpawn = spawn, screenSpawn = spawn, apkOptions = {}, persistentOptions = {}, now = Date.now, log = (entry) => console.info('[android-adb]', JSON.stringify(entry)) } = {}) {
     let busy = false;
     let discovered = [];
     let discoveredAt = 0;
@@ -113,6 +114,7 @@ export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'a
     const apps = createAndroidApps({ run, readDevices });
     const home = createAndroidHome({ run, readDevices });
     const apk = createAndroidApk({ ...apkOptions, run, readDevices, log });
+    const persistent = createAndroidPersistent({ ...persistentOptions, run, readDevices, executable: () => validateExecutable(config().path), log });
     const screen = createAndroidScreen({ executable: () => validateExecutable(config().path), readDevices, spawnProcess: screenSpawn, log });
     const logcat = createAndroidLogcat({ executable: () => validateExecutable(config().path), readDevices, spawnProcess: logcatSpawn, log,
         readApplication: (serial, packageName, signal) => apps.status(serial, packageName, signal), readProcesses: apps.processes });
@@ -130,7 +132,7 @@ export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'a
         deleteCommand: (id, input) => exclusive('custom_command_delete', () => customCommands.remove(id, input)),
         executeCommand: (request, signal) => exclusive('command', async () => {
             const result = await executeAndroidCommand(request, { run, readDevices, signal, resolveCustomCommand: customCommands.resolve, home });
-            if (result.deviceRestarted) { logcat.stopDevice(request.serial); screen.stopDevice(request.serial); }
+            if (result.deviceRestarted) { logcat.stopDevice(request.serial); screen.stopDevice(request.serial); persistent.stopDevice(request.serial); }
             return result;
         }),
         listApps: (serial, signal) => exclusive('apps_list', () => apps.list(serial, signal)),
@@ -142,7 +144,11 @@ export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'a
         captureScreen: (serial, signal) => screen.capture(serial, signal),
         installApk: (request, input, signal) => exclusive('apk_install', () => apk.install(request, input, signal)),
         installApkBatch: (request, input, signal, onUpdate) => exclusive('apk_install_batch', () => apk.installBatch(request, input, signal, onUpdate)),
-        dispose: () => { qr.invalidate(); logcat.dispose(); screen.dispose(); apk.dispose(); },
+        listPersistent: (request, signal) => exclusive('persistent_list', () => persistent.list(request, signal)),
+        inspectPersistent: (request, signal) => exclusive('persistent_inspect', () => persistent.inspect(request, signal)),
+        readPersistent: (request, signal, consume) => exclusive('persistent_read', () => persistent.read(request, signal, consume)),
+        uploadPersistent: (request, input, signal) => exclusive('persistent_upload', () => persistent.upload(request, input, signal)),
+        dispose: () => { qr.invalidate(); logcat.dispose(); screen.dispose(); apk.dispose(); persistent.dispose(); },
         searchFolder: (folder, signal) => exclusive('search_folder', () => findAdbInFolder(folder, { signal })),
         startQr: (signal) => exclusive('qr_start', () => qr.start(signal)),
         pollQr: (id, signal) => exclusive('qr_poll', () => qr.poll(id, signal)),
@@ -173,6 +179,7 @@ export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'a
             qr.invalidate();
             logcat.dispose();
             screen.dispose();
+            persistent.dispose();
             return { ...config(), version };
         }),
         devices: (signal) => exclusive('devices', async () => ({ devices: await readDevices(signal) })),
@@ -209,6 +216,7 @@ export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'a
             if (!/disconnected\s+/i.test(result.stdout)) throw new AdbError('adb_failed', `断开失败：${result.stdout || result.stderr || 'ADB 未确认断开成功'}`, 502);
             logcat.stopDevice(serial);
             screen.stopDevice(serial);
+            persistent.stopDevice(serial);
             return refreshed('所选无线设备已断开', signal);
         })
     };

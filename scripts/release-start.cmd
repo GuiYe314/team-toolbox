@@ -4,7 +4,7 @@ setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
 if /i "%~1"=="/local" set "TT_ACCESS_MODE=Local"
 
-REM Prefer the bundled runtime; the native database module uses its ABI.
+REM Prefer the bundled runtime; no system Node installation is required.
 set "NODE_EXE=%~dp0runtime\node.exe"
 if exist "%NODE_EXE%" goto runtime_ready
 echo [warn] Bundled runtime missing; trying system Node.

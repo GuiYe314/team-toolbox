@@ -5,7 +5,6 @@ import express from 'express';
 import { createToolAccess } from './tool-access.js';
 import { registerAndroidApi, requireLocalAndroidRequest } from './android-api.js';
 import { registerUnityLogApi, requireLocalUnityLogRequest } from './unity-log-api.js';
-import { registerIntegrationApi, requireLocalIntegrationRequest } from './integration-api.js';
 
 const interfaces = () => ({ ethernet: [{ family: 'IPv4', internal: false, address: '192.168.100.39', netmask: '255.255.254.0' }] });
 const local = createToolAccess({ allowLan: false, interfaces });
@@ -84,7 +83,7 @@ function guard(guardFn, value, policy = lan) {
     return { status, allowed };
 }
 
-for (const [name, guardFn, header] of [['ADB', requireLocalAndroidRequest, 'x-toolbox-adb'], ['Unity', requireLocalUnityLogRequest, 'x-toolbox-unity-log'], ['集成', requireLocalIntegrationRequest, 'x-toolbox-integration']]) {
+for (const [name, guardFn, header] of [['ADB', requireLocalAndroidRequest, 'x-toolbox-adb'], ['Unity', requireLocalUnityLogRequest, 'x-toolbox-unity-log']]) {
     test(`${name} LAN 接口保留专用头、JSON 和浏览器来源要求`, () => {
         assert.ok(guard(guardFn, req(undefined, { [header]: '1' })).allowed);
         assert.equal(guard(guardFn, req()).status, 403);
@@ -99,13 +98,12 @@ test('ADB 仅两种 APK 专用端点接受 LAN 二进制，其余不放宽', () 
     assert.equal(guard(requireLocalAndroidRequest, req(undefined, { 'x-toolbox-adb': '1' }, '/connect', 'application/octet-stream')).status, 403);
 });
 
-test('私网真实 TCP 请求可调用三工具，保留非法 Host/Origin/专用头拒绝', async t => {
+test('私网真实 TCP 请求可调用两个设备工具，保留非法 Host/Origin/专用头拒绝', async t => {
     const access = createToolAccess({ allowLan: true }), address = access.addresses()[0];
     if (!address) return t.skip('没有私网 IPv4 网卡；模拟网段测试仍执行');
     const app = express(); app.use(access.middleware); app.use(express.json());
     registerAndroidApi(app, { access, service: { getConfig: () => ({ test: 'android' }) } });
     registerUnityLogApi(app, { access, service: { discover: () => ({ test: 'unity' }) } });
-    registerIntegrationApi(app, { access, service: { freellmapi: { getConfig: () => ({ test: 'free' }) } }, log() {} });
     const server = await new Promise(resolve => { const value = app.listen(0, '0.0.0.0', () => resolve(value)); });
     t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
     const host = `${address}:${server.address().port}`;
@@ -119,7 +117,6 @@ test('私网真实 TCP 请求可调用三工具，保留非法 Host/Origin/专�
         });
     }
     assert.equal(await call('/api/android/config'), 200);
-    assert.equal(await call('/api/integrations/freellmapi/config'), 200);
     assert.equal(await call('/api/unity-logs/discover', { method: 'POST', headers: { 'X-Toolbox-Unity-Log': '1' } }), 200);
     assert.equal(await call('/api/unity-logs/discover', { method: 'POST' }), 403);
     assert.equal(await call('/api/android/config', { headers: { Host: 'evil.example', 'X-Forwarded-Host': host } }), 403);

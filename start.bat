@@ -2,11 +2,11 @@
 setlocal EnableExtensions DisableDelayedExpansion
 
 REM ============================================================
-REM  team-toolbox one-click starter (Windows)
+REM  device-debugger one-click starter (Windows)
 REM  Steps:
 REM      1. Verify Node.js / npm.
 REM      2. Install backend & frontend deps on first run.
-REM      3. Run database migration if data file is missing.
+REM      3. No database or migration required.
 REM      4. Start hidden backend / Vite services and wait for readiness.
 REM      5. Open the browser and close this launcher on success.
 REM  Stop: double-click stop.bat. Diagnostics: project logs directory.
@@ -46,17 +46,6 @@ if not exist "backend\node_modules" (
     call npm install
     if errorlevel 1 ( popd & echo [ERROR] backend npm install failed & pause & exit /b 1 )
     popd
-)
-
-REM ---- Migration (only when database file missing) ----
-if not exist "data\team-toolbox.sqlite3" (
-    echo [step] running database migration...
-    pushd backend
-    call npm run migrate
-    if errorlevel 1 ( popd & echo [ERROR] backend migrate failed & pause & exit /b 1 )
-    popd
-) else (
-    echo [info] database exists, skipping migrate. Run "cd backend ^&^& npm run migrate" to upgrade.
 )
 
 REM ---- Frontend deps ----

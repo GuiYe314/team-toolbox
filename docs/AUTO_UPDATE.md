@@ -1,3 +1,7 @@
+# 历史文档提示
+
+以下是完整team-toolbox主线更新器的历史说明。独立设备调试工具不提供该更新器，不使用releases/latest或manifest.json。独立版下载与升级以[VERSION_POLICY](VERSION_POLICY.md)和[用户指南](USER_GUIDE.md)为准。
+
 # 自动更新（运维说明）
 
 > 面向部署者：怎么配置更新源、怎么发一个新版本、更新时到底发生了什么。
