@@ -25,6 +25,9 @@
             <rect x="5" y="2.5" width="14" height="19" rx="2" />
             <path d="M8.5 7h7M8.5 11h7M8.5 15h4M11 18.5h2" />
         </svg>
+        <svg v-else-if="resolved === 'network-speed'" class="icon" viewBox="0 0 24 24">
+            <path d="M3 13a9 9 0 1 1 18 0v5H3zM12 13l4-5M6 13h.01M8 7h.01M16 13h.01" /><circle cx="12" cy="13" r="1.4" />
+        </svg>
         <svg v-else-if="resolved === 'solar-globe'" class="icon" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="8.5" />
             <path d="M3.8 12h16.4M12 3.5c2.1 2.2 3.2 5 3.2 8.5S14.1 18.3 12 20.5M12 3.5C9.9 5.7 8.8 8.5 8.8 12s1.1 6.3 3.2 8.5" />
@@ -48,6 +51,7 @@
 
 <script>
 const MAP = {
+    'network-speed': 'network-speed',
     yoinks: 'yoinks',
     freellmapi: 'freellmapi',
     artcraft: 'artcraft',

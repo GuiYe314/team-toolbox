@@ -188,9 +188,16 @@ New-Item -ItemType Directory -Path $frontendOut -Force | Out-Null
 # 用户机器不需要装 Node，也不会因为系统 Node 版本不同而启动失败。
 Say "      准备内置 Node 运行时..."
 $nodeDist = Get-NodeRuntime -Ver $NodeVersion
+# 显式构建时准备固定下载组件；网页/服务启动不会联网安装。
+$mediaPrepare = Join-Path $projectRoot 'scripts\prepare-media-tools.mjs'
+$mediaCode = Invoke-Native -Exe (Join-Path $nodeDist 'node.exe') -ArgList @($mediaPrepare)
+if ($mediaCode -ne 0) { throw '视频下载组件准备失败，停止打包。' }
+$mediaCode = Invoke-Native -Exe (Join-Path $nodeDist 'node.exe') -ArgList @($mediaPrepare, '--stage', $appDir)
+if ($mediaCode -ne 0) { throw '视频下载组件/许可暂存校验失败，停止打包。' }
 $runtimeOut = Join-Path $appDir "runtime"
 New-Item -ItemType Directory -Path $runtimeOut -Force | Out-Null
 Copy-Item (Join-Path $nodeDist "node.exe") (Join-Path $runtimeOut "node.exe") -Force
+Copy-Item (Join-Path $nodeDist "LICENSE") (Join-Path $runtimeOut "NODE-LICENSE.txt") -Force
 Say "      运行时已内置（{0:N1} MB）" -f ((Get-Item (Join-Path $runtimeOut "node.exe")).Length / 1MB) "Green"
 
 # 后端：只带源码与清单，**不带 node_modules** —— 依赖在暂存目录里重装，

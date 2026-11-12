@@ -17,6 +17,7 @@ import { registerUpdateApi } from './update-api.js';
 import { registerAndroidApi } from './android-api.js';
 import { registerUnityLogApi } from './unity-log-api.js';
 import { registerIntegrationApi } from './integration-api.js';
+import { registerNetworkSpeedApi } from './network-speed-api.js';
 import { createToolAccess } from './tool-access.js';
 import { backfillPreviews } from './asset-preview.js';
 import { runMigrations } from './migrate.js';
@@ -50,6 +51,8 @@ registerUpdateApi(app);
 const androidService = registerAndroidApi(app, { access });
 const unityLogService = registerUnityLogApi(app, { access });
 const integrationService = registerIntegrationApi(app, { access });
+const networkSpeedMonitor = registerNetworkSpeedApi(app, { access });
+process.once('exit', () => networkSpeedMonitor.dispose());
 
 // 健康检查：返回 DB 路径与可达性
 app.get('/api/health', (_req, res) => {
@@ -221,6 +224,7 @@ function shutdown(signal) {
     console.log(`[server] received ${signal}, shutting down`);
     androidService.dispose();
     unityLogService.dispose();
+    networkSpeedMonitor.dispose();
     const integrationsStopped = integrationService.dispose();
     server.close(async () => {
         await integrationsStopped;

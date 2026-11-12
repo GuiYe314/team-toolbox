@@ -90,6 +90,7 @@
             <section class="adb-pane adb-tools-pane" aria-labelledby="adb-tools-pane-title">
             <h2 id="adb-tools-pane-title" class="adb-pane-title">命令、APK、屏幕与日志</h2>
             <AndroidCommands :devices="devices" :disabled="unavailable || !configured" @busy-change="commandActivityChanged" />
+            <AndroidApkInfo :key="logVersion" :disabled="unavailable" @busy-change="apkInfoActivityChanged" />
             <AndroidApkInstaller :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="apkActivityChanged" />
             <AndroidPersistentFiles :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="persistentActivityChanged" />
             <AndroidScreenPreview :key="logVersion" :devices="devices" :disabled="unavailable || !configured" />
@@ -111,10 +112,11 @@ import AndroidLogcat from '../components/AndroidLogcat.vue';
 import AndroidScreenPreview from '../components/AndroidScreenPreview.vue';
 import AndroidApkInstaller from '../components/AndroidApkInstaller.vue';
 import AndroidPersistentFiles from '../components/AndroidPersistentFiles.vue';
+import AndroidApkInfo from '../components/AndroidApkInfo.vue';
 
 export default {
     name: 'AndroidWireless',
-    components: { AndroidQrPairing, AndroidHelp, AndroidCommands, AndroidSettingsDialog, AndroidLogcat, AndroidScreenPreview, AndroidApkInstaller, AndroidPersistentFiles },
+    components: { AndroidQrPairing, AndroidHelp, AndroidCommands, AndroidSettingsDialog, AndroidLogcat, AndroidScreenPreview, AndroidApkInstaller, AndroidPersistentFiles, AndroidApkInfo },
     data() {
         return { config: null, qrActive: false, settingsActive: false, logVersion: 0, endpoint: '', devices: [], services: [], searched: false, loadedDevices: false,
             pairService: null, pairCode: '', pendingDisconnect: '', busy: '', error: '', notice: '', warning: '' };
@@ -127,6 +129,7 @@ export default {
         logActivityChanged(active) { this.busy = active ? '读取日志设备信息' : ''; },
         commandActivityChanged(active) { this.busy = active ? '执行 ADB 命令' : ''; },
         apkActivityChanged(active) { this.busy = active ? '传送并安装 APK' : ''; },
+        apkInfoActivityChanged(active) { this.busy = active ? '读取 APK 包名' : ''; },
         persistentActivityChanged(active) { this.busy = active ? '管理 Unity 应用文件' : ''; },
         qrActivityChanged(active) {
             this.qrActive = active;

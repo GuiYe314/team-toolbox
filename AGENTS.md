@@ -55,6 +55,7 @@
 | `verify-full-backup.mjs` | 全量备份：菜单明示范围、包结构完整、非法包被拒 | 9 |
 | `verify-search.mjs` | 全文检索：中文子串命中、英文词边界、空状态、清除恢复 | 10 |
 | `verify-release-runtime.mjs` | 发布包运行时：内置 Node、ABI 自检、启动脚本契约 | — |
+| `verify-network-speed.mjs` | 实时网速：入口/单网卡、上下行/换算/趋势/累计、暂停清空、后台恢复/离页取消/迟到、错误/移除/离线与明暗布局/下拉对比度；临时服务与合成网卡 | 2、7 |
 | `verify-earth-sunlight.mjs` | 地球光照：WebGL/本地贴图、太阳、赤道/回归线与中文标注及遮挡、缩放/旋转/复位、刷新、后台/离页释放、失败降级/重试、加载取消和明暗布局；使用隔离静态服务和空只读列表 | 2、7 |
 | `verify-asset-reference.mjs` | 文档引用资源：插入、落库、渲染、失效降级 | — |
 | `verify-document-trash.mjs` | 文档回收站：软删、恢复、永久删除、二次确认、不误伤正常文档 | 9、10 |
@@ -72,6 +73,14 @@
 | `verify-batch-delete.mjs` | 知识库批量删除 | 9 |
 
 
+## 实时网速边界（F-NET-001 / TASK-037）
+
+- `/tools/network-speed` 观察运行工具箱的 Windows 服务器。`network-speed.js` 只使用固定的隐藏 PowerShell `Get-NetAdapter` / `Get-NetAdapterStatistics`，禁用 Shell，使用参数列表；不得接收自由命令、下载测速文件、抓包、修改网络或自动提权。
+- 全服务器共享一个按需采集进程，NDJSON 单行/缓冲最多 128 KiB、最多 64 张网卡、stderr 最多 8 KiB；启动十五秒、采样八秒看门狗，超过五秒读数作废，失败冷却五秒，十秒无页面请求释放。服务信号退出和直接退出均须 dispose，原始错误输出不得回传或写日志。
+- uint64 累计计数用 BigInt 差值，按采集端单调时间计算速度；新网卡、断网、计数回退和长间隔重新建立基线，用 counterEpoch 区分有效连续区间。快照只包含只读网卡计数、状态和速度，受 `tool-access.js` 的真实来源/Host/同源规则及专用头保护，拒绝附加参数和写方法，不缓存。
+- `NetworkSpeed.vue` 只选择单张网卡，不叠加 VPN/虚拟与物理流量；前端用累计计数差统计观察期，避免漏轮询少算。历史和汇总只在当前页内存，切换/清空/恢复重建观察，后台/离页取消不重叠轮询、阻止迟到回填；失效不冒充实时零速或旧速度。颜色和尺度分别走 theme/tokens。
+- 修改后执行 backend 的 `npm test`（含 `network-speed.test.js`）、frontend 的 `npm test` / `npm run build`，以及根目录 `node frontend/verify-network-speed.mjs`。浏览器验收使用临时服务、合成网卡及临时浏览器，不读真实数据库；另做本机真实 Windows 网卡只读冒烟并回收采集，不将合成流量或链路速率当实际互联网带宽验证。
+
 ## 更新器网络边界（F-OPS-003 / TASK-036）
 
 - `update-source.js` 规范化仓库地址；无文件配置才启用默认项目 Releases，显式空源继续关闭。源切换不得显示旧源检查结果，忙碌时不可改源。
@@ -81,13 +90,19 @@
 
 ## 开源工具接入边界（F-EXT-001～003 / TASK-034）
 
-- `/tools/yoinks`、`/tools/freellmapi`、`/tools/artcraft` 共用 `integration-api.js`，通过 `tool-access.js` 按 Local/Lan 模式校验真实来源、服务器 Host 与浏览器同源上下文；写请求要求 JSON 和 `X-Toolbox-Integration: 1`，禁止任意代理、自由进程参数或自动安装器。
+- `/tools/yoinks`、`/tools/freellmapi`、`/tools/artcraft` 共用 `integration-api.js`，通过 `tool-access.js` 按 Local/Lan 模式校验真实来源、服务器 Host 与浏览器同源上下文；写请求要求 JSON 和 `X-Toolbox-Integration: 1`，禁止任意代理、自由进程参数或网页自动安装器。TASK-041允许显式维护/发布命令准备固定下载组件，不得扩展成浏览器传URL的安装接口。
 - `integration-common.js` 负责独立机器配置 `data/open-source-tools.json`、路径/回环地址验证与进程执行。配置版本 1 仅保存路径和地址，原子保存并拒绝覆盖损坏文件，不进 SQLite/团队备份。进程使用参数数组、隐藏窗口、禁用 Shell、输出/超时限制，取消进程树只按本轮 PID。
 - `yoinks.js` 使用 Yoinks 的 yt-dlp 核心方案，不运行 TUI；禁用外部配置、插件搜索和播放列表，不读取浏览器 Cookie。票据只在内存，下载十五分钟、成品 1 GiB、单次下载临时目录 2 GiB、最多三份十分钟结果。只写随机临时目录，复核媒体文件边界/类型/大小，经本机保护接口领取；取消、离页、超时与正常退出清理。进度不得冒充整项完成；未安装明确未就绪，上游许可见 OPEN_SOURCE_INTEGRATIONS。
 - `freellmapi.js` 只访问回环 `/v1/models?available=true` 和 `/v1/chat/completions`，不跟随重定向。统一 Key 只存后端内存、不回传/落盘，切换地址清除旧 Key，配置和请求互斥。最多九轮完整历史/48000 字、单条/回答 12000 字；消费文本 SSE，不执行工具调用，必须有结束标记。请求 120 秒/2 MiB，取消/断连/退出中止；停止/失败片段不进入历史，清空阻止迟到回填，不保证供应商费用或停止行为。
 - `artcraft.js` 只确认启动已保存、重新验证的 ArtCraft.exe，无自由参数、原生协议或结束进程。只报告启动请求，原生画布在自身窗口，不把网页预览当完整编辑器。提示词只在当前页，不自动注入，不读取其账号、Key 或素材。
 - `integrations.css` 引用 tokens/theme，`IntegrationDialog.vue` Teleport 到 body 并处理 Escape/焦点恢复；日志不记录输入、链接、Key 或模型结果。
 - 修改后运行 backend 的 `npm test`（含 `integrations.test.js`）、前端 `npm run build` 和根目录 `node frontend/verify-integrations.mjs`。验收用临时文件、离线执行器、模拟回环模型服务和临时浏览器，不访问团队数据库、真实模型账户或已有桌面程序；不得把合成验证描述为真实外站下载/模型推理/原生应用验收。
+
+### 内置下载组件（TASK-041）
+
+- `vendor/media/win32-x64`为Git忽略的成品，`scripts/media-tools.lock.json`固定官方HTTPS资产/大小/SHA256。显式`prepare-media-tools.mjs`支持准备/离线检查/白名单暂存，最多4段并发/组件、每段150秒/3次，gzip30秒及成品大小上限；摘要通过后才替换，失败保留旧成品，缓存仅在build。发布必须带组件版本、全部许可及来源/源码说明，不提交二进制。
+- 自动检测顺序为明确自定义、本产品组件、PATH/Yoinks缓存；不能坏自定义路径时静默改用其他工具。新版yt-dlp使用当前Node的固定JS运行时参数，禁止远程组件/配置/插件，原取消与结果边界不变。网页只提供恢复空路径，不能联网安装/自更新引擎。
+- 修改后运行完整后端（含media-tools.test.js）、前端构建、TT_VERIFY_LAN=1的verify-integrations.mjs，以及显式组件检查/真实引擎及隔离暂存验收；不将合成媒体或本机HTTP当作真实外站下载验证。独立设备调试工具不增加下载依赖。
 
 ## 地球光照边界（F-SUN-001）
 
@@ -100,7 +115,7 @@
 
 ## 安卓调试边界（F-ADB-001）
 
-- ADB 仅在服务器执行，模块 API 按 F-OPS-005 支持 Local/Lan，检查真实连接来源及服务器 Host；保留浏览器来源检查、JSON 和专用请求头要求，不信任代理转发头。仅 `POST /api/android/persistent/upload`、`POST /api/android/apk/install` 与 `POST /api/android/apk/install-batch` 接受带专用头的 `application/octet-stream`，不得放宽其他接口的 JSON 要求。
+- ADB 仅在服务器执行，模块 API 按 F-OPS-005 支持 Local/Lan，检查真实连接来源及服务器 Host；保留浏览器来源检查、JSON 和专用请求头要求，不信任代理转发头。仅 `POST /api/android/persistent/upload`、`POST /api/android/apk/inspect`、`POST /api/android/apk/install` 、`POST /api/android/apk/install-batch` 与 `POST /api/android/apk/install-many` 接受带专用头的 `application/octet-stream`，不得放宽其他接口的 JSON 要求。
 - 进程调用使用参数数组、禁用本机 Shell、隐藏窗口、输出限制、超时与取消；自定义命令限 TASK-026 的已保存 ID、版本及确认执行，不增加临时自由执行接口或全局断开。
 - 六位码配对只使用短期缓存的 mDNS 配对服务；二维码配对只匹配当前短期会话生成的随机服务名。六位码与二维码随机口令仅经 stdin 传给 ADB，禁止写入进程参数、文件或日志。二维码内容仅在会话创建响应中返回当前通过访问校验的页面，状态接口不得回传口令。
 - 文件夹扫描必须异步、有深度/目录/条目/结果/时间上限，不跟随子目录链接；多个 ADB 候选由用户选择，校验版本成功后才能保存。兼容既有可执行文件路径和 `ADB_PATH`，不需要 SQLite 或配置结构迁移。
@@ -154,3 +169,16 @@
 - 两产品共享android-persistent与专用Vue面板。仅当前Android用户的标准外部files目录，明确在线设备/已安装包名；固定脚本逐级拒绝符号链接/越级，脚本及参数分别POSIX转义，不开放自由路径或命令。
 - 浏览1000项，预览256KiB，单文件上传/下载256MiB；流式私有临时文件，读取/替换SHA256复核。添加拒绝同名；替换必须选择原文件并确认。不能自动停止App，无法锁住App写入，帮助说明并发限制。
 - 二进制仅专用upload，专用头/同源/真实网段保护不变。失败/取消/断连/退出回收进程与临时文件，日志不含正文；不入数据库/备份。运行android-persistent.test.js与verify-android-persistent.mjs，真机另验。
+
+## 查看 APK 包名（F-ADB-003 / TASK-040）
+
+- apk/inspect独立于ADB配置/设备，只接收单个APK流；专用头、同源和真实网段规则不变，仅此精确端点新增二进制许可。不能执行/安装APK、运行SDK或接收本机路径。
+- 复用流式临时接收，单任务、1GiB APK、16MiB清单、五分钟总限；有界ZIP及二进制XML、CRC/长度校验，拒绝损坏/重复/加密清单和资源引用包名。取消/断连/离页/后台/退出回收，日志不记包名/文件名/正文，不入数据库或备份。
+- 修改后执行android-apk-info.test.js、两后端完整测试/前端构建、verify-android-apk-info.mjs及安卓回归；验收使用合成APK/隔离浏览器，不安装到真实手机。
+- `frontend/verify-android-apk-info.mjs` 覆盖无ADB读取、UTF8/UTF16、复制/失败重试、换文件/清空、错误恢复、取消/后台/离页及明暗布局；可补充公开APK哈希与源码包名核对，不得把只读解析当作手机安装验收。
+
+## 多 APK 安装队列（F-ADB-001 / TASK-042）
+
+- /apk/install-many是唯一新增二进制端点，保持专用头、同源、真实网段和明确确认；64KiB元数据、1～20包/设备、每包1GiB及总4GiB，流式随机私有暂存，全部APK校验后才能执行。禁止接受路径或自由ADB参数。
+- 最多两设备并行、每台按文件顺序串行，每项五分钟/队列一小时；单项失败继续。可确认精确失败任务矩阵，不能以失败设备与文件的笛卡尔积误装成功项。取消/断连/后台/离页/退出停止全部活动/后续任务，等待全部工作线程退出后清理。保留旧单包安装端点。
+- 执行android-apk-queue.test.js、完整后端/构建、原安卓和新多APK浏览器回归，两产品及最终发布包同步验证；只用离线执行器和合成APK，不声称真机完成。

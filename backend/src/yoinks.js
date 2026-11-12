@@ -3,10 +3,12 @@ import { createReadStream } from 'node:fs';
 import { join, basename, dirname, extname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { fields, problem, detectExecutable, executablePath, runIntegrationProcess } from './integration-common.js';
+import { appRoot, fields, problem, detectExecutable, executablePath, executableSource, runIntegrationProcess } from './integration-common.js';
 
 const MiB = 1024 * 1024;
 const commonArgs = ['--ignore-config', '--no-plugin-dirs', '--no-playlist', '--no-warnings', '--no-cache-dir', '--socket-timeout', '20', '--retries', '1', '--extractor-retries', '1'];
+// 新版yt-dlp的EJS解析复用当前Node，不依赖用户PATH或自动获取远程组件。
+const runtimeArgs = tools => tools.version.slice(0, 10) >= '2025.11.12' ? ['--no-js-runtimes', '--js-runtimes', `node:${process.execPath}`, '--no-remote-components'] : [];
 const mediaExtensions = new Set(['.mp4', '.webm', '.mkv', '.mov', '.m4a', '.mp3', '.ogg', '.opus', '.flv', '.avi', '.wav']);
 
 export function videoUrl(value) {
@@ -27,14 +29,15 @@ export function videoChoices(info, hasFfmpeg) {
     return choices;
 }
 
-export function createYoinksService({ config, runner = runIntegrationProcess, detector = detectExecutable, temporaryRoot = tmpdir(), now = Date.now, retentionMs = 10 * 60 * 1000, maxFileBytes = 1024 * MiB, downloadTimeoutMs = 15 * 60 * 1000 } = {}) {
+export function createYoinksService({ config, runner = runIntegrationProcess, detector = detectExecutable, componentRoot = appRoot, temporaryRoot = tmpdir(), now = Date.now, retentionMs = 10 * 60 * 1000, maxFileBytes = 1024 * MiB, downloadTimeoutMs = 15 * 60 * 1000 } = {}) {
     const probes = new Map(), results = new Map();
     let active = null, disposed = false;
     async function tools() {
         const value = await config.read();
-        const ytDlpPath = await detector('ytDlp', value.ytDlpPath).catch(() => '');
-        const ffmpegPath = await detector('ffmpeg', value.ffmpegPath).catch(() => '');
-        return { ytDlpPath, ffmpegPath, configuredYtDlpPath: value.ytDlpPath, configuredFfmpegPath: value.ffmpegPath, ready: !!ytDlpPath, ffmpegReady: !!ffmpegPath };
+        const ytDlpPath = await detector('ytDlp', value.ytDlpPath, { root: componentRoot }).catch(() => '');
+        const ffmpegPath = await detector('ffmpeg', value.ffmpegPath, { root: componentRoot }).catch(() => '');
+        return { ytDlpPath, ffmpegPath, configuredYtDlpPath: value.ytDlpPath, configuredFfmpegPath: value.ffmpegPath,
+            ytDlpSource: executableSource('ytDlp', ytDlpPath, value.ytDlpPath, { root: componentRoot }), ffmpegSource: executableSource('ffmpeg', ffmpegPath, value.ffmpegPath, { root: componentRoot }), ready: !!ytDlpPath, ffmpegReady: !!ffmpegPath };
     }
     async function exclusive(signal, work) {
         if (disposed) throw problem('closed', '服务正在关闭', 503);
@@ -47,7 +50,7 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
         try { return await operation.done; } finally { if (active === operation) active = null; }
     }
     async function checkTools(value, signal) {
-        if (!value.ytDlpPath) throw problem('missing_dependency', '未找到 yt-dlp，请在组件设置中填写路径，或先安装 Yoinks 并运行一次');
+        if (!value.ytDlpPath) throw problem('missing_dependency', '下载引擎缺失，请使用包含内置组件的完整工具箱，或在组件设置中选择已有 yt-dlp');
         const version = await runner(value.ytDlpPath, ['--ignore-config', '--version'], { signal, timeout: 10000, maxBytes: 65536 });
         if (version.code !== 0 || !/^\d{4}\.\d{2}\.\d{2}/.test(version.stdout.trim())) throw problem('invalid_executable', 'yt-dlp 版本检测失败，请选择官方组件');
         if (value.ffmpegPath) {
@@ -62,7 +65,7 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
         return exclusive(signal, async combined => {
             const ytDlpPath = body.ytDlpPath ? await executablePath(body.ytDlpPath, 'ytDlp') : '';
             const ffmpegPath = body.ffmpegPath ? await executablePath(body.ffmpegPath, 'ffmpeg') : '';
-            const detected = { ytDlpPath: await detector('ytDlp', ytDlpPath), ffmpegPath: await detector('ffmpeg', ffmpegPath) };
+            const detected = { ytDlpPath: await detector('ytDlp', ytDlpPath, { root: componentRoot }), ffmpegPath: await detector('ffmpeg', ffmpegPath, { root: componentRoot }) };
             // 允许保存空配置，明确保留未安装状态；用户指定的文件必须通过版本检查。
             if (detected.ytDlpPath) await checkTools(detected, combined);
             else if (ffmpegPath) {
@@ -78,7 +81,7 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
         fields(body, ['url']); const url = videoUrl(body.url);
         return exclusive(signal, async combined => {
             const value = await checkTools(await tools(), combined);
-            const output = await runner(value.ytDlpPath, [...commonArgs, '--dump-single-json', '--skip-download', '--', url], { signal: combined, timeout: 60000, maxBytes: 4 * MiB });
+            const output = await runner(value.ytDlpPath, [...commonArgs, ...runtimeArgs(value), '--dump-single-json', '--skip-download', '--', url], { signal: combined, timeout: 60000, maxBytes: 4 * MiB });
             if (output.code !== 0) throw problem('probe_failed', '无法读取视频：请检查链接、网络、网站限制及 yt-dlp 版本；不支持需要登录的内容', 502);
             let info;
             try { info = JSON.parse(output.stdout); } catch { throw problem('invalid_output', 'yt-dlp 返回的视频信息无效', 502); }
@@ -124,7 +127,7 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
             monitor.unref?.();
             try {
                 emit({ type: 'start', message: '正在下载，完成后可能需要合并或转换' });
-                const args = [...commonArgs, ...choice.args, '--no-simulate', '--newline', '--no-quiet', '--progress', '--progress-delta', '0.5', '--max-filesize', String(maxFileBytes), '--progress-template', 'download:TOOLBOX_PROGRESS|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.speed)s|%(progress.eta)s', '--print', 'after_move:TOOLBOX_FILE|%(filepath)s', '-o', join(directory, 'media.%(ext)s')];
+                const args = [...commonArgs, ...runtimeArgs(probe.tools), ...choice.args, '--no-simulate', '--newline', '--no-quiet', '--progress', '--progress-delta', '0.5', '--max-filesize', String(maxFileBytes), '--progress-template', 'download:TOOLBOX_PROGRESS|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.speed)s|%(progress.eta)s', '--print', 'after_move:TOOLBOX_FILE|%(filepath)s', '-o', join(directory, 'media.%(ext)s')];
                 if (probe.tools.ffmpegPath) args.push('--ffmpeg-location', probe.tools.ffmpegPath);
                 args.push('--', probe.url);
                 const output = await runner(probe.tools.ytDlpPath, args, { signal: operationSignal, timeout: downloadTimeoutMs, maxBytes: 2 * MiB, cwd: directory, onLine: line => {

@@ -6,11 +6,11 @@ TASK-034 / F-EXT-001～003。操作见 [用户指南第 9 节](USER_GUIDE.md#9-�
 
 | 项目 | 工具箱提供 | 用户需要准备 |
 |---|---|---|
-| [Yoinks](https://github.com/pablostanley/yoinks) | 网页分析链接、选择清晰度 / MP3、下载进度、取消和保存；适配其 yt-dlp 核心方案 | 本机 [yt-dlp](https://github.com/yt-dlp/yt-dlp/releases)；高清合并 / MP3 另需 [ffmpeg](https://ffmpeg.org/download.html)，可复用已有 Yoinks 的组件 |
+| [Yoinks](https://github.com/pablostanley/yoinks) | 网页分析链接、选择清晰度 / MP3、下载进度、取消和保存；适配其 yt-dlp 核心方案 | Windows 完整包内置 yt-dlp、ffmpeg/ffprobe；也可明确配置或复用已有 Yoinks 的组件 |
 | [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) | 本机服务配置、统一 Key 内存管理、实际模型列表、流式文本聊天、取消和原管理页入口 | 已运行的 FreeLLMAPI、统一 API Key，以及上游供应商 Key / 本地模型端点 |
 | [ArtCraft](https://github.com/storytold/artcraft) | 提示词整理 / 编辑 / 复制、本机路径检测与确认启动 | 官方 Windows ArtCraft；模型、账号和素材在 ArtCraft 内配置 |
 
-工具箱不自动运行 npm/npx、安装器或任意脚本，不捆绑三者的完整源码、二进制或模型。Yoinks 的终端 TUI 没有可直接嵌入的浏览器界面，网页共享其下载核心思路；ArtCraft 依赖 Rust/Tauri 和原生 IPC，编辑器在自身窗口运行。FreeLLMAPI 的推理与管理登录接口分开，工具箱只接入推理，供应商及路由配置在原管理页完成。界面不承诺所有模型免费或所有视频网站可用。
+网页不自动运行 npm/npx、安装器或任意脚本。Windows 工具箱只内置固定下载引擎，不捆绑 Yoinks 终端程序、FreeLLMAPI 服务、ArtCraft 编辑器或模型。Yoinks 的终端 TUI 没有可直接嵌入的浏览器界面，网页共享其下载核心思路；ArtCraft 依赖 Rust/Tauri 和原生 IPC，编辑器在自身窗口运行。FreeLLMAPI 的推理与管理登录接口分开，工具箱只接入推理，供应商及路由配置在原管理页完成。界面不承诺所有模型免费或所有视频网站可用。
 
 ## 数据边界
 
@@ -25,7 +25,15 @@ TASK-034 / F-EXT-001～003。操作见 [用户指南第 9 节](USER_GUIDE.md#9-�
 - Yoinks：参考版本 0.3.1 的 `src/lib/ytdlp.ts` 中清晰度选择、MP3 参数及下载阶段。上游采用 MIT，版权及许可全文如下。
 - FreeLLMAPI：依据 [REST API](https://github.com/tashfeenahmed/freellmapi/blob/main/docs/en/api/01-rest-api.md)、[安装说明](https://github.com/tashfeenahmed/freellmapi/blob/main/docs/en/install/01-install.md)；[MIT LICENSE](https://github.com/tashfeenahmed/freellmapi/blob/main/LICENSE)，Copyright (c) 2026 Tashfeen Ahmed。未复制其应用源码。
 - ArtCraft：依据 [开发说明](https://github.com/storytold/artcraft/blob/main/_docs/dev_setup.md)；采用 [MIT](https://github.com/storytold/artcraft/blob/main/LICENSE-MIT) / [Apache-2.0](https://github.com/storytold/artcraft/blob/main/LICENSE-APACHE) 双许可并含 [NOTICE](https://github.com/storytold/artcraft/blob/main/NOTICE)。未复制其应用源码；未来若分发其源码或二进制，须保留适用许可及 NOTICE。
-- yt-dlp、ffmpeg 由用户独立安装，许可和编译条件以下载包为准，本任务未重新分发二进制。
+- 内置 yt-dlp / FFmpeg 的固定版本、文件摘要与许可遵循下节；用户选择其他版本时以对应下载包许可为准。
+
+## 内置下载组件（TASK-041）
+
+- yt-dlp Windows x64：锁定 [2026.10.26](https://github.com/yt-dlp/yt-dlp/releases/tag/2026.10.26) 的 `yt-dlp.exe`。项目源码为 Unlicense；官方 PyInstaller 独立程序含 GPLv3+ 等第三方代码，组合二进制按官方 [许可说明](https://github.com/yt-dlp/yt-dlp/blob/2026.10.26/README.md#license) 与 [第三方许可全文](https://github.com/yt-dlp/yt-dlp/blob/2026.10.26/THIRD_PARTY_LICENSES.txt) 分发。成品目录带 `yt-dlp-LICENSE.txt` 和 `yt-dlp-THIRD-PARTY-LICENSES.txt`；对应源码及构建入口在[同版本源码](https://github.com/yt-dlp/yt-dlp/tree/2026.10.26)。
+- ffmpeg / ffprobe：使用 [ffmpeg-static b6.1.1](https://github.com/eugeneware/ffmpeg-static/releases/tag/b6.1.1) 发布的 Windows x64 Gyan 6.1.1 essentials 静态构建，GPLv3。成品带上原始 `FFmpeg-LICENSE.txt`、`FFmpeg-README.txt`，后者包含构建参数与库版本；FFmpeg源码为 [e38092ef93](https://github.com/FFmpeg/FFmpeg/commit/e38092ef93)，构建来源见 [Gyan](https://www.gyan.dev/ffmpeg/builds/) 和 [ffmpeg-static 构建仓库](https://github.com/eugeneware/ffmpeg-static/tree/b6.1.1)。未修改这些二进制；它们以独立子进程运行。
+- `scripts/media-tools.lock.json` 固定每个 HTTPS 地址、大小和 SHA256；`prepare-media-tools.mjs` 显式准备并校验下载/解压成品。最大四个分段并发/组件、每段150秒且最多三次，失败保留已完成分段，完整摘要通过后才采用；gzip解压30秒及100MiB以内，失败不会用坏文件替换既有组件。
+- 成品只在 `vendor/media/win32-x64`，不进入 Git。`--check` 离线验证全部组件与许可，`--stage <目录>` 只暂存白名单并再次核验；发布脚本执行同一流程。更新固定组件时须同时更新摘要、版本、许可和来源记录，不能直接运行 `yt-dlp -U` 绕过锁文件。
+- 本产品组件优先于 PATH / `.yoinks/bin`，手动路径仍优先；清空覆盖恢复自动识别。新版 yt-dlp 使用工具箱自身 Node 进行 EJS JavaScript 解析，禁用远程组件获取；不修改系统 PATH，不引入Python安装要求。
 
 ### Yoinks MIT License
 

@@ -33,6 +33,13 @@ export default {
             tools: [
                 ...integrationTools.map(tool => ({ ...tool, status: '可用' })),
                 {
+                    id: 'network-speed',
+                    name: '实时网速',
+                    desc: '实时查看服务器电脑网卡的上传、下载速度与流量趋势',
+                    routeName: 'tool-network-speed',
+                    status: '可用'
+                },
+                {
                     id: 'unity-logs',
                     name: 'Unity 设备日志',
                     desc: '搜索同局域网 Android / iPad，读取与下载历史日志',

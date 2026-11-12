@@ -7,6 +7,25 @@
 :root {
     --adb-file-list-height: 340px;
     --adb-file-preview-height: 280px;
+    /* 实时网速 */
+    --net-page-width: 1400px;
+    --net-gap-xs: 6px;
+    --net-gap-sm: 10px;
+    --net-gap-md: 16px;
+    --net-gap-lg: 22px;
+    --net-border: 1px;
+    --net-focus: 2px;
+    --net-dot: 7px;
+    --net-select-min-width: 210px;
+    --net-control-height: 40px;
+    --net-caption-size: 12.5px;
+    --net-speed-size: 44px;
+    --net-arrow-size: 36px;
+    --net-number-spacing: -1px;
+    --net-chart-height: 242px;
+    --net-legend-width: 18px;
+    --net-line-width: 2px;
+    --net-dash: 5 4;
     --clipboard-size: 1px;
     /* ── 字体层级（高信息密度：主标题克制，不做超大字号）───────────── */
     --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",

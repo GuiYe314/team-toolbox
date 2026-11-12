@@ -1,0 +1,52 @@
+.net-page { max-width: var(--net-page-width); margin: 0 auto; display: flex; flex-direction: column; gap: var(--net-gap-lg); }
+.net-header { display: flex; flex-direction: column; gap: var(--net-gap-md); align-items: flex-start; }
+.net-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--net-gap-md); width: 100%; }
+.net-actions, .net-legend { display: flex; align-items: center; gap: var(--net-gap-sm); flex-wrap: wrap; }
+.net-panel, .net-rate-card { background: var(--panel-background); border: var(--net-border) solid var(--panel-border); border-radius: var(--radius-md); padding: var(--net-gap-lg); min-width: 0; }
+.net-adapter-panel { display: flex; align-items: center; gap: var(--net-gap-lg); flex-wrap: wrap; }
+.net-adapter-picker { display: flex; flex-direction: column; gap: var(--net-gap-xs); flex: 1; min-width: var(--net-select-min-width); }
+.net-adapter-picker label, .net-adapter-info span, .net-chart-footer, .net-chart-heading p, .net-help p { color: var(--text-secondary); font-size: var(--net-caption-size); }
+.net-select { color: var(--net-select-text); background: var(--net-select-background); border: var(--net-border) solid var(--panel-border); border-radius: var(--radius-sm); height: var(--net-control-height); width: 100%; padding: 0 var(--net-gap-sm); font: inherit; }
+.net-select option { background: var(--net-select-background); color: var(--net-select-text); }
+.net-select:focus-visible { outline: var(--net-focus) solid var(--focus-ring); outline-offset: var(--net-border); }
+.net-adapter-info { flex: 1; min-width: var(--net-select-min-width); display: flex; flex-direction: column; gap: var(--net-gap-xs); overflow-wrap: anywhere; }
+.net-adapter-info strong { font-size: var(--text-body); font-weight: var(--weight-medium); }
+.net-status { display: inline-flex; align-items: center; gap: var(--net-gap-xs); font-size: var(--net-caption-size); color: var(--text-secondary); padding: var(--net-gap-xs) var(--net-gap-sm); background: var(--panel-background-hover); border-radius: var(--radius-pill); white-space: nowrap; }
+.net-status i { width: var(--net-dot); height: var(--net-dot); border-radius: var(--radius-pill); background: currentColor; }
+.net-status.is-live { color: var(--text-primary); background: var(--success-soft); }
+.net-notice { display: flex; align-items: center; justify-content: space-between; gap: var(--net-gap-md); color: var(--text-primary); background: var(--warning-soft); padding: var(--net-gap-sm) var(--net-gap-md); border-radius: var(--radius-sm); }
+.net-rates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--net-gap-md); }
+.net-download { color: var(--accent); }
+.net-upload { color: var(--success); }
+.net-rate-heading { display: flex; align-items: center; gap: var(--net-gap-sm); }
+.net-rate-heading h2, .net-chart-heading h2 { color: var(--text-primary); font-size: var(--text-section-title); margin: 0; font-weight: var(--weight-semibold); }
+.net-rate-heading > span:last-child { margin-left: auto; color: var(--text-secondary); font-size: var(--net-caption-size); }
+.net-arrow { display: inline-flex; align-items: center; justify-content: center; width: var(--net-arrow-size); height: var(--net-arrow-size); border-radius: var(--radius-sm); background: var(--accent-soft); }
+.net-upload .net-arrow { background: var(--success-soft); }
+.net-rate { display: flex; align-items: baseline; gap: var(--net-gap-sm); margin-top: var(--net-gap-md); font-variant-numeric: tabular-nums; }
+.net-rate strong { font-size: var(--net-speed-size); font-weight: var(--weight-semibold); line-height: var(--line-tight); letter-spacing: var(--net-number-spacing); }
+.net-rate > span { color: var(--text-secondary); font-size: var(--text-section-title); font-weight: var(--weight-medium); }
+.net-bits { margin: var(--net-gap-xs) 0 var(--net-gap-lg); color: var(--text-secondary); font-size: var(--net-caption-size); }
+.net-rate-details { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--net-gap-sm); border-top: var(--net-border) solid var(--panel-border); padding-top: var(--net-gap-md); }
+.net-rate-details dt { color: var(--text-secondary); font-size: var(--net-caption-size); }
+.net-rate-details dd { margin: var(--net-gap-xs) 0 0; font-size: var(--text-body); font-weight: var(--weight-medium); color: var(--text-primary); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.net-chart-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--net-gap-md); }
+.net-chart-heading p { margin: var(--net-gap-xs) 0 0; }
+.net-legend span { color: var(--text-secondary); display: flex; align-items: center; gap: var(--net-gap-xs); font-size: var(--net-caption-size); }
+.net-legend i { display: block; width: var(--net-legend-width); border-top: var(--net-line-width) solid currentColor; }
+.net-chart-wrap { position: relative; margin-top: var(--net-gap-md); }
+.net-chart { width: 100%; display: block; height: var(--net-chart-height); }
+.net-grid { fill: none; stroke: var(--panel-border); stroke-width: var(--net-border); vector-effect: non-scaling-stroke; }
+.net-axis { fill: var(--text-secondary); font-size: var(--net-caption-size); font-family: var(--font-sans); }
+.net-line { fill: none; stroke-width: var(--net-line-width); stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.net-download-line { stroke: var(--accent); }
+.net-upload-line { stroke: var(--success); stroke-dasharray: var(--net-dash); }
+.net-chart-empty { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: var(--text-body); color: var(--text-secondary); margin: 0; }
+.net-chart-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--net-gap-md); flex-wrap: wrap; }
+.net-help summary { cursor: pointer; color: var(--text-primary); font-size: var(--text-body); font-weight: var(--weight-medium); }
+.net-help p { line-height: var(--line-relaxed); margin: var(--net-gap-sm) 0 0; }
+@media (max-width: 1300px) { .net-rate-details { grid-template-columns: 1fr; } }
+
+.net-status.is-live i { background: var(--success); }
+.net-legend .net-download i { color: var(--accent); }
+.net-legend .net-upload i { color: var(--success); }

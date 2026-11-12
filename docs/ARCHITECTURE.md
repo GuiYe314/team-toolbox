@@ -1,5 +1,12 @@
 # 架构说明（ARCHITECTURE）
 
+## 实时网速（2026-11-11，TASK-037 / F-NET-001）
+
+- 决策：沿用 Vue / Express，无新增依赖或持久化结构。`network-speed.js` 负责固定 Windows PowerShell 采集进程、uint64 累计计数差值、源端单调时钟间隔、状态和资源边界；`network-speed-api.js` 只提供共用 Local/Lan 策略保护的不缓存快照。
+- 所有页面共享一个隐藏、禁用 Shell 的按需进程；启动/采样看门狗、有限 UTF-8 NDJSON 行和适配器数量、十秒无人请求释放、异常冷却及退出清理。采样错误不回传原始 stderr；断网/计数回退/新网卡/长间隔重建基线，不把旧值当实时数据。
+- `NetworkSpeed.vue` 管理单网卡选择、可取消且不重叠的轮询、只在当前页面的 60 秒曲线和观察期汇总。优先在线物理网卡，不求和虚拟接口；切换/清空/暂停恢复重建观察记录。隐藏/离页取消并阻止迟到回填，其他页面不受影响。CSS 复用主题并将尺度放 tokens，所有接口只读，不做外站测速/抓包/应用级归因。
+- 验证：完整后端离线测试、前端构建及 `frontend/verify-network-speed.mjs` 隔离浏览器；真实 Windows 另做只读网卡计数冒烟，不生成测试下载或修改网络。非 Windows 明确返回不支持，不影响其他工具。
+
 ## GitHub 项目更新源（2026-11-11，TASK-036）
 
 - 沿用 F-OPS-003 的完整发布包升级链；`update-source.js` 统一规范化仓库 HTTPS 地址与配置来源，未配置时使用项目 Releases 默认源，已有环境变量/文件及显式空源优先。页面不主动联网检查或安装。
@@ -39,7 +46,7 @@
 ## 安卓无线调试模块补充（2026-11-05）
 
 - TASK-019 / F-ADB-001：前端 `/tools/android-wireless` → `/api/android/*` → 独立 ADB 服务，沿用 Vue 与 Express，不依赖浏览器直接访问 USB 或运行本机命令。
-- ADB 安装于服务器；模块按 F-OPS-005 的 Local/Lan 模式允许本机或实际同网段访问，写请求检查 JSON、自定义请求头和浏览器同源上下文。仅 `POST /api/android/apk/install` 与 `POST /api/android/apk/install-batch` 使用 `application/octet-stream` 上传，仍检查网络来源、同源上下文与专用头；其他接口不放行二进制。常规知识库/资源库的受控内网访问边界保持原约定。
+- ADB 安装于服务器；模块按 F-OPS-005 的 Local/Lan 模式允许本机或实际同网段访问，写请求检查 JSON、自定义请求头和浏览器同源上下文。仅 `POST /api/android/apk/inspect`、`POST /api/android/apk/install`、`POST /api/android/apk/install-batch` 与 `POST /api/android/persistent/upload` 使用 `application/octet-stream` 上传，仍检查网络来源、同源上下文与专用头；其他接口不放行二进制。常规知识库/资源库的受控内网访问边界保持原约定。
 - 服务使用内置参数列表或已保存自定义命令的校验结果，以 `spawn`、`shell: false`、隐藏窗口、限量捕获、超时和取消执行。执行接口以命令 ID 解析参数；HOME 设置仅增加严格校验的组件与当前用户字段，其他命令拒绝这两个字段。自定义命令必须确认目标、内容和版本，不提供临时自由执行或全局断开接口。
 - 配对只接受短期缓存的 mDNS 配对服务；六位配对码走 stdin，并在返回结果中脱敏。操作日志仅记录动作、成功/失败与错误码。
 - 服务器本地 ADB 路径以临时文件加替换保存至 `data/android-adb.json`，环境变量 `ADB_PATH` 优先；属于机器配置，不加入团队文档备份。发现结果、设备与配对码不持久化，无 SQLite 迁移。
@@ -175,6 +182,19 @@
 - 版本控制：结构迁移与测试样例可提交；真实数据库、日志与备份不提交 GitHub。SQLite 日志/辅助文件同样忽略。
 - 验收：空库初始化、迁移失败处理、重启读取、事务回滚、外键关联、并发版本冲突、不可写目录/忙锁反馈和隔离数据恢复均需要实测。增加用户规模或部署实例前重新评估数据库方案。
 
+
 ## Unity persistentDataPath 文件管理（2026-11-12 / TASK-039）
 
 `android-persistent.js`负责当前用户/已安装应用/标准外部目录定位、固定shell协议、路径隔离、目录/内容读取与确认版本替换。`android-persistent-api.js`单独注册在安卓router，共用真实网络/同源/专用头保护，仅其upload端点允许二进制；`AndroidPersistentFiles.vue`与`android-persistent-client.js`独立封装视图和传送，原安卓页面负责互斥状态与配置生命周期。两产品模块代码保持一致，不引入持久化结构或依赖。替换以用户主动选择+确认、版本检查和SHA256核验保护，无法阻止App并发写入，指南提醒先关闭App并下载备份。
+
+## APK 包名读取（TASK-040 / F-ADB-003）
+
+android-apk-manifest.js负责有界二进制XML解析；android-apk-info.js复用原APK流式临时接收/ZIP结构检查，读取根清单并校验CRC，不运行外部进程或依赖SDK。安卓服务注册独立单任务读取器，API仅对精确inspect端点接受二进制，仍走同源及真实网段保护。AndroidApkInfo.vue和专用客户端管理上传、复制、取消与迟到结果，不依赖ADB配置或设备。无新增依赖/持久化结构；两产品源码一致，任务结果只在当前页。
+
+## 内置下载引擎（TASK-041）
+
+固定组件放在Git忽略的vendor/media/win32-x64，版本/下载URL/大小/摘要由scripts/media-tools.lock.json管理。显式维护脚本准备与校验，发布构建复制已校验清单，不允许网页传入下载地址或执行安装器。integration-common优先检测本产品组件，自定义路径仍优先；yoinks固定使用当前Node处理JS解析，不启用远程组件。Vue设置可清空覆盖恢复内置，原下载/取消/结果领取接口与机器配置格式不变。独立设备调试分支不接入。
+
+## 多APK队列（TASK-042）
+
+android-apk-queue.js解析专用长度前缀元数据与连续APK流，严格验证数量/大小/目标/任务矩阵并临时落盘；同一ADB独占锁内调度最多两台设备，每台串行，逐项复核在线状态及install -r输出。全部工作线程退出后才清理，失败重试只接受已确认矩阵，日志不记文件名/设备输出；不增加依赖或持久化。旧单包接口不变。

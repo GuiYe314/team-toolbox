@@ -21,12 +21,12 @@ const temporary = await mkdtemp(join(tmpdir(), 'tt-integrations-ui-'));
 assert.ok(resolve(temporary).startsWith(resolve(tmpdir()) + sep) && temporary.includes('tt-integrations-ui-'));
 const dist = join(root, 'frontend', 'dist'); assert.ok(existsSync(join(dist, 'index.html')), '先执行 npm run build');
 const browserProfile = join(temporary, 'browser'); await mkdir(browserProfile);
-const componentDir = join(temporary, 'components'); await mkdir(componentDir);
+const componentDir = join(temporary, 'vendor', 'media', 'win32-x64'); await mkdir(componentDir, { recursive: true });
 const paths = { ytDlp: join(componentDir, 'yt-dlp.exe'), ffmpeg: join(componentDir, 'ffmpeg.exe'), artcraft: join(componentDir, 'ArtCraft.exe') };
 for (const path of Object.values(paths)) await writeFile(path, 'isolated test component, never executed');
 const settingsFile = join(temporary, 'open-source-tools.json');
 const config = createIntegrationConfig(settingsFile);
-const state = { videoMode: 'success', videosCancelled: 0, videoActive: false, freeMode: 'success', freeCancelled: 0, chatRequests: [], launchRequests: [], apiLogs: [] };
+const state = { bundleReady: false, videoMode: 'success', videosCancelled: 0, videoActive: false, freeMode: 'success', freeCancelled: 0, chatRequests: [], launchRequests: [], apiLogs: [] };
 const delay = ms => new Promise(resolvePromise => setTimeout(resolvePromise, ms));
 const gateway = express(); gateway.use(express.json());
 const testKey = 'freellmapi-isolated-ui-key';
@@ -52,7 +52,7 @@ const listen = (app, host = '127.0.0.1') => new Promise(resolvePromise => { cons
 const gatewayServer = await listen(gateway);
 const gatewayBase = `http://127.0.0.1:${gatewayServer.address().port}/v1`;
 const service = createIntegrationServices({ config,
-    yoinksOptions: { temporaryRoot: temporary, detector: async (kind, path) => path ? executablePath(path, kind) : '', runner: async (file, args, options) => {
+    yoinksOptions: { componentRoot: temporary, temporaryRoot: temporary, detector: async (kind, path) => path ? executablePath(path, kind) : state.bundleReady ? paths[kind] : '', runner: async (file, args, options) => {
         if (args.includes('--version')) return { code: 0, stdout: '2026.10.22\n' };
         if (args.includes('-version')) return { code: 0, stdout: 'ffmpeg version isolated-test\n' };
         if (args.includes('--dump-single-json')) return { code: 0, stdout: JSON.stringify({ title: '隔离验收视频', uploader: '合成测试', duration: 60, formats: [{ vcodec: 'avc1', acodec: 'aac', height: 720 }] }) };
@@ -138,6 +138,10 @@ try {
     check('设置弹窗居中并在视口内', await evaluate("(()=>{const r=document.querySelector('.ext-dialog').getBoundingClientRect();return Math.abs((r.left+r.right)/2-innerWidth/2)<3 && r.top>=0 && r.bottom<=innerHeight})()"));
     await input('video-ytdlp', paths.ytDlp); await input('video-ffmpeg', paths.ffmpeg); await click('video-settings-save'); await wait("!document.querySelector('.ext-overlay')");
     check('组件检测成功后解除分析按钮依赖限制', await evaluate("document.querySelector('.ext-badge').textContent.includes('已找到')"));
+    state.bundleReady = true;
+    await click('video-settings'); await click('video-settings-bundled'); await wait("!document.querySelector('.ext-overlay')");
+    check('一键恢复内置组件后显示就绪状态和直接使用说明', await evaluate("document.querySelector('[data-test=video-engine-status]').textContent.includes('内置') && document.querySelector('[data-test=video-bundled-hint]').textContent.includes('MP3')"));
+    const restored = await config.read(); check('恢复内置清空手动路径覆盖且不保存下载结果', restored.ytDlpPath === '' && restored.ffmpegPath === '' && Object.keys(restored).length === 4);
     await input('video-url', 'https://example.com/watch?v=isolated'); await click('video-analyze'); await wait("!!document.querySelector('[data-test=video-info]')");
     check('视频分析提供清晰度与 MP3', await evaluate("document.querySelector('[data-test=video-info]').textContent.includes('隔离验收视频') && document.querySelector('[data-test=video-choice]').options.length===2"));
     await input('video-choice', 'audio-mp3'); await click('video-download'); await wait("!!document.querySelector('[data-test=video-progress]')");

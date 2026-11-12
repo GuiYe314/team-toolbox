@@ -23,6 +23,7 @@ AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 DefaultDirName={localappdata}\team-toolbox
+PrivilegesRequired=lowest
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=..\release

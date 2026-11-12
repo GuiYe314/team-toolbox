@@ -1,6 +1,52 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## TASK-042 多 APK 安装队列（2026-11-12）
+
+**两产品实现、最终构建和隔离验收完成，已纳入本轮发布文件。** 面板支持选择1～20个完整APK及1～20台设备；多文件时最多两台并行，每台按文件顺序安装，逐项反馈并精确重试失败的设备与文件组合。每包1GiB、整批4GiB，保留确认覆盖、取消及临时清理；不改变配置或数据库结构。
+
+- 原工具箱完整后端 **652/652（51 suites）**、前端计算 **19/19**，独立版后端 **223/223**；随包Node22.22.2的原安装、包名及多APK专项 **41/41**。两套最终生产构建通过，主线仅有既有大块体积提示。日志：build/v040-backend-final.log、v040-frontend-tests.log、v040-node22-apk.log；独立目录build/v020-backend-queue-final.log。
+- 两套最终多APK浏览器各 **23/23**、原安卓各 **187/187**、Unity文件各 **24/24**、APK包名各 **18/18**；独立导航/设置/合成Unity日志 **19/19**。覆盖单/多设备、多文件、失败后继续、精确重试、取消/后台/离页和明暗布局，无浏览器异常。证据：两目录build/final-verify-android-*.log，独立目录另有final-verify-device-debugger.log；多APK明暗截图已目视。
+- 最终ZIP包含对应源码与前端构建，完整包 **42/42** 生产检查、安装器及真实旧版隔离升级 **15/15**、运行时 **14/14**；独立ZIP/EXE **36/36**。详细范围与资产摘要见下方封版报告。多APK使用离线ADB与合成APK，不代表真实手机安装验收。
+
+
+## v0.4.0 封版（2026-11-12）
+
+**本地封版验收完成；远端发布待执行。** 用户已授权上传并发布，范围为TASK-037、TASK-039～042；源码及两份锁文件统一0.4.0。最终ZIP/EXE、生产Local/Lan启动、内置组件真实下载、实际安装卸载及真实v0.3.1隔离升级均已验证，详见[封版验收记录](acceptance/V0_4_0_RELEASE_2026-11-12.md)。最终资产摘要保存在本地build/final-publish-assets.json；后续只补文档，不重建已验收资产。
+
+下一步：检查暂存源码，推送main和新v0.4.0标签；草稿上传四份资产并核对远端大小/SHA256后正式发布为latest。独立device-debugger-v0.2.0保持非latest；既有发布标签和资产不覆盖。真实源码服务仍待按项目身份重启并进行新端点只读冒烟，远端结果另补本文件。
+
+## TASK-041 Yoinks 下载引擎内置（2026-11-12）
+
+**本地代码、内置组件、构建和实际下载验证完成。** 原网页已具备Yoinks的yt-dlp调用，但本机缺少组件；现增加本产品固定yt-dlp、ffmpeg/ffprobe，空配置优先自动识别，设置可恢复内置或选择已有版本。新版JS解析使用当前Node，网页及日常启动不联网安装引擎；没有新增依赖、机器配置格式或数据库迁移。
+
+- 固定官方 yt-dlp **2026.10.26**、ffmpeg/ffprobe **6.1.1 Windows x64**，下载资产、gzip成品及许可全文逐一SHA256核验。`node scripts/prepare-media-tools.mjs`实际准备成功，`--check`离线核验通过；版本与摘要位于scripts/media-tools.lock.json，来源与源码见OPEN_SOURCE_INTEGRATIONS。成品仅在Git忽略的vendor/media/win32-x64，未加入源码。证据：build/yoinks-components-prepare.log。
+- 完整后端 **642/642（51 suites）**，执行backend/package.json全部测试文件并加`--test-concurrency=2`，无跳过；随包Node22.22.2执行integration与组件专项 **37/37**。新增覆盖内置/自定义/PATH优先级、固定锁白名单、分段/并发/续传/完整摘要、坏包及解压限量、失败保留原组件、许可完整性和发布暂存。日志：build/yoinks-components-backend.log、yoinks-components-node22.log。首次默认并发启动大量Node进程曾遇VirtualAlloc/进程创建失败，降低并发后完整复验通过，未把该失败计为功能通过。
+- 最终前端生产构建通过，只有既有大块体积提示；`TT_VERIFY_LAN=1`的`frontend/verify-integrations.mjs` **49/49**，覆盖恢复内置及清空覆盖、视频/MP3保存与取消、错误/离页清理、另外两工具回归、Teleport/焦点、明暗主题和1280布局，浏览器异常为0。日志：build/yoinks-components-build.log、yoinks-components-browser.log；build/integrations-yoinks-light.png与dark.png已目视检查。
+- 使用实际内置引擎读取公开[MDN CC0花朵视频](https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4)，完成视频下载、MP3提取、领取字节数及ffprobe音视频/时长核验，并清理结果；真实组件/许可复制到独立暂存目录后再次核验及空配置识别，共 **13/13**。日志：build/yoinks-components-real-engine.log。此项使用真实外站下载，非离线执行器；不代表所有站点或登录内容可用。
+- 按本项目绝对路径隐藏重启，保持Development/Lan的3000/5173。当前本机及192.168.100.39网页/配置/健康均正常，两个组件source=bundled；实际局域网接口完成CC0分析、MP3下载/领取/清理、清理后410及跨站/缺少专用头/附加参数403，共 **15/15**。日志：build/yoinks-components-running.log。没有修改防火墙、系统PATH或其他软件。
+- `scripts/build_release.ps1`接入同一准备与白名单暂存，PowerShell语法及真实隔离暂存通过；未重新打包、提交、推送或发布新版，已发布v0.3.1资产保持原样。真实ZIP/安装器整包验收待下次发版执行，不将组件暂存当作新版整包验收。原网速/APK包名等未提交修改保留，独立设备调试产品本轮不增加视频下载模块。
+
+下一步：刷新[当前视频下载页](http://127.0.0.1:5173/tools/yoinks)，粘贴单个公开视频链接、分析并下载；同网段使用服务器IPv4:5173。真实下载受站点/网络/地区限制，不读取Cookie或处理登录/付费绕过；另一物理客户端和其他Windows版本未实测。需要分发时另行生成新版，原MVP后续仍为TASK-010与TASK-009剩余范围。
+
+Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
+
+## TASK-040 查看 APK 包名（2026-11-12）
+
+**两产品源码、构建及当前本地服务验证完成。** 安卓调试右侧增加“查看 APK 包名”，选择单个 APK、主动读取并复制；无需 ADB、SDK 或手机。支持 UTF-8/UTF-16 编译清单、有界流式上传、完整性检查、取消及临时清理，没有新增依赖或持久化结构。
+
+- 原工具箱完整后端 **633/633（51 suites）**、前端计算 **19/19**；独立版完整后端 **213/213**，随包 Node22.22.2 的新增专项 **9/9**。两套最终生产构建通过，主线仅有既有大块体积提示。日志：各目录 build/apk-info-backend.log、apk-info-build-final.log；主线 apk-info-frontend-tests.log，独立版 apk-info-node22.log。
+- 两套实际私网地址的新增浏览器各 **18/18**、原安卓各 **187/187**、Unity文件面板各 **24/24**；独立导航/合成Unity日志 **18/18**、真实TCP代理 **7/7**、Windows启停 **15/15**。覆盖无ADB读取、复制/失败恢复、换文件/清空、坏包拒绝、取消/后台/离页，以及原安装/文件/日志/截图；无浏览器异常。日志：build/apk-info-browser.log、apk-info-android-regression.log、apk-info-persistent-regression.log，独立版另有 apk-info-unity-browser.log、apk-info-lan.log、apk-info-startup.log。两产品 apk-info-light.png / apk-info-dark.png 已目视检查。
+- 只读核对公开 [Appium ApiDemos v6.0.18](https://github.com/appium/android-apidemos/releases/tag/v6.0.18) APK，大小6521217字节，SHA256 `a9eecf37b26cd084855c530db81c2bb1b91f4c1b095a04f47aa7c20e2791f686` 与GitHub发布摘要一致；解析 `io.appium.android.apis`，与同标签app/build.gradle的applicationId一致，没有安装或执行APK。
+- 按绝对项目身份停止并隐藏启动，原工具箱 Development/Lan **3000/5173**、独立版 Release/Lan **3100**。本机及192.168.100.39的页面/健康、真实APK读取、坏包400、跨站/缺少专用头403、附加参数400及临时目录回收共 **30/30**；日志：build/apk-info-live-smoke.log。两套ADB配置保持独立，验证未调用ADB或访问手机。
+- 本轮未提交、推送、重新打包或发布；已发布v0.3.1与device-debugger-v0.1.0资产不含本次修改。原有未提交实时网速功能保持原地，运行数据、测试APK、日志、截图和构建产物不入库。
+
+下一步：刷新当前源码工具的安卓调试页即可使用；需要分发时另行生成新版。只读真实APK及隔离浏览器验收不代表手机安装验收，另一物理客户端未实测；原MVP下一任务仍为TASK-010与TASK-009剩余范围。
+
+Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
+
 - 2026-11-12 / TASK-039：**两产品代码、构建与隔离验收完成；真实手机未验收**。安卓调试新增当前用户标准 persistentDataPath 目录浏览、UTF-8 预览/下载、添加和确认替换，原文件变化检查、SHA256 传送校验、取消及生命周期清理。当前工作树完整后端 **624/624**、前端计算 **19/19**、安卓浏览器 **187/187**、新面板 **24/24**，最终构建通过；该工作树包含原先未提交的网速模块。独立版后端双 Node **204/204**、Unity 浏览器 **18/18**、发布包隔离 **30/30**，[独立版0.1.0](https://github.com/GuiYe314/team-toolbox/releases/tag/device-debugger-v0.1.0)已正式发布，四份资产核对一致，主线latest仍为v0.3.1。证据与限制见第4节，原网速改动保持原地。
+
+- 更新日期：2026-11-11（**TASK-037 实时网速：代码、隔离浏览器与本机真实网卡验证完成**。首页/工具箱新增单网卡上下行速度、Mbps、60 秒趋势、观察期流量/平均/峰值，支持切换、暂停/清空与后台清理；共享按需 Windows 采集及受保护只读接口。完整后端 **609/609**、前端计算 **19/19**、隔离浏览器 **30/30**、最终生产构建通过。当前源码服务已按项目身份隐藏重启并保留 Lan，本机及 `192.168.100.39` 页面和新接口均通过，实际物理网卡连续采样正常。证据见第 4 节；本轮未提交、推送、打包或发布，v0.3.1 已发布资产保持原样。Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。）
 
 - 更新日期：2026-11-11（**v0.3.1 正式发布完成**：[GitHub Release](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.3.1)，发布 ID `441321583`，非草稿、非预发布，`latest` 已指向 v0.3.1。`main` 与标签已上传，发布源码为 `e3ef19988b0b4373675611a765be5642bb6e5f22`；本条发布结果另作文档提交，不移动标签。四份远端资产大小和 SHA256 digest 全部匹配，公开最新清单已实际下载且字节一致。完整后端 **582/582**、发布运行时 **14/14**、Local/Lan 生产启停 **34/34**、生产 UI **53/53**、更新设置 **28/28**、独立替换/失败回滚 **20/20**，详情见 [封版记录](acceptance/V0_3_1_RELEASE_2026-11-11.md)。v0.3.0 Release 顶部已补充后台更新缺陷及手动升级提示，原正文和四份资产保留。真实源码服务已按项目身份隐藏重启为 0.3.1 并保留 Lan，本机/实际私网设置页均 HTTP 200；真实 GitHub 检查 current/latest 均为 0.3.1。没有对真实项目执行 apply。Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。）
 
@@ -169,6 +215,7 @@
 | TASK-034 Yoinks / FreeLLMAPI / ArtCraft 接入 | **代码与隔离验收完成；真实上游未验证** | 三页与入口、视频分析/下载/保存/取消、实际 HTTP 模型/流式聊天、Key 隔离、提示词/原生确认启动；专项 28/28、后端 541/541、浏览器 44/44、构建通过，证据见第 4 节 |
 | TASK-035 全工具局域网访问 | **代码、相关验收与当前实例切换完成；跨设备未实测** | 默认 Lan/可选 Local、真实网段与同源检查、代理及 WebSocket、远程说明/HTTP 复制、停止不影响构建；后端 554/554、代理 7/7、启动 15/15、私网安卓 187/187、集成 47/47、构建及实际 IP 检查通过 |
 | TASK-036 GitHub 默认更新源 | **代码、验收和 v0.3.1 正式发布完成** | 默认项目 Releases、仓库转换、关闭/恢复、缓存隔离、更新专用代理及后台脚本修复；最终后端 582/582、更新专项 58/58、Node 22 代理 20/20、更新浏览器 28/28、隔离替换/回滚 20/20；四份远端文件/公开清单及当前 Lan 实例检查通过，证据见第 4 节与封版记录 |
+| TASK-037 实时网速工具 | **代码、隔离浏览器及本机真实网卡验证完成** | 单张物理/虚拟网卡、上下行/换算/趋势/累计/平均/峰值、暂停清空与取消恢复；完整后端 609/609、前端计算 19/19、浏览器 30/30、生产构建、本机/实际私网新页面及 API 通过，证据见第 4 节；另一物理客户端未实测 |
 | TASK-039 Unity persistentDataPath 文件 | **两产品代码与隔离验收完成；真机未验证** | 当前用户/已安装包、目录浏览/预览/下载、添加/确认替换、SHA256与冲突清理；当前完整后端624/624、安卓187/187、新面板24/24、构建通过，独立版见专属分支状态 |
 | TASK-D01 实时共同编辑（延期） | 未开始 | 阶段八，依赖 TASK-D02 与协同方案确认 |
 | TASK-D02 账号与权限（延期） | 未开始 | 阶段七，依赖 TASK-010 与账号方案确认 |
@@ -228,6 +275,9 @@
 **TASK-035 后续使用与验证**：同网段电脑或手机使用启动器显示的服务器私网地址。当前实例已切换为 Lan，本机私网地址验证通过；另一物理客户端、真实设备及第三方程序仍需实际环境确认。路径和外部程序属于服务器，FreeLLMAPI 重启后需重填统一 Key。原 MVP 下一任务保持 TASK-010 与 TASK-009 剩余范围。
 
 **TASK-036 后续使用与分发**：v0.3.1 已正式发布，当前 Lan 源码服务已加载本版，设置页检查 current/latest 均为 0.3.1。直接填写仓库 HTTPS 或 `.git` 地址即可转换；未来升级仍须同时发布新版 ZIP 与 `manifest.json`。旧版受代理或后台脚本缺陷影响时先完整备份、关闭服务并手动安装本版，保留 `data/`；v0.3.0 发布页已补警告且旧资产保留。原 MVP 下一任务保持 TASK-010 与 TASK-009 剩余范围。
+
+**TASK-037 后续使用与分发**：在当前源码服务的“工具箱 → 实时网速”打开，或使用 `http://192.168.100.39:5173/tools/network-speed`。统计运行工具箱的 Windows 电脑，单张网卡包含局域网及互联网流量；不代表访问设备自身网速、单应用流量或宽带测速。本机物理/虚拟网卡和实际私网 IP 已验证，另一台物理设备访问及其他 Windows 版本未实测。本功能尚未汇入已发布 v0.3.1，分发时另行生成新版；原 MVP 下一任务保持 TASK-010 与 TASK-009 剩余范围。
+
 ## 4. 验证证据
 
 **TASK-039 实际验证摘要（2026-11-12，Windows）**：
@@ -241,6 +291,16 @@
 - 原工具箱按 scripts/stop.ps1 的精确项目身份停止旧进程，再由 scripts/start-services.ps1 隐藏启动 Development/Lan；健康返回 team-toolbox-backend / 0.3.1 / db.ok=true。本机与192.168.100.39经5173代理调用新 list API 的无效请求均400，跨站403；实时网速页面200、受保护只读接口正常响应，数据文件保留。没有执行真实手机写入或主线更新 apply。
 - 新模块与独立版保持相同源码；独立分支 codex/device-debugger 的后端 Node24/随包Node22各 **204/204**、安卓 **187/187**、新面板 **24/24**、Unity合成HTTP浏览器 **18/18**、LAN代理 **7/7**、Windows启停 **15/15**，便携包/安装器隔离 **30/30**。独立发行结果由该分支 PROJECT_STATUS 记录；主线 v0.3.1 资产和 latest 保持原样。
 - 真机、厂商ADB权限和另一物理客户端未验证。仅标准Android/data/包名/files，不自动停止App/改权限；App并发改写无法锁定，建议先关闭App并下载备份。Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
+
+**TASK-037 实际验证摘要（2026-11-11，Windows）**：
+
+- **后端**：使用 Codex 捆绑 Node v24.22.1，在 backend 目录通过 npm-cli.js 执行 `npm test`，完整 **609/609、51 suites、0 fail/skip**。新增 `node --test backend/src/network-speed.test.js` 的 **27 项**覆盖真实间隔差值、uint64、中文分块、新卡/断网/复位/长间隔、共享/空闲/退出、采样时限及输出限制、失败重试和 Local/Lan/Host/同源/专用头/参数拒绝；使用模拟进程，不修改真实网络。日志：`build/network-speed-backend.log`、`build/network-speed-tests.log`。
+- **计算与构建**：frontend 的 `npm test` 等价测试文件执行 **19/19**（原地球 14 + 网速 5），包含单位、无效值、跨轮询累计、基线/复位和真实时间分段曲线。最终 `node node_modules/vite/bin/vite.js build` 通过，15.90 秒，仅既有大块体积提示。日志：`build/network-speed-frontend-tests-final.log`、`build/network-speed-frontend-final-build.log`。受限环境 esbuild 读取上级目录被拒的原始输出保存在 `build/network-speed-sandbox-build.log`，在正常执行环境复验通过。
+- **页面**：`node frontend/verify-network-speed.mjs` **30/30**；生产 dist、临时 Express、合成物理/VPN 网卡及临时 Chrome，覆盖两入口、默认网卡、双向读数/换算/曲线/累计、暂停/清空/切换、后台恢复、请求/采集失败、时间空档、移除/离线、在途取消/迟到、离页和不支持系统。1280/1600 明暗主题内部布局与下拉 4.5:1 对比度通过，目视截图；无未处理 JS 异常和外部请求。全局既有 1280px 最小内容宽加边距会超出 1280 视口，断言按该桌面约定及工具内部边界检查，未改变全局尺寸。受限环境浏览器调试曾超时，正常执行环境隔离复验通过。日志：`build/network-speed-browser-final.log`，截图：`build/network-speed-light.png` / `network-speed-dark.png`；结束回收临时服务与浏览器，不访问团队数据库。
+- **真实网卡**：通过 `node build/network-speed-smoke.mjs` 只读连续采样，四张网卡中包含在线物理、断开物理、Tailscale 和 vEthernet；实际源间隔约 1.37 秒，断开网卡速度为 null。日志：`build/network-speed-real-smoke.log`；已 dispose，不下载测速文件或修改网络。
+- **当前实例**：以 `scripts/stop.ps1 -ProjectRoot <本项目绝对路径>` 停止旧服务，再隐藏执行 `scripts/start-services.ps1 -Mode Development -AccessMode Lan -NoBrowser`，后端 PID `69900`、前端 PID `61232`。`2026-11-11T08:18:51.126Z` 执行 `node build/network-speed-live-check.mjs`，新 API 返回 ready、实际物理网卡两次采样间隔约 1.19 秒；本机和 `http://192.168.100.39:5173/tools/network-speed` 页面 200，经过 Vite 代理的同源快照均 ready，当前 Vue 源码模块 200。证据：`build/network-speed-live-stop.log`、`build/network-speed-live-start.log`、`build/network-speed-live-check.json` / `.log`；服务保留运行；结束观察后通过 CIM 核对后端下无 PowerShell 采集进程，两服务监听 0.0.0.0 且 PID 匹配，隔离浏览器剩余零个，证据 `build/network-speed-live-idle-check.log`。
+- **范围**：无需新增依赖或 SQLite/机器配置迁移，计数和历史不持久化；没有抓包、外站测速、进程级归因、修改防火墙/网络、操作手机或供应商、执行真实更新 apply。本次更新本地源码与文档，没有提交、推送、生成新版或覆盖 v0.3.1 资产。Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
+
 
 **v0.3.1 封版验证摘要（2026-11-11，Windows）**：
 

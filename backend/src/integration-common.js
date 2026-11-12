@@ -87,10 +87,21 @@ export async function executablePath(value, kind, { platform = process.platform 
     } catch { throw problem('missing_executable', '可执行文件不存在、是链接或无法访问，请重新选择'); }
 }
 
-export async function detectExecutable(kind, configured, { env = process.env, home = homedir() } = {}) {
+export function bundledExecutable(kind, { root = appRoot, platform = process.platform, arch = process.arch } = {}) {
+    if (platform !== 'win32' || arch !== 'x64' || !['ytDlp', 'ffmpeg'].includes(kind)) return '';
+    return join(root, 'vendor', 'media', 'win32-x64', kind === 'ytDlp' ? 'yt-dlp.exe' : 'ffmpeg.exe');
+}
+export function executableSource(kind, file, configured, options) {
+    if (!file) return 'missing';
+    if (configured) return 'custom';
+    const bundled = bundledExecutable(kind, options);
+    return bundled && file.toLowerCase() === bundled.toLowerCase() ? 'bundled' : 'detected';
+}
+export async function detectExecutable(kind, configured, { env = process.env, home = homedir(), root = appRoot } = {}) {
     if (configured) return executablePath(configured, kind);
     const filename = kind === 'ytDlp' ? (process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp') : (process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
-    const candidates = (env.PATH || '').split(delimiter).filter(Boolean).map(folder => join(folder.replace(/^"|"$/g, ''), filename));
+    const bundled = bundledExecutable(kind, { root });
+    const candidates = [...(bundled ? [bundled] : []), ...(env.PATH || '').split(delimiter).filter(Boolean).map(folder => join(folder.replace(/^"|"$/g, ''), filename))];
     candidates.push(join(home, '.yoinks', 'bin', filename));
     if (kind === 'ffmpeg' && env.APPDATA) candidates.push(join(env.APPDATA, 'npm', 'node_modules', 'yoinks', 'node_modules', 'ffmpeg-static', filename));
     for (const candidate of candidates.slice(0, 120)) {

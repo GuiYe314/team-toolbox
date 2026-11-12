@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "platform": "win32-x64",
+  "assets": [
+    {
+      "file": "yt-dlp.exe",
+      "version": "2026.10.26",
+      "size": 23575744,
+      "sha256": "f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp.exe"
+    },
+    {
+      "file": "ffmpeg.exe",
+      "version": "6.1.1",
+      "size": 82797568,
+      "sha256": "04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-win32-x64.gz",
+      "compression": "gzip",
+      "downloadSize": 29581307,
+      "downloadSha256": "8883a3dffbd0a16cf4ef95206ea05283f78908dbfb118f73c83f4951dcc06d77"
+    },
+    {
+      "file": "ffprobe.exe",
+      "version": "6.1.1",
+      "size": 82668032,
+      "sha256": "3a7e2dc003dc2cd1472827e4c7c4f056ae1ae0ae7c5bbc580c99b49827351ba4",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffprobe-win32-x64.gz",
+      "compression": "gzip",
+      "downloadSize": 29521644,
+      "downloadSha256": "f309e6223ad89d2fe54bccd420a7709b66fd27540674e92309578ed491a43c8d"
+    },
+    {
+      "file": "yt-dlp-LICENSE.txt",
+      "size": 1211,
+      "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c",
+      "url": "https://raw.githubusercontent.com/yt-dlp/yt-dlp/2026.10.26/LICENSE"
+    },
+    {
+      "file": "yt-dlp-THIRD-PARTY-LICENSES.txt",
+      "size": 243550,
+      "sha256": "472aefe951c7db35e1657c1d13fd337140511ed6f2b329205105ad441c5a02b7",
+      "url": "https://raw.githubusercontent.com/yt-dlp/yt-dlp/2026.10.26/THIRD_PARTY_LICENSES.txt"
+    },
+    {
+      "file": "FFmpeg-LICENSE.txt",
+      "size": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/win32-x64.LICENSE"
+    },
+    {
+      "file": "FFmpeg-README.txt",
+      "size": 39494,
+      "sha256": "a636a7183c58006351acbaf35303c0ed85c6e1320fd4e80de453ba6157de6311",
+      "url": "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/win32-x64.README"
+    }
+  ]
+}

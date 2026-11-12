@@ -96,6 +96,13 @@ export default {
             tools: [
                 ...integrationTools.map(tool => ({ ...tool, status: 'ready' })),
                 {
+                    id: 'network-speed',
+                    name: '实时网速',
+                    desc: '实时查看服务器电脑上传、下载速度及最近流量趋势',
+                    status: 'ready',
+                    routeName: 'tool-network-speed'
+                },
+                {
                     id: 'unity-logs',
                     name: 'Unity 设备日志',
                     desc: '搜索局域网设备，查看和下载 Unity 历史日志',

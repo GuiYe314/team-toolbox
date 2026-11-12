@@ -75,6 +75,11 @@ const routes = [
         component: () => import('../views/ArtcraftStudio.vue')
     },
     {
+        path: '/tools/network-speed',
+        name: 'tool-network-speed',
+        component: () => import('../views/NetworkSpeed.vue')
+    },
+    {
         path: '/tools/earth-sunlight',
         name: 'tool-earth-sunlight',
         component: () => import('../views/EarthSunlight.vue')

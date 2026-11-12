@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { get as httpGet } from 'node:http';
 import express from 'express';
-import { createIntegrationConfig, localBaseUrl, executablePath, runIntegrationProcess, problem } from './integration-common.js';
+import { createIntegrationConfig, localBaseUrl, executablePath, detectExecutable, bundledExecutable, runIntegrationProcess, problem } from './integration-common.js';
 import { createYoinksService, videoUrl } from './yoinks.js';
 import { createFreeLlmService, validateChat } from './freellmapi.js';
 import { createArtcraftService } from './artcraft.js';
@@ -77,6 +77,20 @@ test('真实进程执行保持参数字面值、不启用 Shell 并捕获输出'
     const result = await runIntegrationProcess(process.execPath, ['-e', 'process.stdout.write(process.argv[1]);process.stderr.write("err")', literal]);
     assert.equal(result.code, 0); assert.equal(result.stdout, literal); assert.equal(result.stderr, 'err');
 });
+
+test('本产品内置组件优先于PATH，明确自定义路径仍优先且损坏覆盖不静默回退', { skip: process.platform !== 'win32' || process.arch !== 'x64' }, async t => {
+    const { root } = await fixture(t), folder = join(root, 'path-tools'), home = join(root, 'home');
+    const bundled = bundledExecutable('ytDlp', { root }), custom = join(folder, 'yt-dlp.exe');
+    await mkdir(join(root, 'vendor/media/win32-x64'), { recursive: true }); await mkdir(folder);
+    await writeFile(bundled, 'isolated bundled fixture'); await writeFile(custom, 'isolated external fixture');
+    const options = { root, home, env: { PATH: folder } };
+    assert.equal((await detectExecutable('ytDlp', '', options)).toLowerCase(), bundled.toLowerCase());
+    assert.equal((await detectExecutable('ytDlp', custom, options)).toLowerCase(), custom.toLowerCase());
+    await assert.rejects(detectExecutable('ytDlp', join(root, 'missing/yt-dlp.exe'), options));
+    await rm(bundled); assert.equal((await detectExecutable('ytDlp', '', options)).toLowerCase(), custom.toLowerCase());
+    await rm(custom); assert.equal(await detectExecutable('ytDlp', '', options), '');
+    assert.equal(bundledExecutable('ytDlp', { platform: 'linux' }), '');
+});
 test('真实进程超时、取消及输出上限都终止执行', async () => {
     await assert.rejects(runIntegrationProcess(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { timeout: 80 }), fail('timeout'));
     const controller = new AbortController(); controller.abort();
@@ -96,6 +110,8 @@ test('Yoinks 探测使用固定参数，网页只收到可选 ID 与精简元数
     assert.ok(info.choices.every(x => !('args' in x)));
     const probe = calls.find(x => x.args.includes('--dump-single-json'));
     assert.ok(probe.args.includes('--ignore-config')); assert.ok(probe.args.includes('--no-plugin-dirs')); assert.ok(probe.args.includes('--no-playlist')); assert.deepEqual(probe.args.slice(-2), ['--', 'https://example.com/video']);
+    assert.ok(probe.args.includes('--no-remote-components')); assert.ok(probe.args.includes('--no-js-runtimes'));
+    assert.equal(probe.args[probe.args.indexOf('--js-runtimes') + 1], `node:${process.execPath}`);
     await assert.rejects(service.analyze({ url: 'https://example.com/video', args: ['--exec'] }), fail('invalid_input'));
 });
 test('没有 ffmpeg 时只提供含音轨视频，不冒充可提取 MP3', async t => {

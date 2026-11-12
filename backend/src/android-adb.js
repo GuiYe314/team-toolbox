@@ -14,6 +14,8 @@ import { createAndroidCustomCommands } from './android-custom-commands.js';
 import { createAndroidHome } from './android-home.js';
 import { createAndroidApk } from './android-apk.js';
 import { createAndroidPersistent } from './android-persistent.js';
+import { createAndroidApkInfo } from './android-apk-info.js';
+import { createAndroidApkQueue } from './android-apk-queue.js';
 export { AdbError, parseDevices, parseMdns, validateEndpoint } from './android-adb-protocol.js';
 
 function redact(text, secrets = []) {
@@ -76,7 +78,7 @@ function validateExecutable(raw) {
     return resolve(path);
 }
 
-export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'android-adb.json'), commandFile = join(dirname(configFile), 'android-commands.json'), env = process.env, runner = runAdbProcess, logcatSpawn = spawn, screenSpawn = spawn, apkOptions = {}, persistentOptions = {}, now = Date.now, log = (entry) => console.info('[android-adb]', JSON.stringify(entry)) } = {}) {
+export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'android-adb.json'), commandFile = join(dirname(configFile), 'android-commands.json'), env = process.env, runner = runAdbProcess, logcatSpawn = spawn, screenSpawn = spawn, apkOptions = {}, persistentOptions = {}, apkInfoOptions = {}, now = Date.now, log = (entry) => console.info('[android-adb]', JSON.stringify(entry)) } = {}) {
     let busy = false;
     let discovered = [];
     let discoveredAt = 0;
@@ -114,6 +116,8 @@ export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'a
     const apps = createAndroidApps({ run, readDevices });
     const home = createAndroidHome({ run, readDevices });
     const apk = createAndroidApk({ ...apkOptions, run, readDevices, log });
+    const apkQueue = createAndroidApkQueue({ ...apkOptions, run, readDevices, log });
+    const apkInfo = createAndroidApkInfo({ ...apkInfoOptions, log });
     const persistent = createAndroidPersistent({ ...persistentOptions, run, readDevices, executable: () => validateExecutable(config().path), log });
     const screen = createAndroidScreen({ executable: () => validateExecutable(config().path), readDevices, spawnProcess: screenSpawn, log });
     const logcat = createAndroidLogcat({ executable: () => validateExecutable(config().path), readDevices, spawnProcess: logcatSpawn, log,
@@ -142,13 +146,15 @@ export function createAndroidAdbService({ configFile = join(APP_ROOT, 'data', 'a
         pollLogcat: async (id, after, signal) => { logcat.poll(id, after); await logcat.refreshApplication(id, signal); return logcat.poll(id, after); },
         stopLogcat: (id) => logcat.stop(id),
         captureScreen: (serial, signal) => screen.capture(serial, signal),
+        inspectApkPackage: (request, input, signal) => apkInfo.inspect(request, input, signal),
         installApk: (request, input, signal) => exclusive('apk_install', () => apk.install(request, input, signal)),
         installApkBatch: (request, input, signal, onUpdate) => exclusive('apk_install_batch', () => apk.installBatch(request, input, signal, onUpdate)),
+        installApks: (input, size, signal, onUpdate) => exclusive('apk_install_queue', () => apkQueue.install(input, size, signal, onUpdate)),
         listPersistent: (request, signal) => exclusive('persistent_list', () => persistent.list(request, signal)),
         inspectPersistent: (request, signal) => exclusive('persistent_inspect', () => persistent.inspect(request, signal)),
         readPersistent: (request, signal, consume) => exclusive('persistent_read', () => persistent.read(request, signal, consume)),
         uploadPersistent: (request, input, signal) => exclusive('persistent_upload', () => persistent.upload(request, input, signal)),
-        dispose: () => { qr.invalidate(); logcat.dispose(); screen.dispose(); apk.dispose(); persistent.dispose(); },
+        dispose: () => { qr.invalidate(); logcat.dispose(); screen.dispose(); apk.dispose(); apkQueue.dispose(); persistent.dispose(); apkInfo.dispose(); },
         searchFolder: (folder, signal) => exclusive('search_folder', () => findAdbInFolder(folder, { signal })),
         startQr: (signal) => exclusive('qr_start', () => qr.start(signal)),
         pollQr: (id, signal) => exclusive('qr_poll', () => qr.poll(id, signal)),

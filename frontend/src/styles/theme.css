@@ -74,6 +74,8 @@
     --adb-qr-foreground: #0b1220;
     --adb-qr-background: #ffffff;
     --adb-select-background: #f8faff;
+    --net-select-background: #f8faff;
+    --net-select-text: var(--text-primary);
     --adb-select-menu: #ffffff;
     --adb-select-text: #1c2333;
     --adb-select-border: #9caecb;
@@ -143,6 +145,8 @@
 
     --text-primary: #e7ecf5;
     --adb-select-background: #202e44;
+    --net-select-background: #202e44;
+    --net-select-text: var(--text-primary);
     --adb-select-menu: #18263b;
     --adb-select-text: #f0f4fc;
     --adb-select-border: #6e85aa;
