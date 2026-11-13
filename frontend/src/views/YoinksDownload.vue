@@ -12,6 +12,7 @@
                 </form>
                 <p v-if="!config?.ready" class="ext-hint">下载引擎缺失，请使用完整工具箱，或在组件设置中选择已有 yt-dlp。</p>
                 <p v-else-if="config.ytDlpSource === 'bundled'" class="ext-hint" data-test="video-bundled-hint">下载引擎已内置，直接粘贴视频链接即可使用。{{ config.ffmpegReady ? '支持音视频合并与 MP3 提取。' : '音视频合并与 MP3 提取组件尚未就绪。' }}</p>
+                <p v-if="config" class="ext-hint" data-test="video-proxy-status">{{ proxyStatus }}</p>
 
                 <div class="ext-stack ext-divider" data-test="video-resolvers">
                     <div class="ext-row ext-between"><h2>解析方案</h2><span class="ext-hint">按顺序自动降级</span></div>
@@ -57,7 +58,11 @@
             <form class="ext-stack" @submit.prevent="saveSettings">
                 <label class="ext-field">yt-dlp 可执行文件<input v-model.trim="ytDlpPath" data-test="video-ytdlp" placeholder="C:\…\yt-dlp.exe" :disabled="!!busy" /></label>
                 <label class="ext-field">ffmpeg 可执行文件（可选）<input v-model.trim="ffmpegPath" data-test="video-ffmpeg" placeholder="C:\…\ffmpeg.exe" :disabled="!!busy" /></label>
-                <p class="ext-hint ext-wrap">检测到 yt-dlp：{{ config?.ytDlpPath || '未找到' }}<br />检测到 ffmpeg：{{ config?.ffmpegPath || '未找到' }}</p>
+                <label class="ext-field">网络代理（可选）<input v-model.trim="proxy" data-test="video-proxy" placeholder="http://127.0.0.1:7897" list="video-proxy-options" :disabled="!!busy" /><datalist id="video-proxy-options"><option v-if="config?.detectedProxy" :value="config.detectedProxy"></option></datalist></label>
+                <p class="ext-hint ext-wrap">代理用于抓取网页和 yt-dlp 下载。留空时自动使用 Windows 系统代理（读不到或端口未监听时退回环境变量）；填 <code>http://…</code> 或 <code>socks5://…</code>。下载引擎与 ffmpeg 读取本机文件，不需要代理。</p>
+                <p class="ext-hint ext-wrap">检测到 yt-dlp：{{ config?.ytDlpPath || '未找到' }}<br />检测到 ffmpeg：{{ config?.ffmpegPath || '未找到' }}<br />{{ proxyStatus }}</p>
+                <p v-if="config?.staleYtDlpPath" class="ext-notice">设置里保存的 yt-dlp 路径已失效，已自动改用找到的组件。</p>
+                <p v-if="config?.staleFfmpegPath" class="ext-notice">设置里保存的 ffmpeg 路径已失效，已自动改用找到的组件。</p>
                 <p v-if="error" class="ext-notice is-error" role="alert">{{ error }}</p>
                 <div class="ext-actions"><button class="btn btn-primary" data-test="video-settings-save" :disabled="!!busy">{{ busy === 'save' ? '正在检测…' : '检测并保存' }}</button><button class="btn" type="button" data-test="video-settings-bundled" :disabled="!!busy" @click="restoreComponents">使用内置组件</button></div>
             </form>
@@ -74,8 +79,15 @@ import IntegrationDialog from '../components/IntegrationDialog.vue';
 import { integrationApi as api, operationMessage } from '../api/integration-client.js';
 const config = ref(null), settings = ref(false), help = ref(false), url = ref(''), info = ref(null), choice = ref(''), progress = ref(null), result = ref(null);
 const resolvers = ref([]), attempts = ref([]), forcedResolver = ref('');
-const ytDlpPath = ref(''), ffmpegPath = ref(''), busy = ref(''), error = ref(''), notice = ref('');
+const ytDlpPath = ref(''), ffmpegPath = ref(''), proxy = ref(''), busy = ref(''), error = ref(''), notice = ref('');
 let active = null, disposed = false;
+const PROXY_SOURCE = { configured: '手动设置', env: '环境变量', system: 'Windows 系统代理' };
+const proxyStatus = computed(() => {
+    const value = config.value;
+    if (!value) return '';
+    if (!value.proxy) return '网络代理：未使用。站点在浏览器能打开、这里却解析失败时，通常是代理没生效。';
+    return `网络代理：${value.proxy}（${PROXY_SOURCE[value.proxySource] || '自动检测'}）`;
+});
 function bytes(value) { if (!Number.isFinite(value)) return '大小未知'; return value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MiB` : `${(value / 1024).toFixed(1)} KiB`; }
 const qualityHint = computed(() => {
     const choices = info.value?.choices || [];
@@ -94,13 +106,13 @@ async function run(kind, work) {
     finally { if (active === controller) { active = null; busy.value = ''; } }
 }
 onMounted(() => {
-    run('load', async signal => { config.value = await api.videoConfig(signal); ytDlpPath.value = config.value.configuredYtDlpPath; ffmpegPath.value = config.value.configuredFfmpegPath; });
+    run('load', async signal => { config.value = await api.videoConfig(signal); ytDlpPath.value = config.value.configuredYtDlpPath; ffmpegPath.value = config.value.configuredFfmpegPath; proxy.value = config.value.configuredProxy || ''; });
     api.videoResolvers().then(data => { if (!disposed) resolvers.value = Array.isArray(data?.resolvers) ? data.resolvers : []; }).catch(() => {});
 });
 function stop() { active?.abort(); }
 function closeSettings() { if (busy.value === 'save') stop(); settings.value = false; }
-async function saveSettings() { await run('save', async signal => { config.value = await api.saveVideoConfig({ ytDlpPath: ytDlpPath.value, ffmpegPath: ffmpegPath.value }, signal); info.value = null; notice.value = config.value.ready ? '组件路径已检测并保存' : '设置已保存，尚未找到 yt-dlp'; settings.value = false; }); }
-async function restoreComponents() { await run('save', async signal => { config.value = await api.saveVideoConfig({ ytDlpPath: '', ffmpegPath: '' }, signal); ytDlpPath.value = ''; ffmpegPath.value = ''; info.value = null; choice.value = ''; notice.value = config.value.ytDlpSource === 'bundled' ? '已切换到内置下载组件' : config.value.ready ? '已恢复自动检测，正在使用找到的本机组件' : '已恢复自动检测，但下载组件缺失，请检查完整工具箱或指定已有组件'; settings.value = false; }); }
+async function saveSettings() { await run('save', async signal => { config.value = await api.saveVideoConfig({ ytDlpPath: ytDlpPath.value, ffmpegPath: ffmpegPath.value, proxy: proxy.value }, signal); info.value = null; notice.value = config.value.ready ? '组件路径与代理已保存' : '设置已保存，尚未找到 yt-dlp'; settings.value = false; }); }
+async function restoreComponents() { await run('save', async signal => { config.value = await api.saveVideoConfig({ ytDlpPath: '', ffmpegPath: '', proxy: proxy.value }, signal); ytDlpPath.value = ''; ffmpegPath.value = ''; info.value = null; choice.value = ''; notice.value = config.value.ytDlpSource === 'bundled' ? '已切换到内置下载组件' : config.value.ready ? '已恢复自动检测，正在使用找到的本机组件' : '已恢复自动检测，但下载组件缺失，请检查完整工具箱或指定已有组件'; settings.value = false; }); }
 async function analyze() { await run('analyze', async signal => {
     info.value = null; choice.value = ''; attempts.value = [];
     try {

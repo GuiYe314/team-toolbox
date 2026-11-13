@@ -74,12 +74,13 @@ export function heightHint(value) {
 
 /**
  * 从一个网页 HTML 里提取所有可下载的媒体地址。
+ * topicId 用于多视频页面（帖子页下方往往还挂着推荐视频）：优先取 data-id 与帖子号一致的那一个。
  * 返回 [{ url, kind: 'hls' | 'file' | 'embed', label, height }]，按发现顺序去重。
  */
-export function extractMedia(html, pageUrl) {
+export function extractMedia(html, pageUrl, { topicId = '' } = {}) {
     const text = String(html ?? '').slice(0, MAX_PAGE_CHARS);
     const found = [], seen = new Set();
-    const push = (raw, kind, label = '') => {
+    const push = (raw, kind, label = '', id = '') => {
         const value = absoluteUrl(unescapeMediaUrl(decodeHtml(raw)), pageUrl);
         if (!value || !/^https?:/i.test(value)) return;
         const embed = kind === 'embed';
@@ -87,15 +88,16 @@ export function extractMedia(html, pageUrl) {
         if (!embed && !hls && !MEDIA_FILE.test(value)) return;
         if (seen.has(value)) return;
         seen.add(value);
-        found.push({ url: value, kind: embed ? 'embed' : hls ? 'hls' : 'file', label: String(label || '').slice(0, 80), height: heightHint(label) || heightHint(value) });
+        found.push({ url: value, kind: embed ? 'embed' : hls ? 'hls' : 'file', label: String(label || '').slice(0, 80), id: String(id || ''), height: heightHint(label) || heightHint(value) });
     };
     // 1) video / audio / source 标签：覆盖 data-source + data-type（bad.news 用这种写法）、src、data-* 各种变体。
     for (const tag of text.match(/<(?:video|audio|source)\b[^>]*>/gi) || []) {
         const attributes = attributesOf(tag);
         const type = attributes['data-type'] || attributes.type || '';
         const label = attributes.label || attributes.title || attributes.res || attributes['data-res'] || attributes['data-label'] || '';
+        const id = attributes['data-id'] || attributes['data-tid'] || attributes['data-post-id'] || '';
         for (const key of ['src', 'data-source', 'data-src', 'data-url', 'data-video', 'data-file', 'data-play', 'data-hls', 'data-m3u8']) {
-            if (attributes[key]) push(attributes[key], type || key, label);
+            if (attributes[key]) push(attributes[key], type || key, label, id);
         }
     }
     // 2) 不限标签：div / a 等元素上也常挂 data-source、data-video 之类的地址属性。
@@ -121,7 +123,9 @@ export function extractMedia(html, pageUrl) {
     // 5) 兜底：脚本里拼出来的媒体地址（含 JSON 中被转义的写法）。
     const flat = text.replace(/\\\//g, '/');
     for (const match of flat.matchAll(/https?:\/\/[^\s"'<>()\\]{4,500}?\.(?:m3u8|mp4|webm|mov)(?:\?[^\s"'<>()\\]*)?/gi)) push(match[0], '', '');
-    return found.slice(0, 24);
+    // 帖子号能对上时只保留该帖子的媒体，避免把「推荐视频」当成当前视频。
+    const keyed = topicId ? found.filter(item => item.id === String(topicId)) : [];
+    return (keyed.length ? keyed : found).slice(0, 24).map(({ id, ...item }) => item);
 }
 
 /**
@@ -168,9 +172,43 @@ export function parseHlsMaster(text, baseUrl) {
     return { variants, audio };
 }
 
+/**
+ * 页面声明的 Referer 策略。
+ * 有些站点（例如 bad.news）在页面里写 no-referrer，而它们的 CDN 收到站内 Referer 会直接 403，
+ * 所以这里按页面自己的策略决定要不要给下载器加 --referer。
+ */
+export function referrerMode(html) {
+    for (const tag of String(html ?? '').match(/<meta\b[^>]*>/gi) || []) {
+        const attributes = attributesOf(tag);
+        const name = String(attributes.name || attributes.property || '').toLowerCase();
+        if (name !== 'referrer') continue;
+        const content = String(attributes.content || '').trim().toLowerCase();
+        if (content === 'no-referrer') return 'none';
+        if (content === 'same-origin') return 'same-origin';
+        if (content === 'origin') return 'origin';
+    }
+    return 'default';
+}
+
+function registrable(host) {
+    const parts = String(host ?? '').toLowerCase().split('.').filter(Boolean);
+    return parts.slice(-2).join('.');
+}
+
+/** 媒体地址与页面是否同站；跨站时是否带 Referer 由页面策略决定。 */
+export function refererArgs(mediaUrl, pageUrl, html = '') {
+    if (!pageUrl) return [];
+    const mode = referrerMode(html);
+    if (mode === 'none') return [];
+    let sameSite = false;
+    try { sameSite = registrable(new URL(mediaUrl).hostname) === registrable(new URL(pageUrl).hostname); } catch { sameSite = false; }
+    if (!sameSite && mode !== 'default') return [];
+    return ['--referer', pageUrl];
+}
+
 /** 主清单的分辨率 → 「1080p · 5.2 Mbps · HLS」这类可供选择的清晰度项。 */
-export function hlsChoices(variants, { pageUrl = '', hasFfmpeg = true } = {}) {
-    const referer = pageUrl ? ['--referer', pageUrl] : [];
+export function hlsChoices(variants, { pageUrl = '', hasFfmpeg = true, html = '' } = {}) {
+    const referer = refererArgs(Array.isArray(variants) && variants[0]?.url ? variants[0].url : pageUrl, pageUrl, html);
     const heights = [...new Set((Array.isArray(variants) ? variants : []).map(item => item?.height).filter(height => height >= 100 && height <= 4320))].sort((a, b) => b - a).slice(0, 8);
     if (!heights.length) return [{ id: 'hls-auto', label: '原始清晰度 · HLS', args: [...referer] }];
     return heights.map(height => {
@@ -185,18 +223,17 @@ export function hlsChoices(variants, { pageUrl = '', hasFfmpeg = true } = {}) {
 }
 
 /** 页面直接给单个（或几个）媒体文件时的选择项：原始文件 + 可选 MP3。 */
-export function fileChoices(files, { pageUrl = '', hasFfmpeg = true } = {}) {
-    const referer = pageUrl ? ['--referer', pageUrl] : [];
+export function fileChoices(files, { pageUrl = '', hasFfmpeg = true, html = '' } = {}) {
     const list = (Array.isArray(files) ? files : []).filter(item => item && item.url).slice(0, 8);
     const ordered = list.length > 1 && list.every(item => item.height) ? [...list].sort((a, b) => b.height - a.height) : list;
     const choices = ordered.map((item, index) => ({
         id: `file-${index + 1}`,
         label: ordered.length === 1 ? '原始清晰度 · 直接下载' : `${item.height ? `${item.height}p · ` : ''}原始文件 ${index + 1}`,
         url: item.url,
-        args: [...referer]
+        args: [...refererArgs(item.url, pageUrl, html)]
     }));
-    if (!choices.length) return [{ id: 'direct-file', label: '原始文件 · 直接下载', args: [...referer] }];
-    if (hasFfmpeg && choices.length === 1) choices.push({ id: 'audio-mp3', label: '仅音频 · MP3', url: choices[0].url, args: [...referer, '-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0'] });
+    if (!choices.length) return [{ id: 'direct-file', label: '原始文件 · 直接下载', args: [...refererArgs('', pageUrl, html)] }];
+    if (hasFfmpeg && choices.length === 1) choices.push({ id: 'audio-mp3', label: '仅音频 · MP3', url: choices[0].url, args: [...choices[0].args, '-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0'] });
     return choices;
 }
 

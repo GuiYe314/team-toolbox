@@ -56,7 +56,7 @@ export function registerIntegrationApi(app, { service = createIntegrationService
             }
         } finally { res.removeListener('close', cancel); }
     };
-    router.get('/yoinks/config', action('yoinks_config', () => service.yoinks.tools()));
+    router.get('/yoinks/config', action('yoinks_config', () => service.yoinks.status?.() ?? service.yoinks.tools()));
     router.get('/yoinks/resolvers', action('yoinks_resolvers', () => service.yoinks.resolvers?.() ?? { resolvers: [] }));
     router.put('/yoinks/config', action('yoinks_configure', (req, signal) => service.yoinks.configure(req.body, signal)));
     router.post('/yoinks/analyze', action('yoinks_analyze', (req, signal) => service.yoinks.analyze(req.body, signal)));

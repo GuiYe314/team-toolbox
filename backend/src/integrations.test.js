@@ -33,7 +33,9 @@ async function videoFixture(t, overrides = {}) {
         options.onLine('TOOLBOX_PROGRESS|64|128|100|1'); options.onLine('TOOLBOX_FILE|' + filePath);
         return { code: 0, stdout: '', stderr: '' };
     };
-    const service = createYoinksService({ config: f.config, runner, detector: async (kind, path) => path || paths[kind], temporaryRoot: f.root, ...overrides });
+    // 测试不读本机系统代理，固定「不使用代理」，避免环境差异影响结果。
+    const service = createYoinksService({ config: f.config, runner, detector: async (kind, path) => path || paths[kind], temporaryRoot: f.root,
+        proxyResolver: async () => ({ url: '', source: 'none' }), fetchFactory: async (url, { globalFetch }) => globalFetch, ...overrides });
     t.after(() => service.dispose());
     return { ...f, paths, calls, runner, service };
 }
@@ -322,4 +324,23 @@ test('流开始后的错误明确返回错误事件，内部异常不泄露', as
     const { post, logs } = await apiFixture(t, { freellmapi: { chat: async (_body, _signal, emit) => { emit({ type: 'delta', text: 'part' }); throw new Error('sensitive internal path'); } } });
     const response = await post('/freellmapi/chat'); const text = await response.text();
     assert.ok(text.includes('"type":"error"')); assert.ok(!text.includes('sensitive')); assert.ok(!JSON.stringify(logs).includes('sensitive'));
+});
+
+test('设置里保存的组件路径失效时自动回退，并标记该路径已失效', async t => {
+    const root = await mkdtemp(join(tmpdir(), 'tt-stale-path-'));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const paths = { ytDlp: join(root, 'yt-dlp.exe'), ffmpeg: join(root, 'ffmpeg.exe') };
+    for (const path of Object.values(paths)) await writeFile(path, 'test component');
+    const config = { read: async () => ({ ytDlpPath: 'D://gone//yt-dlp.exe', ffmpegPath: 'D://gone//ffmpeg.exe', proxy: '', freeBaseUrl: 'http://127.0.0.1:3001/v1', artcraftPath: '' }), update: async () => {} };
+    const service = createYoinksService({ config, componentRoot: root,
+        detector: async (kind, path) => { if (path) throw problem('missing_executable', '组件不存在'); return paths[kind]; },
+        proxyResolver: async () => ({ url: '', source: 'none' }), fetchFactory: async (url, { globalFetch }) => globalFetch,
+        runner: async () => ({ code: 0, stdout: '2026.10.22\n', stderr: '' }) });
+    t.after(() => service.dispose());
+    const status = await service.status();
+    assert.equal(status.ready, true);
+    assert.equal(status.ffmpegReady, true);
+    assert.equal(status.ffmpegSource, 'detected');
+    assert.equal(status.staleYtDlpPath, true);
+    assert.equal(status.staleFfmpegPath, true);
 });

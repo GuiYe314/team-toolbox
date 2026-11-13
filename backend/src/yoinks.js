@@ -5,9 +5,12 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { appRoot, fields, problem, detectExecutable, executablePath, executableSource, runIntegrationProcess } from './integration-common.js';
 import { resolveVideo, listResolvers } from './video-resolvers.js';
+import { createProxyFetch, normalizeProxy, proxyArgs, readSystemProxy, resolveProxy } from './video-proxy.js';
 
 const MiB = 1024 * 1024;
-const commonArgs = ['--ignore-config', '--no-plugin-dirs', '--no-playlist', '--no-warnings', '--no-cache-dir', '--socket-timeout', '20', '--retries', '1', '--extractor-retries', '1'];
+const baseArgs = ['--ignore-config', '--no-plugin-dirs', '--no-playlist', '--no-warnings', '--no-cache-dir', '--socket-timeout', '20', '--retries', '1', '--extractor-retries', '1'];
+// 代理放在基础参数里统一注入：Node 的 fetch 与 yt-dlp 都不读系统代理，缺了它内外网行为会和浏览器不一致。
+const commonArgsFor = proxy => [...baseArgs, ...proxyArgs(proxy)];
 // 新版yt-dlp的EJS解析复用当前Node，不依赖用户PATH或自动获取远程组件。
 const runtimeArgs = tools => tools.version.slice(0, 10) >= '2025.11.12' ? ['--no-js-runtimes', '--js-runtimes', `node:${process.execPath}`, '--no-remote-components'] : [];
 const mediaExtensions = new Set(['.mp4', '.webm', '.mkv', '.mov', '.m4a', '.mp3', '.ogg', '.opus', '.flv', '.avi', '.wav']);
@@ -36,15 +39,33 @@ export function videoChoices(info, hasFfmpeg) {
     return choices;
 }
 
-export function createYoinksService({ config, runner = runIntegrationProcess, detector = detectExecutable, fetchImpl = globalThis.fetch, componentRoot = appRoot, temporaryRoot = tmpdir(), now = Date.now, retentionMs = 10 * 60 * 1000, maxFileBytes = 1024 * MiB, downloadTimeoutMs = 15 * 60 * 1000 } = {}) {
+export function createYoinksService({ config, runner = runIntegrationProcess, detector = detectExecutable, fetchImpl = globalThis.fetch, proxyResolver = resolveProxy, fetchFactory = createProxyFetch, componentRoot = appRoot, temporaryRoot = tmpdir(), now = Date.now, retentionMs = 10 * 60 * 1000, maxFileBytes = 1024 * MiB, downloadTimeoutMs = 15 * 60 * 1000 } = {}) {
     const probes = new Map(), results = new Map();
     let active = null, disposed = false;
     async function tools() {
         const value = await config.read();
-        const ytDlpPath = await detector('ytDlp', value.ytDlpPath, { root: componentRoot }).catch(() => '');
-        const ffmpegPath = await detector('ffmpeg', value.ffmpegPath, { root: componentRoot }).catch(() => '');
-        return { ytDlpPath, ffmpegPath, configuredYtDlpPath: value.ytDlpPath, configuredFfmpegPath: value.ffmpegPath,
-            ytDlpSource: executableSource('ytDlp', ytDlpPath, value.ytDlpPath, { root: componentRoot }), ffmpegSource: executableSource('ffmpeg', ffmpegPath, value.ffmpegPath, { root: componentRoot }), ready: !!ytDlpPath, ffmpegReady: !!ffmpegPath };
+        // 设置里保存的路径可能已经被删掉或换了盘：此时退回内置组件与 PATH 检测，而不是把功能判死。
+        const detect = async (kind, configured) => {
+            try { return await detector(kind, configured, { root: componentRoot }); }
+            catch { return configured ? detector(kind, '', { root: componentRoot }).catch(() => '') : ''; }
+        };
+        const ytDlpPath = await detect('ytDlp', value.ytDlpPath);
+        const ffmpegPath = await detect('ffmpeg', value.ffmpegPath);
+        const stillConfigured = (file, configured) => file && configured && file.toLowerCase() === configured.toLowerCase() ? configured : '';
+        return { ytDlpPath, ffmpegPath, configuredYtDlpPath: value.ytDlpPath, configuredFfmpegPath: value.ffmpegPath, configuredProxy: value.proxy || '',
+            ytDlpSource: executableSource('ytDlp', ytDlpPath, stillConfigured(ytDlpPath, value.ytDlpPath), { root: componentRoot }),
+            ffmpegSource: executableSource('ffmpeg', ffmpegPath, stillConfigured(ffmpegPath, value.ffmpegPath), { root: componentRoot }),
+            // 保存的路径失效时告诉界面，避免用户以为设置还在生效。
+            staleYtDlpPath: !!value.ytDlpPath && !stillConfigured(ytDlpPath, value.ytDlpPath),
+            staleFfmpegPath: !!value.ffmpegPath && !stillConfigured(ffmpegPath, value.ffmpegPath),
+            ready: !!ytDlpPath, ffmpegReady: !!ffmpegPath };
+    }
+    /** 组件状态 + 本次真正生效的代理（configured / env / system / none），供界面提示。 */
+    async function status() {
+        const value = await tools();
+        const proxy = await proxyResolver({ configured: value.configuredProxy });
+        const detectedProxy = await readSystemProxy().catch(() => '');
+        return { ...value, proxy: proxy.url, proxySource: proxy.source, detectedProxy };
     }
     async function exclusive(signal, work) {
         if (disposed) throw problem('closed', '服务正在关闭', 503);
@@ -67,8 +88,13 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
         return { ...value, version: version.stdout.trim().slice(0, 80) };
     }
     async function configure(body, signal) {
-        fields(body, ['ytDlpPath', 'ffmpegPath']);
+        fields(body, ['ytDlpPath', 'ffmpegPath', 'proxy']);
         if (typeof body.ytDlpPath !== 'string' || typeof body.ffmpegPath !== 'string') throw problem('invalid_input', '请填写组件路径，留空将使用自动检测');
+        // proxy 省略表示「不改动」，空字符串表示「不用代理」。
+        const rawProxy = body.proxy === undefined ? null : body.proxy;
+        if (rawProxy !== null && typeof rawProxy !== 'string') throw problem('invalid_input', '代理地址必须是文本');
+        const proxy = rawProxy === null || !rawProxy.trim() ? '' : normalizeProxy(rawProxy);
+        if (rawProxy !== null && rawProxy.trim() && !proxy) throw problem('invalid_proxy', '代理地址无效，请填写 http://127.0.0.1:7897 这样的地址', 400);
         return exclusive(signal, async combined => {
             const ytDlpPath = body.ytDlpPath ? await executablePath(body.ytDlpPath, 'ytDlp') : '';
             const ffmpegPath = body.ffmpegPath ? await executablePath(body.ffmpegPath, 'ffmpeg') : '';
@@ -80,8 +106,8 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
                 if (r.code !== 0 || !/^ffmpeg version /m.test(r.stdout)) throw problem('invalid_executable', 'ffmpeg 版本检测失败');
             }
             if (combined.aborted) throw problem('cancelled', '操作已取消', 499);
-            await config.update({ ytDlpPath, ffmpegPath }); probes.clear();
-            return tools();
+            await config.update({ ytDlpPath, ffmpegPath, ...(rawProxy === null ? {} : { proxy }) }); probes.clear();
+            return status();
         });
     }
     async function resolvers() {
@@ -93,19 +119,21 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
         if (typeof forcedResolverId !== 'string' || forcedResolverId.length > 64) throw problem('invalid_input', '解析方案编号无效');
         return exclusive(signal, async combined => {
             const value = await checkTools(await tools(), combined);
+            const proxy = await proxyResolver({ configured: value.configuredProxy });
+            const http = await fetchFactory(proxy.url, { globalFetch: fetchImpl });
             // 统一链接解析：按优先级依次尝试所有方案，某个失败自动交给下一个。
             const chain = await resolveVideo(url, {
-                runner, tools: value, signal: combined, commonArgs, runtimeArgs, videoChoices, fetchImpl,
+                runner, tools: value, signal: combined, commonArgs: commonArgsFor(proxy.url), runtimeArgs, videoChoices, fetchImpl: http,
                 validateUrl: videoUrl, forcedResolverId, now: Date.now,
                 childSignal: ms => AbortSignal.any([combined, AbortSignal.timeout(ms)])
             });
             for (const [id, item] of probes) if (now() - item.createdAt > 5 * 60000) probes.delete(id);
             while (probes.size >= 4) probes.delete(probes.keys().next().value);
             const id = randomUUID(), info = chain.info;
-            probes.set(id, { url: info.mediaUrl, title: info.title, choices: info.choices, tools: value, resolverId: chain.resolver.id, createdAt: now() });
+            probes.set(id, { url: info.mediaUrl, title: info.title, choices: info.choices, tools: value, proxy: proxy.url, resolverId: chain.resolver.id, createdAt: now() });
             return { id, title: info.title, uploader: info.uploader, duration: info.duration,
                 choices: info.choices.map(({ id: choiceId, label }) => ({ id: choiceId, label })),
-                ffmpegReady: !!value.ffmpegPath, resolvedBy: chain.resolver, attempts: chain.attempts };
+                ffmpegReady: !!value.ffmpegPath, resolvedBy: chain.resolver, attempts: chain.attempts, proxy: proxy.url, proxySource: proxy.source };
         });
     }
     async function removeResult(id) {
@@ -141,7 +169,7 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
             monitor.unref?.();
             try {
                 emit({ type: 'start', message: '正在下载，完成后可能需要合并或转换' });
-                const args = [...commonArgs, ...runtimeArgs(probe.tools), ...choice.args, '--no-simulate', '--newline', '--no-quiet', '--progress', '--progress-delta', '0.5', '--max-filesize', String(maxFileBytes), '--progress-template', 'download:TOOLBOX_PROGRESS|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.speed)s|%(progress.eta)s', '--print', 'after_move:TOOLBOX_FILE|%(filepath)s', '-o', join(directory, 'media.%(ext)s')];
+                const args = [...commonArgsFor(probe.proxy), ...runtimeArgs(probe.tools), ...choice.args, '--no-simulate', '--newline', '--no-quiet', '--progress', '--progress-delta', '0.5', '--max-filesize', String(maxFileBytes), '--progress-template', 'download:TOOLBOX_PROGRESS|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.speed)s|%(progress.eta)s', '--print', 'after_move:TOOLBOX_FILE|%(filepath)s', '-o', join(directory, 'media.%(ext)s')];
                 if (probe.tools.ffmpegPath) args.push('--ffmpeg-location', probe.tools.ffmpegPath);
                 args.push('--', choice.url || probe.url);
                 const output = await runner(probe.tools.ytDlpPath, args, { signal: operationSignal, timeout: downloadTimeoutMs, maxBytes: 2 * MiB, cwd: directory, onLine: line => {
@@ -189,5 +217,5 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
         for (const result of results.values()) for (const stream of result.streams) stream.destroy();
         await Promise.allSettled([...results.keys()].map(removeResult));
     }
-    return { tools, resolvers, configure, analyze, download, openResult, removeResult, dispose };
+    return { tools, status, resolvers, configure, analyze, download, openResult, removeResult, dispose };
 }

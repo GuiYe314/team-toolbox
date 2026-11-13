@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { appRoot, IntegrationError, problem } from './integration-common.js';
-import { PAGE_HEADERS, extractMedia, fetchText, fileChoices, hlsChoices, normalizePageUrl, pageTitle, parseHlsMaster } from './video-page.js';
+import { PAGE_HEADERS, extractMedia, fetchText, fileChoices, hlsChoices, normalizePageUrl, pageTitle, parseHlsMaster, refererArgs } from './video-page.js';
 
 /**
  * 统一视频链接解析层。
@@ -77,35 +77,71 @@ async function ytdlpProbe(url, ctx, { extraArgs = [], timeoutMs = 45000 } = {}) 
     };
 }
 
+/** 帖子页的编号：/t/6588976、?tid=6588976 都能认出来，用于在多视频页面里选出当前帖子。 */
+export function topicIdOf(url) {
+    try {
+        const parsed = new URL(url);
+        return parsed.searchParams.get('tid') || parsed.searchParams.get('id') || (parsed.pathname.match(/\/t\/(\d{3,})/) || [])[1] || '';
+    } catch { return ''; }
+}
+
+/** 页面里读不到媒体地址时，把能说明问题的信息一起带出来，避免只看到一句「未解析」。 */
+function describePage(html) {
+    const title = pageTitle(html).slice(0, 40);
+    const size = `${Math.max(1, Math.round(String(html ?? '').length / 1024))} KB`;
+    const head = String(html ?? '').slice(0, 4000);
+    const blocked = /just a moment|attention required|cf-browser-verification|人机验证|验证您不是机器人/i.test(title)
+        || /cf-chl-|challenge-platform|__cf_chl_/i.test(head);
+    return { title, size, blocked };
+}
+
 /** 页面里读到的媒体地址 → 可下载格式；HLS 先让 yt-dlp 列格式，失败再自己解析主清单。 */
 async function pageMediaInfo(url, ctx, { timeoutMs = 15000 } = {}) {
     const http = ctx.fetchImpl || globalThis.fetch;
     const page = normalizePageUrl(url);
     const html = await fetchText(page, { fetchImpl: http, signal: ctx.childSignal(timeoutMs), headers: { ...PAGE_HEADERS, referer: page } });
-    const media = extractMedia(html, page);
-    if (!media.length) throw problem('resolver_failed', '页面里没有找到媒体地址，可能由脚本动态加载或需要登录', 502);
+    const media = extractMedia(html, page, { topicId: topicIdOf(page) });
+    if (!media.length) {
+        const { title, size, blocked } = describePage(html);
+        throw problem('resolver_failed', `页面里没有找到视频地址（${size}${title ? `，标题「${title}」` : ''}）${blocked ? '，疑似被网站的人机验证拦截' : '，可能由脚本动态加载或需要登录'}`, 502);
+    }
     const title = pageTitle(html) || fileNameOf(page);
     const ffmpegReady = !!ctx.tools.ffmpegPath;
     const hls = media.find(item => item.kind === 'hls');
     if (hls) {
+        const referer = refererArgs(hls.url, page, html);
+        // 媒体请求同样按页面策略决定是否带 Referer：CDN 对多余的 Referer 会直接 403。
+        const mediaHeaders = { ...PAGE_HEADERS, ...(referer.length ? { referer: page } : {}) };
+        // 先自己读主清单：一次请求就能拿到全部清晰度，比让 yt-dlp 探测快一个数量级。
+        let variants = [];
         try {
-            const info = await ytdlpProbe(hls.url, ctx, { extraArgs: ['--referer', page], timeoutMs: 25000 });
+            const playlist = await fetchText(hls.url, { fetchImpl: http, signal: ctx.childSignal(12000), headers: mediaHeaders, maxChars: 512 * 1024 });
+            variants = parseHlsMaster(playlist, hls.url).variants;
+        } catch {
+            if (ctx.signal?.aborted) throw problem('cancelled', '操作已取消', 499);
+        }
+        if (variants.length) {
+            const choices = hlsChoices(variants, { pageUrl: page, hasFfmpeg: ffmpegReady, html });
+            if (ffmpegReady) choices.push({ id: 'audio-mp3', label: '仅音频 · MP3', args: [...referer, '-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0'] });
+            return { title, uploader: '', duration: null, mediaUrl: hls.url, choices, ffmpegReady };
+        }
+        // 清单读不出来（加密或格式特殊）时交给 yt-dlp 列格式。
+        try {
+            const info = await ytdlpProbe(hls.url, ctx, { extraArgs: referer, timeoutMs: 25000 });
             // 让每个清晰度都去读同一份主清单：yt-dlp 会按 -f 选变体，音轨分组也能自动合并。
-            return { ...info, title: info.title || title, mediaUrl: hls.url,
-                choices: info.choices.map(choice => ({ ...choice, url: hls.url, args: ['--referer', page, ...(choice.args || [])] })) };
+            return { ...info, title: title || info.title, mediaUrl: hls.url,
+                choices: info.choices.map(choice => ({ ...choice, url: hls.url, args: [...referer, ...(choice.args || [])] })) };
         } catch (error) {
             if (ctx.signal?.aborted) throw problem('cancelled', '操作已取消', 499);
-            const playlist = await fetchText(hls.url, { fetchImpl: http, signal: ctx.childSignal(12000), headers: { ...PAGE_HEADERS, referer: page }, maxChars: 512 * 1024 });
-            const { variants } = parseHlsMaster(playlist, hls.url);
-            if (!variants.length && !/^#EXT[IM]/im.test(playlist)) throw problem('resolver_failed', '读到 HLS 地址但无法解析清晰度列表', 502);
+            // 都读不出来也先给一条直连流：下载阶段 yt-dlp 可能仍能拉清单，比直接判失败有用。
             return { title, uploader: '', duration: null, mediaUrl: hls.url,
-                choices: hlsChoices(variants, { pageUrl: page, hasFfmpeg: ffmpegReady }), ffmpegReady };
+                choices: [{ id: 'hls-auto', label: '原始清晰度 · HLS 直连', args: referer }], ffmpegReady };
         }
     }
     const files = media.filter(item => item.kind === 'file');
     if (files.length) {
         return { title: title || fileNameOf(files[0].url), uploader: '', duration: null, mediaUrl: files[0].url,
-            choices: fileChoices(files, { pageUrl: page, hasFfmpeg: ffmpegReady }), ffmpegReady };
+            choices: fileChoices(files, { pageUrl: page, hasFfmpeg: ffmpegReady, html }), ffmpegReady };
     }
     const embed = media.find(item => item.kind === 'embed');
     const info = await ytdlpProbe(embed.url, ctx);
@@ -129,7 +165,7 @@ export const builtinResolvers = [
                     const playlist = await fetchText(url, { fetchImpl: http, signal: ctx.childSignal(10000), maxChars: 512 * 1024 });
                     const { variants } = parseHlsMaster(playlist, url);
                     if (variants.length) return { title: fileNameOf(url), uploader: '', duration: null, mediaUrl: url,
-                        choices: hlsChoices(variants, { pageUrl: url, hasFfmpeg: ffmpegReady }), ffmpegReady };
+                        choices: hlsChoices(variants, { pageUrl: '', hasFfmpeg: ffmpegReady }), ffmpegReady };
                 } catch (error) {
                     if (ctx.signal?.aborted) throw problem('cancelled', '操作已取消', 499);
                 }

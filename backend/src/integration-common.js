@@ -12,7 +12,7 @@ export class IntegrationError extends Error {
 }
 export const problem = (code, message, status) => new IntegrationError(code, message, status);
 export const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-export const defaults = Object.freeze({ ytDlpPath: '', ffmpegPath: '', freeBaseUrl: 'http://127.0.0.1:3001/v1', artcraftPath: '' });
+export const defaults = Object.freeze({ ytDlpPath: '', ffmpegPath: '', proxy: '', freeBaseUrl: 'http://127.0.0.1:3001/v1', artcraftPath: '' });
 
 export function fields(value, allowed) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !allowed.includes(key))) {
@@ -38,10 +38,12 @@ export function createIntegrationConfig(file = join(appRoot, 'data', 'open-sourc
         try {
             const raw = JSON.parse(await readFile(file, 'utf8'));
             fields(raw, ['version', ...Object.keys(defaults)]);
-            if (raw.version !== 1 || Object.keys(defaults).some(key => typeof raw[key] !== 'string')) throw new Error('bad_config');
-            if (Object.values(raw).some(value => typeof value === 'string' && value.length > 2048)) throw new Error('bad_config');
-            localBaseUrl(raw.freeBaseUrl);
-            return Object.fromEntries(Object.keys(defaults).map(key => [key, raw[key]]));
+            // 旧版本配置文件缺少新字段时按默认值补齐，避免升级后整份配置被判为损坏。
+            const merged = { ...defaults, ...raw };
+            if (raw.version !== 1 || Object.keys(defaults).some(key => typeof merged[key] !== 'string')) throw new Error('bad_config');
+            if (Object.values(merged).some(value => typeof value === 'string' && value.length > 2048)) throw new Error('bad_config');
+            localBaseUrl(merged.freeBaseUrl);
+            return Object.fromEntries(Object.keys(defaults).map(key => [key, merged[key]]));
         } catch (error) {
             if (error.code === 'ENOENT') return { ...defaults };
             throw problem('config_error', '本机开源工具配置损坏或不可读，请检查 data/open-source-tools.json；原文件未被覆盖', 500);

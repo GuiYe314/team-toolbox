@@ -26,6 +26,18 @@
 
 接口仍挂在原有 `/api/integrations/yoinks/*` 下，工具 id、路由 `/tools/yoinks`、卡片数量均不变。
 
+## 网络代理
+
+浏览器能打开的站点，后端不一定能打开：Node 的 `fetch` 不读系统代理，yt-dlp 也只认 `--proxy`。工具箱把代理统一注入这两条链路，取值顺序是：
+
+1. **组件设置里的「网络代理」**（写进 `data/open-source-tools.json` 的 `proxy` 字段）；
+2. **Windows 系统代理**（读注册表 `HKCU\...\Internet Settings`；`reg.exe` 被安全策略禁用时改用系统命令行兜底）；只有代理端口确实在监听才采用；
+3. **环境变量** `HTTPS_PROXY` / `HTTP_PROXY`（系统代理读不到或不可用时兜底）。
+
+浏览器用的是系统代理，所以系统代理排在环境变量之前：环境变量在 Windows 上常被终端工具或 IDE 改写，容易指向一个不相关的端口。
+
+支持 `http://` 与 `https://` 代理（抓网页 + yt-dlp 下载都生效），`socks5://` 只对 yt-dlp 下载生效（undici 的 ProxyAgent 不处理 socks）。界面「视频来源」下方会写明当前生效的代理与来源（手动设置 / 环境变量 / Windows 系统代理 / 未使用）。
+
 ## 内置方案
 
 | id | 名称 | priority | 什么时候尝试 |
@@ -47,7 +59,11 @@ priority 数字越小越先尝试。类型不匹配的方案会被标为「跳�
 2. **HLS 主清单**（yt-dlp 读不了清单时自己解析）：读 `#EXT-X-STREAM-INF` 的 `RESOLUTION / BANDWIDTH`，给出 `1080p · 5.2 Mbps · HLS` 这样的选项，下载时仍然读同一份主清单，音轨分组能被 yt-dlp 自动合并。
 3. **网页里只给单个 MP4**：显示「原始清晰度 · 直接下载」，ffmpeg 就绪时再加一项「仅音频 · MP3」。站点本身只提供一种画质时不会凭空造出更多档位，界面会明确写「该来源只提供一个清晰度」。
 
-`bad-news` / `page-media` 解析出的地址下载时会自动带 `--referer <页面地址>`，避免 CDN 防盗链直接 403。
+`bad-news` / `page-media` 解析出的地址下载时是否带 `--referer <页面地址>`，按页面自己的 Referer 策略决定：
+
+- 页面写了 `<meta name="referrer" content="no-referrer">`（bad.news 就是这种）：一律不带 Referer。这类站点的 CDN 收到 `Referer: 站内页面` 会直接 403。
+- 页面写了 `same-origin` / `origin`：只在媒体与页面同站时带。
+- 页面没有声明：保持原行为，带上页面地址，兼容需要防盗链 Referer 的站点。
 
 ## bad.news 这类站点的处理方式
 
@@ -59,6 +75,8 @@ bad.news 没有 yt-dlp 提取器，页面把视频地址写在标签属性里：
 ```
 
 `bad-news` 方案做三件事：把 `/ajax/download?tid=…` 之类的下载入口换回公开话题页 `/t/<id>`（避免登录要求）；抓 HTML 后用标签 + 属性正则取 `data-source`（兼容 `data-type` 写在前面、地址被 `&amp;` 或 `\/` 转义）；拿到 m3u8 就先让 yt-dlp 读格式，读不出来再自己解析主清单。
+
+帖子页下方通常还挂着推荐视频，页面里会有多个 `data-source`。`bad-news` 会先按帖子号匹配 `data-id`（`/t/6588976` → `data-id="6588976"`），只取正文那一条；匹配不到才退回全部候选，避免规则太严导致解析不了。
 
 同类站点如果页面结构相似，不需要改代码：`page-media`（priority 65）会对任何 `ytdlp` 解析不了的链接做同样的网页媒体提取，作为通用兜底。
 
