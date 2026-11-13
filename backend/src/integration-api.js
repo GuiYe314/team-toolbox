@@ -56,11 +56,27 @@ export function registerIntegrationApi(app, { service = createIntegrationService
             }
         } finally { res.removeListener('close', cancel); }
     };
+    // 下载改为后台任务：立即返回任务编号，由前端轮询进度；关掉页面也不会中断。
+    const taskId = req => {
+        if (!/^[a-f0-9-]{36}$/.test(req.params.id)) throw problem('invalid_input', '下载任务编号无效');
+        return req.params.id;
+    };
+    const noFields = req => {
+        if (!req.body || Object.keys(req.body).length) throw problem('invalid_input', '该操作不接受其他字段');
+    };
     router.get('/yoinks/config', action('yoinks_config', () => service.yoinks.status?.() ?? service.yoinks.tools()));
     router.get('/yoinks/resolvers', action('yoinks_resolvers', () => service.yoinks.resolvers?.() ?? { resolvers: [] }));
     router.put('/yoinks/config', action('yoinks_configure', (req, signal) => service.yoinks.configure(req.body, signal)));
     router.post('/yoinks/analyze', action('yoinks_analyze', (req, signal) => service.yoinks.analyze(req.body, signal)));
-    router.post('/yoinks/download', action('yoinks_download', (req, signal, emit) => service.yoinks.download(req.body, signal, emit), 'stream'));
+    router.post('/yoinks/download', action('yoinks_download', req => service.yoinks.startTask(req.body)));
+    router.get('/yoinks/tasks', action('yoinks_tasks', () => service.yoinks.listTasks()));
+    router.get('/yoinks/tasks/:id', action('yoinks_task', req => service.yoinks.getTask(taskId(req))));
+    router.post('/yoinks/tasks/:id/cancel', action('yoinks_cancel', req => { noFields(req); return service.yoinks.cancelTask(taskId(req)); }));
+    router.post('/yoinks/tasks/:id/retry', action('yoinks_retry', req => { noFields(req); return service.yoinks.retryTask(taskId(req)); }));
+    router.post('/yoinks/tasks/:id/remove', action('yoinks_task_remove', req => { noFields(req); return service.yoinks.removeTask(taskId(req)); }));
+    router.post('/yoinks/tasks/:id/reveal', action('yoinks_reveal', req => { noFields(req); return service.yoinks.revealTask(taskId(req)); }));
+    router.get('/yoinks/cache', action('yoinks_cache', () => service.yoinks.cacheInfo()));
+    router.post('/yoinks/cache/clear', action('yoinks_cache_clear', req => { noFields(req); return service.yoinks.clearCache(); }));
     router.get('/yoinks/results/:id/file', action('yoinks_file', req => service.yoinks.openResult(req.params.id), 'file'));
     router.post('/yoinks/results/:id/remove', action('yoinks_remove', req => {
         if (!req.body || Object.keys(req.body).length) throw problem('invalid_input', '清理下载不接受其他字段');

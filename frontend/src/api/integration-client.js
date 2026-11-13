@@ -43,7 +43,13 @@ export const integrationApi = {
     videoResolvers: signal => request('GET', '/yoinks/resolvers', undefined, signal),
     saveVideoConfig: (value, signal) => request('PUT', '/yoinks/config', value, signal),
     analyzeVideo: (url, signal, resolverId = '') => request('POST', '/yoinks/analyze', { url, ...(resolverId ? { resolverId } : {}) }, signal, undefined, 150000),
-    downloadVideo: (probeId, choiceId, signal, update) => request('POST', '/yoinks/download', { probeId, choiceId }, signal, update, 16 * 60000),
+    downloadVideo: (probeId, choiceId, signal) => request('POST', '/yoinks/download', { probeId, choiceId }, signal),
+    videoTasks: signal => request('GET', '/yoinks/tasks', undefined, signal),
+    cancelVideoTask: (id, signal) => request('POST', `/yoinks/tasks/${encodeURIComponent(id)}/cancel`, {}, signal),
+    retryVideoTask: (id, signal) => request('POST', `/yoinks/tasks/${encodeURIComponent(id)}/retry`, {}, signal),
+    removeVideoTask: (id, signal) => request('POST', `/yoinks/tasks/${encodeURIComponent(id)}/remove`, {}, signal),
+    revealVideoTask: (id, signal) => request('POST', `/yoinks/tasks/${encodeURIComponent(id)}/reveal`, {}, signal),
+    clearVideoCache: signal => request('POST', '/yoinks/cache/clear', {}, signal),
     removeVideo: (id, keepalive = false) => keepalive
         ? fetch(`${base}/yoinks/results/${encodeURIComponent(id)}/remove`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Toolbox-Integration': '1' }, body: '{}', keepalive: true, signal: AbortSignal.timeout(5000) }).then(async response => { if (!response.ok) throw new Error((await response.json()).message || '结果清理失败'); return response.json(); })
         : request('POST', `/yoinks/results/${encodeURIComponent(id)}/remove`, {}),

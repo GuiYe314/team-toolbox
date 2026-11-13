@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, readdir, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, readdir, mkdir, rm, lstat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -34,7 +34,7 @@ async function videoFixture(t, overrides = {}) {
         return { code: 0, stdout: '', stderr: '' };
     };
     // 测试不读本机系统代理，固定「不使用代理」，避免环境差异影响结果。
-    const service = createYoinksService({ config: f.config, runner, detector: async (kind, path) => path || paths[kind], temporaryRoot: f.root,
+    const service = createYoinksService({ config: f.config, runner, detector: async (kind, path) => path || paths[kind], temporaryRoot: f.root, defaultDownloadDir: join(f.root, 'downloads'),
         proxyResolver: async () => ({ url: '', source: 'none' }), fetchFactory: async (url, { globalFetch }) => globalFetch, ...overrides });
     t.after(() => service.dispose());
     return { ...f, paths, calls, runner, service };
@@ -159,16 +159,26 @@ test('组件文件丢失时仍可读取并修改已存路径', async t => {
     await config.update({ ytDlpPath: 'missing' });
     assert.equal((await service.tools()).configuredYtDlpPath, 'missing'); assert.equal((await service.tools()).ready, false);
 });
-test('视频成功必须有真实非空文件，进度与结果分离且文件可领取和清理', async t => {
+test('视频成功必须有真实非空文件，进度与结果分离且自动保存到下载目录', async t => {
     const { service, calls, root } = await videoFixture(t), events = [];
     const info = await service.analyze({ url: 'https://example.com/video' });
     const result = await service.download({ probeId: info.id, choiceId: 'audio-mp3' }, undefined, event => events.push(event));
     assert.deepEqual(events.map(x => x.type), ['start', 'progress', 'done']); assert.equal(result.size, 128); assert.ok(result.name.endsWith('.mp3')); assert.ok(!result.name.includes('/'));
     const download = calls.find(x => x.args.includes('--no-simulate'));
-    assert.ok(download.args.includes('--max-filesize')); assert.deepEqual(download.args.slice(-2), ['--', 'https://example.com/video']);
+    // 不再限制单文件体积，改为默认续传；总时长也不再设限。
+    assert.ok(!download.args.includes('--max-filesize')); assert.ok(download.args.includes('--continue'));
+    assert.deepEqual(download.args.slice(-2), ['--', 'https://example.com/video']);
+    // 完成后自动移动到下载目录，临时缓存被清掉。
+    assert.equal(result.saved, true);
+    assert.equal(result.savedTo, join(root, 'downloads', result.name));
+    assert.equal((await lstat(result.savedTo)).size, 128);
     const file = await service.openResult(result.id); let size = 0; for await (const chunk of file.stream) size += chunk.length;
     assert.equal(size, 128); await service.removeResult(result.id);
-    await assert.rejects(service.openResult(result.id), fail('expired')); assert.ok(!(await readdir(root)).some(name => name.startsWith('toolbox-yoinks-')));
+    await assert.rejects(service.openResult(result.id), fail('expired'));
+    const cache = await readdir(join(root, 'toolbox-video-cache')).catch(() => []);
+    assert.deepEqual(cache, []);
+    // 已保存到磁盘的成品不随临时结果清理而删除。
+    assert.equal((await lstat(result.savedTo)).size, 128);
 });
 test('视频探测过期和自由格式参数被拒绝', async t => {
     let clock = 0;
@@ -185,32 +195,74 @@ test('视频下载失败不暴露原始 stderr，临时目录被回收', async t
     await assert.rejects(f.service.download({ probeId: info.id, choiceId: 'video-720' }), error => error.code === 'download_failed' && !error.message.includes('secret'));
     assert.ok(!(await readdir(f.root)).some(name => name.startsWith('toolbox-yoinks-')));
 });
-test('取消在途视频下载会释放独占锁并清理临时目录', async t => {
-    let original, entered;
+test('取消在途下载保留分片，同一链接重试从断点继续', async t => {
+    let original, entered, attempts = 0;
     const ready = new Promise(resolve => { entered = resolve; });
     const f = await videoFixture(t, { runner: (file, args, options) => {
         if (!args.includes('--no-simulate')) return original(file, args, options);
+        attempts += 1;
+        if (attempts > 1) return original(file, args, options);
         entered(); return new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(problem('cancelled', 'cancelled', 499)), { once: true }));
     } }); original = f.runner;
     const info = await f.service.analyze({ url: 'https://example.com/video' }), controller = new AbortController();
     const pending = f.service.download({ probeId: info.id, choiceId: 'video-720' }, controller.signal); await ready;
-    await assert.rejects(f.service.analyze({ url: 'https://example.com/video' }), fail('busy'));
-    controller.abort(); await assert.rejects(pending, fail('cancelled'));
-    assert.ok(!(await readdir(f.root)).some(name => name.startsWith('toolbox-yoinks-')));
+    // 下载不再独占服务：同一时间仍然可以解析别的链接。
     assert.ok((await f.service.analyze({ url: 'https://example.com/video' })).id);
+    controller.abort(); await assert.rejects(pending, fail('cancelled'));
+    const cache = await readdir(join(f.root, 'toolbox-video-cache'));
+    assert.equal(cache.length, 1, '取消后应保留分片目录用于续传');
+    const again = await f.service.download({ probeId: info.id, choiceId: 'video-720' });
+    assert.ok(again.size > 0);
+    const resumed = f.calls.filter(x => x.args.includes('--no-simulate')).at(-1);
+    assert.ok(resumed.args.includes('--continue'));
 });
-test('外部文件路径不能作为下载结果，超限文件也不能领取', async t => {
-    for (const invalid of ['outside', 'oversize']) {
-        let original;
-        const f = await videoFixture(t, { maxFileBytes: 100, runner: async (file, args, options) => {
-            if (!args.includes('--no-simulate')) return original(file, args, options);
-            if (invalid === 'outside') { options.onLine('TOOLBOX_FILE|' + join(f.root, 'outside.mp4')); return { code: 0 }; }
-            return original(file, args, options);
-        } }); original = f.runner;
-        const info = await f.service.analyze({ url: 'https://example.com/video' });
-        await assert.rejects(f.service.download({ probeId: info.id, choiceId: 'video-720' }), fail(invalid === 'outside' ? 'invalid_output' : 'file_limit'));
-        assert.ok(!(await readdir(f.root)).some(name => name.startsWith('toolbox-yoinks-')));
-    }
+test('外部文件路径不能作为下载结果', async t => {
+    let original;
+    const f = await videoFixture(t, { runner: async (file, args, options) => {
+        if (!args.includes('--no-simulate')) return original(file, args, options);
+        options.onLine('TOOLBOX_FILE|' + join(f.root, 'outside.mp4'));
+        return { code: 0 };
+    } }); original = f.runner;
+    const info = await f.service.analyze({ url: 'https://example.com/video' });
+    await assert.rejects(f.service.download({ probeId: info.id, choiceId: 'video-720' }), fail('invalid_output'));
+});
+test('并发上限内并行下载，其余排队并在有位置时自动开始', async t => {
+    let original, release = null;
+    const f = await videoFixture(t, { maxConcurrent: 1, runner: async (file, args, options) => {
+        if (!args.includes('--no-simulate')) return original(file, args, options);
+        await new Promise(resolve => { release = resolve; });
+        return original(file, args, options);
+    } }); original = f.runner;
+    const info = await f.service.analyze({ url: 'https://example.com/video' });
+    f.service.startTask({ probeId: info.id, choiceId: 'video-720' });
+    f.service.startTask({ probeId: info.id, choiceId: 'video-720' });
+    const until = async check => { for (let index = 0; index < 200; index++) { if (await check()) return; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error('等待超时'); };
+    await until(() => release);
+    const queued = await f.service.listTasks();
+    assert.equal(queued.tasks.filter(task => task.state === 'running').length, 1);
+    assert.equal(queued.tasks.filter(task => task.state === 'queued').length, 1);
+    release(); release = null;
+    await until(async () => (await f.service.listTasks()).tasks.every(task => task.state === 'running' || task.state === 'done') && !!release);
+    release();
+    await until(async () => (await f.service.listTasks()).tasks.every(task => task.state === 'done'));
+});
+test('下载目录不可写时保留临时文件并提示手动保存', async t => {
+    const blocked = join(tmpdir(), 'tt-blocked-' + Date.now());
+    await writeFile(blocked, 'not a folder'); t.after(() => rm(blocked, { force: true }));
+    const f = await videoFixture(t, { defaultDownloadDir: blocked });
+    const info = await f.service.analyze({ url: 'https://example.com/video' });
+    const result = await f.service.download({ probeId: info.id, choiceId: 'video-720' });
+    assert.equal(result.saved, false); assert.ok(result.saveError.includes('自动保存'));
+    const file = await f.service.openResult(result.id); let size = 0; for await (const chunk of file.stream) size += chunk.length;
+    assert.equal(size, 128);
+});
+test('同名文件不会覆盖，自动追加序号', async t => {
+    const f = await videoFixture(t), folder = join(f.root, 'downloads');
+    await mkdir(folder, { recursive: true }); await writeFile(join(folder, '测试 _ 视频.mp4'), 'old');
+    const info = await f.service.analyze({ url: 'https://example.com/video' });
+    const result = await f.service.download({ probeId: info.id, choiceId: 'video-720' });
+    assert.equal(result.name, '测试 _ 视频 (2).mp4');
+    assert.equal(await readFile(join(folder, '测试 _ 视频.mp4'), 'utf8'), 'old');
 });
 test('下载结果到期后不能领取；服务退出取消并清理结果', async t => {
     let clock = 0;

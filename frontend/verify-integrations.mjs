@@ -26,7 +26,7 @@ const paths = { ytDlp: join(componentDir, 'yt-dlp.exe'), ffmpeg: join(componentD
 for (const path of Object.values(paths)) await writeFile(path, 'isolated test component, never executed');
 const settingsFile = join(temporary, 'open-source-tools.json');
 const config = createIntegrationConfig(settingsFile);
-const state = { bundleReady: false, videoMode: 'success', videosCancelled: 0, videoActive: false, freeMode: 'success', freeCancelled: 0, chatRequests: [], launchRequests: [], apiLogs: [] };
+const state = { bundleReady: false, videoMode: 'success', videosCancelled: 0, videoRunning: 0, freeMode: 'success', freeCancelled: 0, chatRequests: [], launchRequests: [], apiLogs: [] };
 const delay = ms => new Promise(resolvePromise => setTimeout(resolvePromise, ms));
 const gateway = express(); gateway.use(express.json());
 const testKey = 'freellmapi-isolated-ui-key';
@@ -52,11 +52,11 @@ const listen = (app, host = '127.0.0.1') => new Promise(resolvePromise => { cons
 const gatewayServer = await listen(gateway);
 const gatewayBase = `http://127.0.0.1:${gatewayServer.address().port}/v1`;
 const service = createIntegrationServices({ config,
-    yoinksOptions: { componentRoot: temporary, temporaryRoot: temporary, detector: async (kind, path) => path ? executablePath(path, kind) : state.bundleReady ? paths[kind] : '', runner: async (file, args, options) => {
+    yoinksOptions: { componentRoot: temporary, temporaryRoot: temporary, defaultDownloadDir: join(temporary, 'auto-downloads'), detector: async (kind, path) => path ? executablePath(path, kind) : state.bundleReady ? paths[kind] : '', runner: async (file, args, options) => {
         if (args.includes('--version')) return { code: 0, stdout: '2026.10.22\n' };
         if (args.includes('-version')) return { code: 0, stdout: 'ffmpeg version isolated-test\n' };
         if (args.includes('--dump-single-json')) return { code: 0, stdout: JSON.stringify({ title: '隔离验收视频', uploader: '合成测试', duration: 60, formats: [{ vcodec: 'avc1', acodec: 'aac', height: 720 }] }) };
-        state.videoActive = true;
+        state.videoRunning += 1;
         try {
             for (let i = 1; i <= (state.videoMode === 'slow' ? 100 : 5); i++) {
                 if (options.signal.aborted) { state.videosCancelled++; throw problem('cancelled', '已取消', 499); }
@@ -66,7 +66,7 @@ const service = createIntegrationServices({ config,
             const output = args[args.indexOf('-o') + 1].replace('%(ext)s', args.includes('mp3') ? 'mp3' : 'mp4');
             await writeFile(output, Buffer.alloc(256, 1)); options.onLine('TOOLBOX_FILE|' + output);
             return { code: 0 };
-        } finally { state.videoActive = false; }
+        } finally { state.videoRunning -= 1; }
     } },
     artcraftOptions: { launcher: async file => state.launchRequests.push(file) }
 });
@@ -94,7 +94,8 @@ async function evaluate(expression) {
 }
 async function wait(expression) {
     for (let index = 0; index < 120; index++) { if (await evaluate(expression)) return; await delay(100); }
-    console.log('页面诊断', await evaluate("({path:location.pathname,text:document.querySelector('.ext-page')?.innerText})"));
+    console.log('页面诊断', await evaluate("({path:location.pathname,text:document.querySelector('.ext-page')?.innerText, url:document.querySelector('[data-test=video-url]')?.value, analyzeDisabled:document.querySelector('[data-test=video-analyze]')?.disabled, notices:Array.from(document.querySelectorAll('.ext-notice')).map(el=>el.textContent)})"));
+    console.log('接口日志', state.apiLogs.slice(-6));
     await screenshot('integrations-failure.png'); throw new Error('页面等待超时：' + expression);
 }
 const selector = name => `[data-test="${name}"]`;
@@ -105,8 +106,9 @@ function check(name, value) { checks.push({ name, pass: !!value }); console.log(
 async function screenshot(name) { await mkdir(join(root, 'build'), { recursive: true }); await writeFile(join(root, 'build', name), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64')); }
 async function backToTools() { await evaluate("document.querySelector('.ext-back').click()"); await wait("location.pathname==='/tools'"); }
 async function tool(name) { await evaluate(`Array.from(document.querySelectorAll('.tool-card')).find(card=>card.textContent.includes(${JSON.stringify(name)})).querySelector('button').click()`); await delay(120); }
-async function waitForVideoStart() { for (let index = 0; index < 30 && !state.videoActive; index++) await delay(50); assert.ok(state.videoActive, '测试下载组件应已开始'); }
-async function waitForVideoCleanup() { for (let index = 0; index < 30; index++) { if (!state.videoActive && !(await readdir(temporary)).some(name => name.startsWith('toolbox-yoinks-'))) return; await delay(50); } }
+async function waitForVideoStart() { for (let index = 0; index < 40 && state.videoRunning < 1; index++) await delay(50); assert.ok(state.videoRunning >= 1, '测试下载组件应已开始'); }
+async function waitForVideoStop() { for (let index = 0; index < 60 && state.videoRunning > 0; index++) await delay(50); }
+const cacheEntries = async () => readdir(join(temporary, 'toolbox-video-cache')).catch(() => []);
 
 try {
     const portFile = join(browserProfile, 'DevToolsActivePort');
@@ -141,25 +143,44 @@ try {
     state.bundleReady = true;
     await click('video-settings'); await click('video-settings-bundled'); await wait("!document.querySelector('.ext-overlay')");
     check('一键恢复内置组件后显示就绪状态和直接使用说明', await evaluate("document.querySelector('[data-test=video-engine-status]').textContent.includes('内置') && document.querySelector('[data-test=video-bundled-hint]').textContent.includes('MP3')"));
-    const restored = await config.read(); check('恢复内置清空手动路径覆盖且不保存下载结果', restored.ytDlpPath === '' && restored.ffmpegPath === '' && Object.keys(restored).length === 4);
+    const restored = await config.read(); check('恢复内置清空手动路径覆盖且不保存下载结果', restored.ytDlpPath === '' && restored.ffmpegPath === '' && Object.keys(restored).length === 6);
     await input('video-url', 'https://example.com/watch?v=isolated'); await click('video-analyze'); await wait("!!document.querySelector('[data-test=video-info]')");
     check('视频分析提供清晰度与 MP3', await evaluate("document.querySelector('[data-test=video-info]').textContent.includes('隔离验收视频') && document.querySelector('[data-test=video-choice]').options.length===2"));
+    check('下载区显示保存目录与并发上限', await evaluate("document.querySelector('[data-test=video-save-dir]').textContent.includes('auto-downloads') && document.querySelector('[data-test=video-parallel]').textContent.includes('3')"));
     await input('video-choice', 'audio-mp3'); await click('video-download'); await wait("!!document.querySelector('[data-test=video-progress]')");
     check('下载中显示当前媒体流而非伪造总进度', await evaluate("document.querySelector('[data-test=video-progress]').textContent.includes('不能代表')"));
     await wait("!!document.querySelector('[data-test=video-result]')");
-    check('完成结果提供 MP3 与明确保存链接', await evaluate("document.querySelector('[data-test=video-result]').textContent.includes('.mp3') && document.querySelector('[data-test=video-save]').getAttribute('href').startsWith('/api/integrations/yoinks/results/')"));
-    await click('video-save');
-    for (let index = 0; index < 50 && !existsSync(join(temporary, 'browser-downloads', '隔离验收视频.mp3')); index++) await delay(100);
-    check('浏览器可领取真实生成的测试文件', existsSync(join(temporary, 'browser-downloads', '隔离验收视频.mp3')));
+    check('完成后自动保存并显示落地路径', await evaluate("document.querySelector('[data-test=video-result]').textContent.includes('已保存到') && document.querySelector('[data-test=video-result]').textContent.includes('隔离验收视频.mp3')"));
+    for (let index = 0; index < 50 && !existsSync(join(temporary, 'auto-downloads', '隔离验收视频.mp3')); index++) await delay(100);
+    check('文件已自动放进下载目录', existsSync(join(temporary, 'auto-downloads', '隔离验收视频.mp3')));
+    check('自动保存后不再需要手动另存', await evaluate("!document.querySelector('[data-test=video-save]')"));
     await click('video-remove'); await wait("!document.querySelector('[data-test=video-result]')");
-    state.videoMode = 'error'; await click('video-download'); await wait("document.querySelector('.ext-notice.is-error')?.textContent.includes('失败')");
-    check('下载失败明确反馈并释放临时文件', !(await readdir(temporary)).some(name => name.startsWith('toolbox-yoinks-')));
-    state.videoMode = 'slow'; await click('video-download'); await wait("!!document.querySelector('[data-test=video-progress]')"); await waitForVideoStart(); await click('video-stop'); await wait("!document.querySelector('[data-test=video-stop]')");
-    await waitForVideoCleanup();
-    check('取消下载传到组件并释放文件', state.videosCancelled >= 1 && !state.videoActive && !(await readdir(temporary)).some(name => name.startsWith('toolbox-yoinks-')));
-    await click('video-download'); await wait("!!document.querySelector('[data-test=video-progress]')"); await waitForVideoStart(); await backToTools();
-    await waitForVideoCleanup();
-    check('离开下载页终止在途任务', state.videosCancelled >= 2 && !state.videoActive);
+    check('移除任务不删除已保存的成品', existsSync(join(temporary, 'auto-downloads', '隔离验收视频.mp3')));
+    state.videoMode = 'error'; await click('video-download'); await wait("!!document.querySelector('[data-test=video-task-failed]')");
+    check('下载失败在任务行内明确反馈', await evaluate("document.querySelector('[data-test=video-task-failed]').textContent.includes('失败')"));
+    await click('video-remove'); await wait("!document.querySelector('[data-test=video-task-failed]')");
+    state.videoMode = 'slow';
+    await click('video-download'); await wait("document.querySelectorAll('.task-item').length>=1");
+    await click('video-download'); await wait("document.querySelectorAll('.task-item').length>=2");
+    for (let index = 0; index < 80 && state.videoRunning < 2; index++) await delay(50);
+    check('可以同时下载多个任务', state.videoRunning >= 2 && (await evaluate("document.querySelectorAll('[data-test=video-task-running]').length")) >= 2);
+    await click('video-stop'); await wait("!!document.querySelector('[data-test=video-task-cancelled]')");
+    await click('video-stop'); await waitForVideoStop();
+    check('取消后保留分片以便续传', (await cacheEntries()).length === 1);
+    await click('video-retry'); await wait("!!document.querySelector('[data-test=video-task-running]')");
+    await waitForVideoStart();
+    check('重试可直接再次开始', state.videoRunning >= 1);
+    await click('video-stop'); await waitForVideoStop();
+    await wait("!!document.querySelector('[data-test=video-clear-cache]')"); await click('video-clear-cache');
+    for (let index = 0; index < 40 && (await cacheEntries()).length; index++) await delay(50);
+    check('缓存可一键清理', (await cacheEntries()).length === 0);
+    await click('video-download'); await wait("!!document.querySelector('[data-test=video-task-running]')"); await waitForVideoStart();
+    await backToTools(); await delay(600);
+    check('离开下载页后后台继续下载', state.videoRunning >= 1);
+    await tool('Yoinks'); await wait("location.pathname==='/tools/yoinks'");
+    await wait("!!document.querySelector('[data-test=video-task-running]')");
+    check('回到页面仍能看到在途任务', await evaluate("!!document.querySelector('[data-test=video-task-running]')"));
+    await click('video-stop'); await waitForVideoStop(); await backToTools();
     state.videoMode = 'success';
     await tool('FreeLLMAPI'); await wait("location.pathname==='/tools/freellmapi'");
     check('首次进入无虚构模型且需要 Key', await evaluate("document.querySelector('[data-test=free-model]').options.length===1 && document.querySelector('[data-test=free-refresh]').disabled"));
@@ -219,7 +240,10 @@ try {
         await navigate('/tools/freellmapi'); await click('free-refresh'); await wait("document.querySelector('[data-test=free-model]').options.length===3");
         check(`模型下拉 ${theme} 有不透明主题底色`, await evaluate("(()=>{const s=getComputedStyle(document.querySelector('[data-test=free-model]'));return !['transparent','rgba(0, 0, 0, 0)'].includes(s.backgroundColor) && s.color!==s.backgroundColor})()"));
         await screenshot(`integrations-chat-${theme}.png`);
-        await navigate('/tools/yoinks'); await input('video-url', 'https://example.com/test'); await click('video-analyze'); await wait("!!document.querySelector('[data-test=video-info]')");
+        await navigate('/tools/yoinks'); await wait("document.querySelector('[data-test=video-engine-status]')?.textContent.includes('就绪')"); await delay(300);
+        await input('video-url', 'https://example.com/test');
+        for (let attempt = 0; attempt < 3 && !(await evaluate("!!document.querySelector('[data-test=video-info]')")); attempt++) { await click('video-analyze'); await delay(600); }
+        await wait("!!document.querySelector('[data-test=video-info]')");
         await screenshot(`integrations-yoinks-${theme}.png`);
         check(`下载页 ${theme} 内容无横向溢出`, await evaluate("Array.from(document.querySelectorAll('.ext-card')).every(el=>el.scrollWidth<=el.clientWidth+2)"));
         await navigate('/tools/artcraft');

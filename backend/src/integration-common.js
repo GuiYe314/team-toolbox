@@ -12,7 +12,7 @@ export class IntegrationError extends Error {
 }
 export const problem = (code, message, status) => new IntegrationError(code, message, status);
 export const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-export const defaults = Object.freeze({ ytDlpPath: '', ffmpegPath: '', proxy: '', freeBaseUrl: 'http://127.0.0.1:3001/v1', artcraftPath: '' });
+export const defaults = Object.freeze({ ytDlpPath: '', ffmpegPath: '', proxy: '', downloadDir: '', freeBaseUrl: 'http://127.0.0.1:3001/v1', artcraftPath: '' });
 
 export function fields(value, allowed) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !allowed.includes(key))) {
@@ -139,7 +139,8 @@ export function runIntegrationProcess(file, args, { signal, timeout = 30000, max
         try { child = spawn(file, args, { windowsHide: true, shell: false, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'], cwd }); }
         catch { finish(problem('process_error', '无法启动本机组件，请检查可执行文件', 500)); return; }
         signal?.addEventListener('abort', abort, { once: true });
-        timer = setTimeout(() => stop(problem('timeout', '组件操作超时，请检查网络或组件状态后重试', 504)), timeout);
+        // timeout 为 0 表示不设总时限；长视频下载由调用方的「无进展看门狗」负责收尾。
+        if (timeout > 0) timer = setTimeout(() => stop(problem('timeout', '组件操作超时，请检查网络或组件状态后重试', 504)), timeout);
         function consume(chunk, isError) {
             size += chunk.length;
             if (size > maxBytes) { stop(problem('output_limit', '组件输出超过上限，已停止操作', 502)); return; }
