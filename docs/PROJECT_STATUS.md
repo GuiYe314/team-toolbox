@@ -12,6 +12,20 @@
 
 Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
 
+## 视频下载改为统一链接解析（2026-11-13）
+
+**代码与文档完成，后端全量测试与前端构建通过；未发版，未执行真实外站下载与浏览器整包验收。** 原「Yoinks 视频下载」单引擎流程改为可插拔解析方案注册表：所有链接走同一 `analyze()` 入口，按 priority 依次尝试，任一方案失败自动交给下一个，成功即停；响应带 `resolvedBy` 与每个方案的 `attempts`（成功 / 失败 / 跳过 / 耗时），全部失败才报错并附明细。
+
+- 内置三个方案：直链媒体（HEAD 校验后免网页解析，priority 10）、yt-dlp 通用解析（保留原有参数与清晰度/MP3 逻辑，50）、yt-dlp 通用页面（`--force-generic-extractor` 兜底，90）。类型不匹配的方案标为跳过，不发网络请求。
+- 扩展：安装目录 `data/video-resolvers.json` 可配置最多 32 个自定义 HTTP 解析服务（`domains` / `priority` / `enabled`，改完无需重启），或用 `registerResolver()` 注册代码级方案。自定义服务返回的每个地址复用原有 URL 白名单校验（拒绝内网/回环/带凭据），且不允许下发 yt-dlp 参数，避免参数注入。配置格式见 [video-resolvers](video-resolvers.md)。
+- 接口：新增 `GET /api/integrations/yoinks/resolvers`；`POST /yoinks/analyze` 可选 `resolverId` 指定单一方案重试。下载阶段按所选格式取实际媒体地址，1 GiB 上限、15 分钟超时、临时目录与文件校验不变。
+- 前端：页面改为「统一链接解析」，输入框同时接受网页地址、直链与 m3u8，展示方案清单、每次尝试结果与成功方案，并提供「指定方案」下拉。工具 id、路由 `/tools/yoinks`、卡片总数 11 与全部既有 `data-test` 属性、v0.6.0 拖放排序断言均未改动。
+- 验证：`backend` 全量 **671 项（670 通过、0 失败、1 跳过）**，含新增 `video-resolvers.test.js` **7 项**（优先级顺序、失败降级、跳过、全部失败明细、指定方案、自定义方案 URL 校验）；`frontend` 计算 **29/29**；`npm run build` 通过。构建产物静态核对：`yoinks/resolvers`、`resolverId`、统一解析文案与 `video-*` 选择器均在包内。未跑真实外站下载，`bad.news` 类站点实际可用性未验证。
+- 本机生效：前端产物已备份后同步至 `%LOCALAPPDATA%\team-toolbox\frontend\dist`，后端 `video-resolvers.js`、`yoinks.js`、`integration-api.js` 三个文件同步至安装版 `backend/src`；实例化检查确认注册 `direct-media / ytdlp / ytdlp-generic`，yt-dlp 与 ffmpeg 就绪。安装版后端其余部分仍为 v0.5.0，完整一致需用 v0.6.0 安装器升级。
+- 下一步：在浏览器打开「视频下载」贴入真实链接观察降级链；需要新增站点解析时按 [video-resolvers](video-resolvers.md) 先加自定义 HTTP 方案，确认稳定后再考虑代码级方案。
+
+WorkBuddy 完成；模型与积分未提供，无法确认。
+
 ## 黑白水墨小猫图标候选（2026-11-13）
 
 **本段为最初候选制作记录，后续全部纳入设置见上方 TASK-046。** 保留磨砂玻璃面板，采用黑白灰水墨与小猫图形：01墨猫剪影、02雪猫烟墨、03圆墨小猫、04窗边小猫。先前彩色几何与角色稿保留为历史。

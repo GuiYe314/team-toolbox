@@ -17,6 +17,20 @@
 ## 2026-11-13 — 玻璃卡通图标候选
 
 - 增加泡泡工具箱、水晶机器人、玻璃小猫和小宇航员四个独立候选方向，提供透明PNG、多尺寸ICO、GIF及离线明暗动画预览；保留提示词和导出依据。当前程序品牌不变，资产与验收状态见 [PROJECT_STATUS](docs/PROJECT_STATUS.md)。
+## 2026-11-13 — 视频下载改为统一链接解析（未发布）
+
+- 新增 `backend/src/video-resolvers.js`：可插拔解析方案注册表与自动降级链。所有链接走同一个 `analyze()` 入口，按 priority 依次尝试，某个方案失败自动交给下一个；返回 `resolvedBy` 与每个方案的 `attempts`（成功 / 失败 / 跳过 / 耗时），全部失败才报错并附带尝试明细。
+- 内置三个方案：直链媒体（HEAD 校验后免网页解析）、yt-dlp 通用解析（原有参数与清晰度逻辑不变）、yt-dlp 通用页面（`--force-generic-extractor` 兜底）。类型不匹配的方案标为跳过，不发网络请求。
+- 支持两类扩展：在安装目录 `data/video-resolvers.json` 配置任意多个自定义 HTTP 解析服务（无需改代码、无需重启），或用 `registerResolver()` 注册代码级方案；配置格式、返回值与安全边界见 [docs/video-resolvers.md](docs/video-resolvers.md)。自定义服务返回的每个地址都复用原有 URL 白名单校验，且不能下发 yt-dlp 参数。
+- 新增 `GET /api/integrations/yoinks/resolvers`；`POST /yoinks/analyze` 可选 `resolverId` 指定单一方案重试；下载阶段按所选格式取实际媒体地址，原有的 1 GiB 上限、15 分钟超时、临时目录与文件校验不变。
+- 前端页面改为「统一链接解析」：输入框同时接受网页地址、直链与 m3u8，展示方案清单、每次尝试的结果、成功方案，并提供「指定方案」下拉。全部 `data-test` 属性、工具 id、路由 `/tools/yoinks`、卡片总数 11 与 v0.6.0 拖放排序断言保持不变。
+- 本条为功能改造记录，未新增任务编号、未发版、未执行真实外站下载与浏览器整包验收；实际状态以 [PROJECT_STATUS](docs/PROJECT_STATUS.md) 为准。
+
+## 2026-11-13 — 视频下载入口改名（未发布）
+
+- 工具箱/首页的「Yoinks 视频下载」卡片改名为「视频下载」，补充用途说明；页面标题改为「视频下载」，组件设置弹窗改为「下载组件设置」。工具 id、路由 `/tools/yoinks`、下载引擎与后端接口均不变，卡片总数仍为 11，v0.6.0 拖放排序验收断言不变。
+- 卡片描述保留「Yoinks」字样，`verify-integrations.mjs` 依卡片文字定位集成工具的断言不受影响。页脚仍保留 Yoinks / yt-dlp 来源署名。
+- README 对应条目同步改名。本条为入口文案调整，未新增任务编号、未发布、未执行浏览器验收；实际发布与验证状态仍以 [PROJECT_STATUS](docs/PROJECT_STATUS.md) 为准。
 
 ## 2026-11-13 — v0.6.0 发布准备与拖放补充
 

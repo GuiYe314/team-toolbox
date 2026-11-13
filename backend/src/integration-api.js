@@ -52,11 +52,12 @@ export function registerIntegrationApi(app, { service = createIntegrationService
             log({ action: name, ok: false, code: safe.code });
             if (!controller.signal.aborted && !res.destroyed) {
                 if (res.headersSent) { if (mode === 'stream') { emit({ type: 'error', error: safe.code, message: safe.message }); res.end(); } else res.destroy(); }
-                else res.status(safe.status).json({ error: safe.code, message: safe.message });
+                else res.status(safe.status).json({ error: safe.code, message: safe.message, ...(Array.isArray(safe.attempts) ? { attempts: safe.attempts } : {}) });
             }
         } finally { res.removeListener('close', cancel); }
     };
     router.get('/yoinks/config', action('yoinks_config', () => service.yoinks.tools()));
+    router.get('/yoinks/resolvers', action('yoinks_resolvers', () => service.yoinks.resolvers?.() ?? { resolvers: [] }));
     router.put('/yoinks/config', action('yoinks_configure', (req, signal) => service.yoinks.configure(req.body, signal)));
     router.post('/yoinks/analyze', action('yoinks_analyze', (req, signal) => service.yoinks.analyze(req.body, signal)));
     router.post('/yoinks/download', action('yoinks_download', (req, signal, emit) => service.yoinks.download(req.body, signal, emit), 'stream'));

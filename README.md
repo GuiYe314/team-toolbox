@@ -22,6 +22,7 @@
 | [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) | 项目状态（唯一状态源） |
 | [docs/VERSION_POLICY.md](docs/VERSION_POLICY.md) | 版本划分与发布约定 |
 | [docs/AUTO_UPDATE.md](docs/AUTO_UPDATE.md) | 自动更新（更新源配置、发版流程、故障处理） |
+| [docs/video-resolvers.md](docs/video-resolvers.md) | 视频下载统一链接解析、自动降级与自定义解析方案配置 |
 | [docs/releases/](docs/releases/) | 各版本发布说明 |
 | [v0.4.0 发布说明](docs/releases/v0.4.0.md) | 内置视频下载、实时网速、Unity 文件管理与 APK 包名 |
 | [CHANGELOG.md](CHANGELOG.md) | 变更记录（只追加） |
@@ -38,7 +39,7 @@
 
 首页和工具箱提供三个中文入口，各页右上角有设置和帮助：
 
-- **Yoinks 视频下载**：粘贴视频网页链接、分析清晰度、下载视频或 MP3、取消并保存结果。Windows 完整工具箱内置 yt-dlp、ffmpeg/ffprobe，无需另装 Yoinks；组件设置可指定其他版本或恢复内置组件。源码首次准备见[用户指南](docs/USER_GUIDE.md#91-yoinks-视频下载)。
+- **视频下载（Yoinks）**：工具箱首页与工具箱卡片显示为「视频下载」，粘贴一个链接即可，后端按优先级**自动依次尝试多个解析方案**，能解析就用、不行就换下一个，页面显示每个方案的结果与最终由哪个方案解析成功；支持直链媒体、yt-dlp 通用解析、yt-dlp 通用页面，以及通过 `data/video-resolvers.json` 接入任意多个自定义 HTTP 解析服务。随后选择清晰度或 MP3、下载、取消并保存结果。Windows 完整工具箱内置 yt-dlp、ffmpeg/ffprobe，无需另装 Yoinks；组件设置可指定其他版本或恢复内置组件。扩展方式见[统一链接解析文档](docs/video-resolvers.md)，源码首次准备见[用户指南](docs/USER_GUIDE.md#91-yoinks-视频下载)。
 - **FreeLLMAPI 模型对话**：连接本机 FreeLLMAPI，读取可用模型并进行可停止的流式聊天。需先运行上游服务并填写统一 API Key；Key 只保留在工具箱后端内存，重启后重新设置，不进入团队数据或备份。
 - **ArtCraft 创作台**：整理、编辑和复制提示词，配置本机 ArtCraft.exe 并确认启动。原生编辑画布在 ArtCraft 自己的桌面窗口打开，模型生成与账号仍由它负责。
 
