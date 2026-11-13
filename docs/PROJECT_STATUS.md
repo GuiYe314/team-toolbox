@@ -1,5 +1,19 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## v0.6.1 发布（2026-11-14）
+
+**已打包并通过封版自检；发布资产见 GitHub Release `v0.6.1`。** 本版为修复版，并纳入 v0.6.0 之后尚未发布的视频下载统一链接解析。功能说明见 [v0.6.1 发布说明](releases/v0.6.1.md)。
+
+- 版本号在 `backend/package.json`、`frontend/package.json` 及两份 lock 文件统一为 `0.6.1`；安装器 `AppVersion`、更新清单 `latest` 与包内 `backend/package.json` 由 `scripts/build_release.ps1 -Version 0.6.1` 派生，未手工分处修改。
+- 资产：`team-toolbox-Setup-0.6.1.exe` **121,303,087 字节**（SHA256 `f90d043e…30af028`）、`team-toolbox-0.6.1.zip` **164,797,992 字节**（`d6f78535…4934c5e9`）、`team-toolbox-0.6.1-SHA256.txt`、`manifest.json`（`schema 1`、`channel stable`、`latest 0.6.1`、`mandatory false`，清单内 `size` 与 `sha256` 已与 zip 实际值核对一致，文件无 BOM）。
+- 封版自检：包内 `runtime/node.exe`（Node **v22.22.2**，ABI **127**）加载随包 `better-sqlite3` 通过。
+- 便携包独立目录验证：解压到系统临时目录得 **4602 个文件**、`data/` 无用户数据；`runtime/check.js` 通过；用包内 node 以 `PORT=3101` 启动后端，`/api/health` 返回 `200` 且 `version` 为 `0.6.1`、数据库在临时目录新建成功；首页 `200`；`/api/integrations/yoinks/resolvers` 返回 `direct-media / ytdlp / ytdlp-generic` 三个内置方案；`/api/asset-folders` 中根文件夹与子文件夹创建均为 **201**，而对象型 `parentId` 返回 **400「父文件夹 ID 无效」**（即 v0.6.1 修复项在发布包内生效）。
+- 打包过程说明：首次打包在「准备下载组件」步骤失败，`yt-dlp.exe` 分段下载三次重试均未完成（GitHub 大文件下载在本机不稳定）。随后把本机已安装版本 `vendor/media/win32-x64` 下 7 个文件复用为构建成品，先用 `prepare-media-tools.mjs --check` 与 `scripts/media-tools.lock.json` 逐项核对哈希（与已安装版一致），全部通过后重新打包成功；未放宽 lock 校验，也未改动组件版本。
+- 验证范围限制：本版未重跑浏览器整包验收脚本，也未执行真实外站下载；未按 VERSION_POLICY 第 8 条在「与构建机不同的 Node 版本」下复测 ABI 兼容性。工具卡片排序、图标选择等既有功能的回归结论沿用本条之下各节记录。
+- 版本编号说明：统一链接解析属功能增量，按 [VERSION_POLICY](VERSION_POLICY.md) 的 `0.y` / `z` 划分严格应为 `0.7.0`；此处按用户指定版本号 `0.6.1` 发布，已在发布说明与版本约定中如实标注。
+
+WorkBuddy 完成；模型与积分未提供，无法确认。
+
 ## 修复新建文件夹报「Too few parameter values」（2026-11-14）
 
 **已修复并同步到本机安装版；未发版。** 用户在资源管理页新建文件夹时，弹窗标题显示为「新建子文件夹」，确定后报 `Too few parameter values were provided`，失败不可用。

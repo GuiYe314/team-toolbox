@@ -1,5 +1,11 @@
 # 变更记录（CHANGELOG）
 
+## 2026-11-14 — v0.6.1 发布
+
+- 发布 Windows x64 安装器、便携 ZIP、SHA256 校验清单与自动更新 `manifest.json`；内置 Node 22.22.2 运行时与固定下载组件。
+- 内容为本条之下的两项：修复新建文件夹把点击事件对象当父级 ID 导致的 SQL 报错，以及 v0.6.0 之后新增的视频下载统一链接解析。
+- 版本号在 `backend/package.json`、`frontend/package.json` 及对应 lock 文件统一为 `0.6.1`；安装器 `AppVersion` 与更新清单 `latest` 由打包脚本按 `-Version` 派生。功能说明见 [v0.6.1 发布说明](docs/releases/v0.6.1.md)。
+
 ## 2026-11-14 — 修复新建文件夹报「Too few parameter values」
 
 - 现象：资源管理页点「新建文件夹」/ 文件夹行的「+」，弹窗标题错成「新建子文件夹」，确定后报 `Too few parameter values were provided`。
