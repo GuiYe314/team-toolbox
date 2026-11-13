@@ -1,5 +1,15 @@
 # 变更记录（CHANGELOG）
 
+## 2026-11-14 — bad.news 视频解析 + 全站清晰度选择（v0.7.0 待发布）
+
+- 新增内置方案 `bad-news`（priority 15）：读取 bad.news 话题页 HTML 里的 `<video data-source data-type>` 地址，支持 MP4 与 HLS。`/ajax/download?tid=…` 这类需要登录的下载入口会先换回公开话题页 `/t/<id>` 再抓取；兼容 `data-type` 写在 `data-source` 之前、地址被 `&amp;` / `\/` / `\u002F` 转义、协议相对地址 `//cdn…`。
+- 新增内置方案 `page-media`（priority 65）作通用兜底：`yt-dlp` 解析不了的链接直接抓 HTML，提取 `<video>/<source>`、`og:video`、内嵌第三方播放器 iframe 与脚本里的媒体地址；结构相似的同类站点不用再改代码。
+- 新增 `backend/src/video-page.js`：网页媒体提取、HLS 主清单解析（`RESOLUTION` / `BANDWIDTH` / `FRAME-RATE` / `EXT-X-MEDIA` 音轨分组）、清晰度选项生成、带大小上限的页面抓取与 `Referer` 透传。
+- 清晰度选择覆盖所有来源：yt-dlp 格式列表按高度去重（60fps 标成 `1080p60`），HLS 主清单展开为 `1080p · 5.2 Mbps · HLS`，单个 MP4 显示「原始清晰度」并在有 ffmpeg 时附「仅音频 · MP3」，直链 m3u8 同样展开清晰度。前端下拉改名为「清晰度 / 格式」，并提示「共 N 个清晰度可选」或「该来源只提供一个清晰度」。
+- 下载时把页面地址作为 `--referer` 传给 yt-dlp，规避 CDN 防盗链；原有 1 GiB 上限、15 分钟超时与输出文件校验不变。
+- 验证：新增 `backend/src/video-page.test.js` **15 项**（属性顺序、非 video 标签的 `data-source`、转义还原、协议相对地址、第三方播放器、主清单分辨率/带宽/音轨、清晰度选项、`Referer`、bad.news 失败原因、通用兜底）；`integrations.test.js` 增 2 项服务级用例（bad.news 的 HLS 与 MP4 两条路径，含下载阶段带 `Referer` 与 `-f`）；`video-page + video-resolvers + integrations` 共 **53/53**。版本号统一升到 `0.7.0`。
+- 限制：构建机网络无法访问 bad.news（代理返回 502），真实页面未做端到端下载验证。若站点改成脚本动态加载、HTML 里不含媒体地址，降级链会继续走到 `ytdlp-generic`，并在「解析方案」里列出每个方案的失败原因。
+
 ## 2026-11-14 — v0.6.1 发布
 
 - 发布 Windows x64 安装器、便携 ZIP、SHA256 校验清单与自动更新 `manifest.json`；内置 Node 22.22.2 运行时与固定下载组件。

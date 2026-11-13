@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { appRoot, IntegrationError, problem } from './integration-common.js';
+import { PAGE_HEADERS, extractMedia, fetchText, fileChoices, hlsChoices, normalizePageUrl, pageTitle, parseHlsMaster } from './video-page.js';
 
 /**
  * 统一视频链接解析层。
@@ -76,16 +77,65 @@ async function ytdlpProbe(url, ctx, { extraArgs = [], timeoutMs = 45000 } = {}) 
     };
 }
 
+/** 页面里读到的媒体地址 → 可下载格式；HLS 先让 yt-dlp 列格式，失败再自己解析主清单。 */
+async function pageMediaInfo(url, ctx, { timeoutMs = 15000 } = {}) {
+    const http = ctx.fetchImpl || globalThis.fetch;
+    const page = normalizePageUrl(url);
+    const html = await fetchText(page, { fetchImpl: http, signal: ctx.childSignal(timeoutMs), headers: { ...PAGE_HEADERS, referer: page } });
+    const media = extractMedia(html, page);
+    if (!media.length) throw problem('resolver_failed', '页面里没有找到媒体地址，可能由脚本动态加载或需要登录', 502);
+    const title = pageTitle(html) || fileNameOf(page);
+    const ffmpegReady = !!ctx.tools.ffmpegPath;
+    const hls = media.find(item => item.kind === 'hls');
+    if (hls) {
+        try {
+            const info = await ytdlpProbe(hls.url, ctx, { extraArgs: ['--referer', page], timeoutMs: 25000 });
+            // 让每个清晰度都去读同一份主清单：yt-dlp 会按 -f 选变体，音轨分组也能自动合并。
+            return { ...info, title: info.title || title, mediaUrl: hls.url,
+                choices: info.choices.map(choice => ({ ...choice, url: hls.url, args: ['--referer', page, ...(choice.args || [])] })) };
+        } catch (error) {
+            if (ctx.signal?.aborted) throw problem('cancelled', '操作已取消', 499);
+            const playlist = await fetchText(hls.url, { fetchImpl: http, signal: ctx.childSignal(12000), headers: { ...PAGE_HEADERS, referer: page }, maxChars: 512 * 1024 });
+            const { variants } = parseHlsMaster(playlist, hls.url);
+            if (!variants.length && !/^#EXT[IM]/im.test(playlist)) throw problem('resolver_failed', '读到 HLS 地址但无法解析清晰度列表', 502);
+            return { title, uploader: '', duration: null, mediaUrl: hls.url,
+                choices: hlsChoices(variants, { pageUrl: page, hasFfmpeg: ffmpegReady }), ffmpegReady };
+        }
+    }
+    const files = media.filter(item => item.kind === 'file');
+    if (files.length) {
+        return { title: title || fileNameOf(files[0].url), uploader: '', duration: null, mediaUrl: files[0].url,
+            choices: fileChoices(files, { pageUrl: page, hasFfmpeg: ffmpegReady }), ffmpegReady };
+    }
+    const embed = media.find(item => item.kind === 'embed');
+    const info = await ytdlpProbe(embed.url, ctx);
+    return { ...info, title: info.title || title };
+}
+
 /** 内置方案。priority 越小越先尝试。 */
 export const builtinResolvers = [
     {
         id: 'direct-media',
         name: '直链媒体',
-        description: '链接本身就是 mp4 / webm / mp3 等文件，校验后直接下载，不经过网页解析',
+        description: '链接本身就是 mp4 / m3u8 / mp3 等地址，校验后直接下载，不经过网页解析',
         priority: 10,
-        match: url => MEDIA_FILE.test(new URL(url).pathname),
+        match: url => MEDIA_FILE.test(new URL(url).pathname) || HLS_STREAM.test(new URL(url).pathname),
         async resolve(url, ctx) {
             const http = ctx.fetchImpl || globalThis.fetch;
+            const ffmpegReady = !!ctx.tools.ffmpegPath;
+            if (HLS_STREAM.test(new URL(url).pathname)) {
+                // m3u8 主清单通常带多个清晰度：能读出变体就逐项列出，读不出来再按整条流下载。
+                try {
+                    const playlist = await fetchText(url, { fetchImpl: http, signal: ctx.childSignal(10000), maxChars: 512 * 1024 });
+                    const { variants } = parseHlsMaster(playlist, url);
+                    if (variants.length) return { title: fileNameOf(url), uploader: '', duration: null, mediaUrl: url,
+                        choices: hlsChoices(variants, { pageUrl: url, hasFfmpeg: ffmpegReady }), ffmpegReady };
+                } catch (error) {
+                    if (ctx.signal?.aborted) throw problem('cancelled', '操作已取消', 499);
+                }
+                return { title: fileNameOf(url), uploader: '', duration: null, mediaUrl: url,
+                    choices: [{ id: 'direct-file', label: '原始清晰度 · HLS 直连', args: [] }], ffmpegReady };
+            }
             if (typeof http === 'function') {
                 try {
                     const response = await http(url, { method: 'HEAD', redirect: 'follow', signal: ctx.childSignal(8000) });
@@ -98,8 +148,16 @@ export const builtinResolvers = [
                 }
             }
             return { title: fileNameOf(url), uploader: '', duration: null, mediaUrl: url,
-                choices: [{ id: 'direct-file', label: '原始文件 · 直接下载', args: [] }], ffmpegReady: !!ctx.tools.ffmpegPath };
+                choices: [{ id: 'direct-file', label: '原始文件 · 直接下载', args: [] }], ffmpegReady };
         }
+    },
+    {
+        id: 'bad-news',
+        name: 'bad.news 页面',
+        description: '读取 bad.news 话题页里的 data-source 媒体地址，支持 MP4 与 HLS 多清晰度',
+        priority: 15,
+        match: url => /(^|\.)bad\.news$/i.test(hostOf(url)),
+        async resolve(url, ctx) { return pageMediaInfo(url, ctx, { timeoutMs: 20000 }); }
     },
     {
         id: 'ytdlp',
@@ -108,6 +166,14 @@ export const builtinResolvers = [
         priority: 50,
         match: () => true,
         async resolve(url, ctx) { return ytdlpProbe(url, ctx); }
+    },
+    {
+        id: 'page-media',
+        name: '网页媒体提取',
+        description: '通用兜底：直接抓取网页 HTML，提取内嵌 MP4 / HLS / 第三方播放器地址',
+        priority: 65,
+        match: () => true,
+        async resolve(url, ctx) { return pageMediaInfo(url, ctx); }
     },
     {
         id: 'ytdlp-generic',

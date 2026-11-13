@@ -38,6 +38,20 @@ WorkBuddy 完成；模型与积分未提供，无法确认。
 
 Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
 
+## 视频下载新增 bad.news 解析与清晰度选择（2026-11-14）
+
+**代码、单元测试与前端构建完成，已同步到本机安装版；未发版，bad.news 真实页面未做端到端验证。** 用户要求「在视频下载里加 bad.news 视频解析，所有视频最好都能选清晰度」。实现分两层：站点方案 + 通用网页提取。
+
+- 新增 `backend/src/video-page.js`：不依赖 DOM 解析库，用标签 + 属性正则提取 `<video>/<source>` 的 `src`、`data-source`（bad.news 的写法）、`data-src/data-url/data-play/...`、`og:video` 分享卡片、内嵌第三方播放器 iframe，以及脚本里被 `\/`、`\u002F`、`&amp;` 转义过的媒体地址；支持相对地址与协议相对地址（`//cdn…`）。另有 HLS 主清单解析（`RESOLUTION`/`BANDWIDTH`/`FRAME-RATE`/`EXT-X-MEDIA` 音轨分组）、清晰度选项生成、带 2 MiB / 512 KiB 上限的抓取。
+- 内置方案由 3 个变为 5 个：`bad-news`（15，仅 bad.news 及子域；把 `/ajax/download?tid=…` 换回公开话题页 `/t/<id>` 规避登录要求）、`page-media`（65，任何 `ytdlp` 解析不了的网页通用兜底）；`direct-media` 扩展为同时接受 m3u8 并展开清晰度。优先级 `direct-media → bad-news → 自定义 → ytdlp → page-media → ytdlp-generic` 不变式：类型不匹配仍标「跳过」且不发请求。
+- 清晰度：m3u8 先让 yt-dlp 列格式（`1080p` / `1080p60` / 合并 MP4 / MP3），读不出清单时自己按 `RESOLUTION` 展开 `1080p · 5.2 Mbps · HLS`；网页只给单个 MP4 时显示「原始清晰度 · 直接下载」，有 ffmpeg 时附「仅音频 · MP3」。站点只提供一种画质时不造假档位，界面写明「该来源只提供一个清晰度」。
+- 防盗链：页面解析出的地址在下载阶段带 `--referer <页面地址>`；`--add-header` 等参数仍走原有白名单（≤16 个、每个 ≤200 字符），自定义 HTTP 方案依旧不能下发 yt-dlp 参数。
+- 验证：新增 `video-page.test.js` **15 项**，覆盖属性顺序反转、非 video 标签的 `data-source`、实体与 JSON 转义还原、协议相对地址、iframe 播放器、主清单分辨率/带宽/帧率/音轨组、清晰度排序与 `-f` 选择器、`Referer`、bad.news 页面无媒体地址时的失败原因、非 bad.news 网页由 `page-media` 兜底；`integrations.test.js` 增 2 项服务级用例（bad.news 的 HLS 与 MP4 两条路径，校验下载阶段带 `--referer`、`-f` 与真实媒体地址）；`video-page.test.js + video-resolvers.test.js + integrations.test.js` **53/53**（`--test-concurrency=2`）。前端 `npm run build` 通过。
+- 未验证：本机网络到 bad.news 被代理阻断（`curl` CONNECT 502、WebFetch fetch failed），只按公开实现（`<video data-source data-type>` 两段式正则）与页面结构推断，未跑真实下载。若目标页改成脚本动态加载，`bad-news` / `page-media` 会失败并如实显示原因，降级链继续走 `ytdlp-generic`。
+- 版本号 `backend/frontend package.json` 与两份 lock 统一升到 `0.7.0`（按 VERSION_POLICY 的功能增量规则；未打标签、未生成新安装包）。
+
+WorkBuddy 完成；模型与积分未提供，无法确认。
+
 ## 视频下载改为统一链接解析（2026-11-13）
 
 **代码与文档完成，后端全量测试与前端构建通过；未发版，未执行真实外站下载与浏览器整包验收。** 原「Yoinks 视频下载」单引擎流程改为可插拔解析方案注册表：所有链接走同一 `analyze()` 入口，按 priority 依次尝试，任一方案失败自动交给下一个，成功即停；响应带 `resolvedBy` 与每个方案的 `attempts`（成功 / 失败 / 跳过 / 耗时），全部失败才报错并附明细。

@@ -18,6 +18,7 @@
 | 文件 | 作用 |
 |---|---|
 | `backend/src/video-resolvers.js` | 方案注册表、降级链 `resolveVideo()`、内置方案、自定义配置加载与代码级注册入口 |
+| `backend/src/video-page.js` | 通用网页媒体提取（`video/source/og:video/iframe` 与转义地址）、HLS 主清单解析、清晰度选项生成、页面抓取大小限制 |
 | `backend/src/yoinks.js` | `analyze()` 改走降级链；probe 保存解析出的媒体地址与格式；`download()` 按所选格式取实际地址 |
 | `backend/src/integration-api.js` | `GET /api/integrations/yoinks/resolvers` 返回已注册方案；失败响应附带 `attempts` |
 | `frontend/src/views/YoinksDownload.vue` | 统一输入框、方案清单、尝试过程、指定方案重试 |
@@ -29,12 +30,37 @@
 
 | id | 名称 | priority | 什么时候尝试 |
 |---|---|---|---|
-| `direct-media` | 直链媒体 | 10 | URL 路径以 `.mp4/.webm/.mkv/.mov/.mp3/.m4a/...` 结尾；做一次 HEAD 校验，跳过网页解析 |
+| `direct-media` | 直链媒体 | 10 | URL 路径以 `.mp4/.webm/.mkv/.mov/.mp3/.m4a/...` 或 `.m3u8` 结尾；做一次 HEAD 校验，跳过网页解析；m3u8 会展开成多个清晰度 |
+| `bad-news` | bad.news 页面 | 15 | 主机是 `bad.news` 或其子域；读取话题页 HTML 里的 `data-source` 媒体地址，支持 MP4 与 HLS |
 | 自定义 HTTP 方案 | 配置里命名 | 配置里给，默认 20 | 配置存在且 `domains` 匹配（未填则所有链接） |
 | `ytdlp` | yt-dlp 通用解析 | 50 | 任何链接（主力兜底），列清晰度与 MP3 |
-| `ytdlp-generic` | yt-dlp 通用页面 | 90 | `ytdlp` 失败后，用 `--force-generic-extractor` 再试一次 |
+| `page-media` | 网页媒体提取 | 65 | `ytdlp` 失败后，直接抓网页 HTML 找内嵌 `video/source/og:video/iframe` 媒体地址 |
+| `ytdlp-generic` | yt-dlp 通用页面 | 90 | 以上都失败后，用 `--force-generic-extractor` 再试一次 |
 
 priority 数字越小越先尝试。类型不匹配的方案会被标为「跳过」，不消耗网络请求。
+
+## 清晰度怎么来的
+
+三种来源，都会在前端「清晰度 / 格式」下拉里展开：
+
+1. **yt-dlp 列出格式**（`ytdlp`、以及 `bad-news` / `page-media` 拿到 m3u8 后）：按高度去重后给 `1080p / 720p …`，`60fps` 会标成 `1080p60`，选了就用 `-f bv*[height<=N]+ba/b[height<=N]` 合并成 MP4。
+2. **HLS 主清单**（yt-dlp 读不了清单时自己解析）：读 `#EXT-X-STREAM-INF` 的 `RESOLUTION / BANDWIDTH`，给出 `1080p · 5.2 Mbps · HLS` 这样的选项，下载时仍然读同一份主清单，音轨分组能被 yt-dlp 自动合并。
+3. **网页里只给单个 MP4**：显示「原始清晰度 · 直接下载」，ffmpeg 就绪时再加一项「仅音频 · MP3」。站点本身只提供一种画质时不会凭空造出更多档位，界面会明确写「该来源只提供一个清晰度」。
+
+`bad-news` / `page-media` 解析出的地址下载时会自动带 `--referer <页面地址>`，避免 CDN 防盗链直接 403。
+
+## bad.news 这类站点的处理方式
+
+bad.news 没有 yt-dlp 提取器，页面把视频地址写在标签属性里：
+
+```html
+<video data-source="https://…/index.m3u8" data-type="m3u8"></video>
+<video data-source="https://…/clip.mp4" data-type="mp4"></video>
+```
+
+`bad-news` 方案做三件事：把 `/ajax/download?tid=…` 之类的下载入口换回公开话题页 `/t/<id>`（避免登录要求）；抓 HTML 后用标签 + 属性正则取 `data-source`（兼容 `data-type` 写在前面、地址被 `&amp;` 或 `\/` 转义）；拿到 m3u8 就先让 yt-dlp 读格式，读不出来再自己解析主清单。
+
+同类站点如果页面结构相似，不需要改代码：`page-media`（priority 65）会对任何 `ytdlp` 解析不了的链接做同样的网页媒体提取，作为通用兜底。
 
 ## 方式一：不改代码，配置自定义解析服务
 

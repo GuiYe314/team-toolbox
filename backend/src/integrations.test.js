@@ -114,6 +114,34 @@ test('Yoinks 探测使用固定参数，网页只收到可选 ID 与精简元数
     assert.equal(probe.args[probe.args.indexOf('--js-runtimes') + 1], `node:${process.execPath}`);
     await assert.rejects(service.analyze({ url: 'https://example.com/video', args: ['--exec'] }), fail('invalid_input'));
 });
+test('bad.news 页面解析：HLS 主清单展开清晰度，下载带上 Referer 与所选清晰度', async t => {
+    const page = '<html><head><title>话题 6588976</title></head><body><video data-source="https://cdn.example.com/hls/master.m3u8" data-type="m3u8"></video></body></html>';
+    const f = await videoFixture(t, { fetchImpl: async () => ({ ok: true, status: 200, headers: { get: () => null }, text: async () => page }) });
+    const info = await f.service.analyze({ url: 'https://bad.news/t/6588976' });
+    assert.equal(info.resolvedBy.id, 'bad-news');
+    assert.deepEqual(info.choices.map(x => x.id), ['video-1080', 'video-720', 'audio-mp3']);
+    const probe = f.calls.find(x => x.args.includes('--dump-single-json'));
+    assert.ok(probe.args.includes('--referer'));
+    assert.deepEqual(probe.args.slice(-2), ['--', 'https://cdn.example.com/hls/master.m3u8']);
+    const result = await f.service.download({ probeId: info.id, choiceId: 'video-720' });
+    assert.ok(result.size > 0);
+    const download = f.calls.find(x => x.args.includes('--no-simulate'));
+    assert.deepEqual(download.args.slice(-2), ['--', 'https://cdn.example.com/hls/master.m3u8']);
+    assert.ok(download.args.includes('--referer'));
+});
+test('bad.news 页面只给 MP4 时下载原始文件，仍带防盗链 Referer', async t => {
+    const page = '<video data-source="https://cdn.example.com/v/6588976.mp4" data-type="mp4"></video>';
+    const f = await videoFixture(t, { fetchImpl: async () => ({ ok: true, status: 200, headers: { get: () => null }, text: async () => page }) });
+    const info = await f.service.analyze({ url: 'https://bad.news/t/6588976' });
+    assert.equal(info.resolvedBy.id, 'bad-news');
+    assert.deepEqual(info.choices.map(x => x.id), ['file-1', 'audio-mp3']);
+    const result = await f.service.download({ probeId: info.id, choiceId: 'file-1' });
+    assert.equal(result.size, 128);
+    const download = f.calls.find(x => x.args.includes('--no-simulate'));
+    assert.deepEqual(download.args.slice(-2), ['--', 'https://cdn.example.com/v/6588976.mp4']);
+    assert.ok(download.args.includes('--referer'));
+    await f.service.removeResult(result.id);
+});
 test('没有 ffmpeg 时只提供含音轨视频，不冒充可提取 MP3', async t => {
     const { service, paths } = await videoFixture(t, { detector: async kind => kind === 'ytDlp' ? paths.ytDlp : '' });
     const info = await service.analyze({ url: 'https://example.com/video' });

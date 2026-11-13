@@ -22,15 +22,21 @@ export function videoUrl(value) {
 }
 
 export function videoChoices(info, hasFfmpeg) {
-    const formats = Array.isArray(info.formats) ? info.formats.slice(0, 3000) : [];
-    const heights = [...new Set(formats.filter(f => f && f.vcodec && f.vcodec !== 'none' && (hasFfmpeg || f.acodec && f.acodec !== 'none')).map(f => f.height).filter(h => Number.isInteger(h) && h >= 100 && h <= 8640))].sort((a, b) => b - a).slice(0, 8);
-    const choices = heights.map(height => ({ id: `video-${height}`, label: `${height}p${hasFfmpeg ? ' · 合并为 MP4' : ' · 含音轨格式'}`, args: hasFfmpeg ? ['-f', `bv*[height<=${height}]+ba/b[height<=${height}]`, '--merge-output-format', 'mp4'] : ['-f', `b[height<=${height}]`] }));
+    const formats = (Array.isArray(info.formats) ? info.formats.slice(0, 3000) : []).filter(item => item && typeof item === 'object');
+    // vcodec 缺失（部分 HLS 清单）不代表没有画面，按可用处理；明确 none 的才是纯音频。
+    const usable = formats.filter(item => !item.vcodec || item.vcodec !== 'none');
+    const heights = [...new Set(usable.filter(item => hasFfmpeg || item.acodec && item.acodec !== 'none').map(item => item.height).filter(h => Number.isInteger(h) && h >= 100 && h <= 8640))].sort((a, b) => b - a).slice(0, 8);
+    const choices = heights.map(height => {
+        const best = usable.filter(item => item.height === height).sort((a, b) => (Number(b.tbr) || 0) - (Number(a.tbr) || 0))[0] || {};
+        const fps = Number(best.fps);
+        return { id: `video-${height}`, label: `${height}p${fps >= 50 ? Math.round(fps) : ''}${hasFfmpeg ? ' · 合并为 MP4' : ' · 含音轨格式'}`, args: hasFfmpeg ? ['-f', `bv*[height<=${height}]+ba/b[height<=${height}]`, '--merge-output-format', 'mp4'] : ['-f', `b[height<=${height}]`] };
+    });
     if (!choices.length) choices.push({ id: 'video-best', label: hasFfmpeg ? '最佳画质 · MP4' : '最佳含音轨格式', args: hasFfmpeg ? ['-f', 'bv*+ba/b', '--merge-output-format', 'mp4'] : ['-f', 'b'] });
     if (hasFfmpeg) choices.push({ id: 'audio-mp3', label: '仅音频 · MP3', args: ['-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0'] });
     return choices;
 }
 
-export function createYoinksService({ config, runner = runIntegrationProcess, detector = detectExecutable, componentRoot = appRoot, temporaryRoot = tmpdir(), now = Date.now, retentionMs = 10 * 60 * 1000, maxFileBytes = 1024 * MiB, downloadTimeoutMs = 15 * 60 * 1000 } = {}) {
+export function createYoinksService({ config, runner = runIntegrationProcess, detector = detectExecutable, fetchImpl = globalThis.fetch, componentRoot = appRoot, temporaryRoot = tmpdir(), now = Date.now, retentionMs = 10 * 60 * 1000, maxFileBytes = 1024 * MiB, downloadTimeoutMs = 15 * 60 * 1000 } = {}) {
     const probes = new Map(), results = new Map();
     let active = null, disposed = false;
     async function tools() {
@@ -89,7 +95,7 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
             const value = await checkTools(await tools(), combined);
             // 统一链接解析：按优先级依次尝试所有方案，某个失败自动交给下一个。
             const chain = await resolveVideo(url, {
-                runner, tools: value, signal: combined, commonArgs, runtimeArgs, videoChoices,
+                runner, tools: value, signal: combined, commonArgs, runtimeArgs, videoChoices, fetchImpl,
                 validateUrl: videoUrl, forcedResolverId, now: Date.now,
                 childSignal: ms => AbortSignal.any([combined, AbortSignal.timeout(ms)])
             });

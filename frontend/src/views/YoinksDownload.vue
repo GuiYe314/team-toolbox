@@ -28,7 +28,8 @@
 
                 <div v-if="info" class="ext-stack ext-divider" data-test="video-info">
                     <h3>{{ info.title }}</h3><p class="ext-hint">{{ info.uploader || '作者未提供' }}<template v-if="info.duration !== null"> · {{ Math.round(info.duration) }} 秒</template><template v-if="info.resolvedBy"> · 由「{{ info.resolvedBy.name }}」解析成功</template></p>
-                    <label class="ext-field">下载格式<select v-model="choice" data-test="video-choice" :disabled="!!busy"><option v-for="item in info.choices" :key="item.id" :value="item.id">{{ item.label }}</option></select></label>
+                    <label class="ext-field">清晰度 / 格式<select v-model="choice" data-test="video-choice" :disabled="!!busy"><option v-for="item in info.choices" :key="item.id" :value="item.id">{{ item.label }}</option></select></label>
+                    <p class="ext-hint" data-test="video-quality-hint">{{ qualityHint }}</p>
                     <p v-if="!info.ffmpegReady" class="ext-hint">尚未找到 ffmpeg，仅提供包含音轨的单文件格式；MP3 和高清音视频合并需配置 ffmpeg。</p>
                     <button class="btn btn-primary" data-test="video-download" :disabled="!!busy || !choice" @click="download">{{ busy === 'download' ? '正在下载 / 处理…' : '开始下载' }}</button>
                 </div>
@@ -62,12 +63,12 @@
             </form>
             <div class="ext-actions"><a href="https://github.com/yt-dlp/yt-dlp/releases" target="_blank" rel="noopener noreferrer">下载 yt-dlp</a><a href="https://ffmpeg.org/download.html" target="_blank" rel="noopener noreferrer">获取 ffmpeg</a></div>
         </IntegrationDialog>
-        <IntegrationDialog v-if="help" title="视频下载帮助" @close="help = false"><p>粘贴一个链接即可，工具箱会按优先级依次尝试所有解析方案：某个方案解析不了就自动换下一个，成功后显示用的哪个方案。也可以指定只用某一个方案重试。</p><p>内置直链媒体、yt-dlp 通用解析、yt-dlp 通用页面三个方案；还可以在 <code>data/video-resolvers.json</code> 配置自己的 HTTP 解析服务，数量不限，格式见 docs/video-resolvers.md。</p><p>Windows 完整工具箱内置下载引擎。组件设置可指定其他已安装版本；点击“使用内置组件”会清除手动路径覆盖。取消或离页会停止当前下载并清理临时文件。分析结果五分钟后过期；失败时检查链接、组件版本、网络与网站限制，再重新解析。</p></IntegrationDialog>
+        <IntegrationDialog v-if="help" title="视频下载帮助" @close="help = false"><p>粘贴一个链接即可，工具箱会按优先级依次尝试所有解析方案：某个方案解析不了就自动换下一个，成功后显示用的哪个方案。也可以指定只用某一个方案重试。</p><p>内置直链媒体、bad.news 页面、yt-dlp 通用解析、网页媒体提取、yt-dlp 通用页面五个方案。没有专用提取器的站点（例如 bad.news）会直接读取网页里的视频地址：单个 MP4 给「原始清晰度」，m3u8 主清单会展开成多个清晰度；解析出的地址下载时会自动带上页面的 Referer。还可以在 <code>data/video-resolvers.json</code> 配置自己的 HTTP 解析服务，数量不限，格式见 docs/video-resolvers.md。</p><p>Windows 完整工具箱内置下载引擎。组件设置可指定其他已安装版本；点击“使用内置组件”会清除手动路径覆盖。取消或离页会停止当前下载并清理临时文件。分析结果五分钟后过期；失败时检查链接、组件版本、网络与网站限制，再重新解析。</p></IntegrationDialog>
     </IntegrationLayout>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import IntegrationLayout from '../components/IntegrationLayout.vue';
 import IntegrationDialog from '../components/IntegrationDialog.vue';
 import { integrationApi as api, operationMessage } from '../api/integration-client.js';
@@ -76,6 +77,14 @@ const resolvers = ref([]), attempts = ref([]), forcedResolver = ref('');
 const ytDlpPath = ref(''), ffmpegPath = ref(''), busy = ref(''), error = ref(''), notice = ref('');
 let active = null, disposed = false;
 function bytes(value) { if (!Number.isFinite(value)) return '大小未知'; return value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MiB` : `${(value / 1024).toFixed(1)} KiB`; }
+const qualityHint = computed(() => {
+    const choices = info.value?.choices || [];
+    const video = choices.filter(item => !/mp3|audio/i.test(item.id));
+    if (!choices.length) return '';
+    if (video.length > 1) return `共 ${video.length} 个清晰度可选；清晰度越高文件越大，选好后按该清晰度下载并合并为 MP4。`;
+    if (!video.length) return '该来源只提供音频格式。';
+    return `该来源只提供一个清晰度${choices.length > video.length ? '，也可以只保存音频 MP3' : ''}。`;
+});
 function statusText(item) { return item.status === 'ok' ? '成功' : item.status === 'skipped' ? '跳过' : '失败'; }
 async function run(kind, work) {
     if (busy.value) return;
