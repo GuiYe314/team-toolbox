@@ -270,8 +270,25 @@ describe('文件夹', () => {
         assert.equal(store.listFolders({ connection: db }).find((f) => f.id === child.id).parent_id, root.id);
     });
 
-    test('同级同名被拒绝', () => {
-        const f = store.createFolder({ connection: db, name: '重名测试' });
+    // 回归：对象/非法 parentId 必须变成可读的 invalid_input，
+    // 不能让 better-sqlite3 抛「Too few parameter values were provided」。
+    test('父文件夹 ID 传对象或非法值时给中文错误', () => {
+        const f = store.createFolder({ connection: db, name: '入参校验' });
+        const caught = (fn) => { try { fn(); return null; } catch (e) { return e; } };
+        for (const parentId of [{ id: f.id }, 'abc', 0, -1, NaN]) {
+            const e = caught(() => store.createFolder({ connection: db, name: 'x', parentId }));
+            assert.ok(e, `parentId=${String(parentId)} 应抛错`);
+            assert.equal(e.code, 'invalid_input');
+            assert.match(e.message, /父文件夹 ID 无效/);
+            assert.doesNotMatch(e.message, /parameter values/);
+        }
+        const m = caught(() => store.moveFolder({ connection: db, id: f.id, parentId: { id: 1 } }));
+        assert.ok(m, 'moveFolder 传对象应抛错');
+        assert.equal(m.code, 'invalid_input');
+        assert.match(m.message, /父文件夹 ID 无效/);
+    });
+
+    test('同级同名被拒绝', () => {        const f = store.createFolder({ connection: db, name: '重名测试' });
         assert.throws(() => store.createFolder({ connection: db, name: '重名测试' }), /已存在/);
         // 换父级则允许
         const other = store.createFolder({ connection: db, name: '另一个父级' });

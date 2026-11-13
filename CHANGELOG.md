@@ -1,5 +1,12 @@
 # 变更记录（CHANGELOG）
 
+## 2026-11-14 — 修复新建文件夹报「Too few parameter values」
+
+- 现象：资源管理页点「新建文件夹」/ 文件夹行的「+」，弹窗标题错成「新建子文件夹」，确定后报 `Too few parameter values were provided`。
+- 原因：工具栏按钮写成 `@click="createFolder"`，Vue 把点击事件对象当 `parentId` 传入；树组件 emit 的也是整个节点对象，而绑定直接写成 `@create-child="createFolder"`。对象经 JSON 变成 `{}` 后被当作父文件夹 ID，`better-sqlite3` 按命名参数取键失败，抛出驱动层英文错误，最终以 500 透传给用户。
+- 修复：按钮改为 `createFolder(null)`，树组件改为 `(node) => createFolder(node.id)`，`createFolder` 内部再统一归一化为正整数 ID；后端 `asset-store.js` 新增 `folderRef()`，`createFolder` / `moveFolder` / `moveAssets` 在进 SQL 前挡掉对象与非法值，返回 400「父文件夹 ID 无效」。
+- 验证：`asset-store.test.js` + `asset-api.test.js` **92/92**（新增 3 项回归：对象 / 非法值 / 不存在的父级）；后端全量见 PROJECT_STATUS。修复前后用同一入参对真实接口复现：对象 parentId 从 500 英文错误变为 400 中文提示。
+
 ## 2026-11-14 — TASK-046 四款水墨小猫与应用图标选择
 
 - 纳入墨猫剪影、雪猫烟墨、圆墨小猫、窗边小猫四套黑白水墨玻璃 PNG/多尺寸 ICO，设置页可预览选择、恢复默认 06 石墨字标及下载当前 ICO。

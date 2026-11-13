@@ -1,5 +1,17 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## 修复新建文件夹报「Too few parameter values」（2026-11-14）
+
+**已修复并同步到本机安装版；未发版。** 用户在资源管理页新建文件夹时，弹窗标题显示为「新建子文件夹」，确定后报 `Too few parameter values were provided`，失败不可用。
+
+- 根因：两处事件绑定把对象当成了父文件夹 ID。① 工具栏按钮写成 `@click="createFolder"`，Vue 把 MouseEvent 作为第一个参数传入（标题因此变成「新建子文件夹」）；② 文件夹树的 `create-child` emit 整个节点对象，而绑定是 `@create-child="createFolder"`。对象经 JSON 序列化成 `{}` 后进入 SQL 绑定，`better-sqlite3` 按命名参数取键失败，抛出驱动层英文错误并以 500 原样透传给用户。
+- 修复：按钮改 `createFolder(null)`，树绑定改 `(node) => createFolder(node.id)`，`createFolder` 内部再归一化为正整数 ID；后端 `asset-store.js` 新增 `folderRef()`，`createFolder` / `moveFolder` / `moveAssets` 在进 SQL 前挡掉对象与非法值，返回 400「父文件夹 ID 无效」，`moveFolder` 与 `moveAssets` 同步改为使用规范化后的 ID。
+- 验证：修复前后用同一入参对真实接口复现——`{"parentId":{"id":1}}` 由 500 `Too few parameter values were provided` 变为 400「父文件夹 ID 无效」；正常创建子文件夹仍 201。`asset-store.test.js` + `asset-api.test.js` **92/92**（新增 3 项回归：对象/非法值/不存在的父级），两个文件单独跑均 **30/30、62/62**。后端全量 **674 项、673 通过、0 失败、1 跳过**（`--test-concurrency=2`），前端计算 **32/32**，生产构建通过；构建产物静态核对四个入口绑定分别为 `createFolder(null)`×3 与 `createFolder(c.id)`，归一化逻辑已在包内。
+- 说明：定位过程中三次全量运行曾出现 3～4 项其它模块失败（APK 队列、回收站、预览），逐项单独跑均通过；用改动前代码跑同一命令为 670/670，恢复改动后再跑为 673/673，确认属并发负载下的既有抖动，未计为通过。本机实例在 3000 端口运行，前端产物已替换（备份 `frontend/dist.backup-20261114-004053`），浏览器刷新即生效；后端 `asset-store.js` 需重启一次才加载新校验。诊断时创建的「测试A」「测试B」已删除，「好玩」子文件夹（父级「软件」）保留。
+- 下一步：刷新页面点「新建文件夹」确认标题与创建均正常；如需后端校验立即生效，用「停止.cmd」+「启动.cmd」重启一次。
+
+WorkBuddy 完成；模型与积分未提供，无法确认。
+
 ## TASK-046 四款水墨小猫与设置图标选择（2026-11-14）
 
 **实现、相关验证及 GitHub 上传完成。** 用户要求四款全部上传，并在设置中自由选择。完整工具箱新增五选一预览，包含默认 06 和四款水墨小猫；同步侧栏、浏览器标签/触摸图标并保存当前浏览器偏好，提供恢复默认与 ICO 下载。没有创建或覆盖已有发布包。

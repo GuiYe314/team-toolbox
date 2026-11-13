@@ -21,7 +21,9 @@
                     </svg>
                     上传资源
                 </button>
-                <button class="btn" type="button" @click="createFolder">
+                <!-- 必须显式传 null：直接写 @click="createFolder" 会把点击事件当 parentId，
+                     结果标题错成「新建子文件夹」且后端收到对象参数 -->
+                <button class="btn" type="button" @click="createFolder(null)">
                     <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M3 6.5h18v4H3z" />
                         <path d="M5 10.5v8.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-8.5" />
@@ -304,7 +306,7 @@
                         :renaming-id="renamingFolderId"
                         @open="openFolder"
                         @toggle="toggleFolder"
-                        @create-child="createFolder"
+                        @create-child="(node) => createFolder(node.id)"
                         @menu="openFolderMenu"
                         @rename-submit="submitFolderRename"
                         @rename-cancel="renamingFolderId = null"
@@ -1257,18 +1259,22 @@ export default {
             this.saveExpanded();
         },
         createFolder(parentId) {
+            // 只接受正整数 ID。历史上有按钮把点击事件（MouseEvent 对象）直接传进来，
+            // 会让标题错成「新建子文件夹」，还会把对象发给后端导致 SQL 绑定报错，
+            // 这里统一归一化，事件对象/空值一律按顶级文件夹处理。
+            const pid = Number.isInteger(Number(parentId)) && Number(parentId) > 0 ? Number(parentId) : null;
             this.prompt = {
                 kind: 'text',
-                title: parentId ? '新建子文件夹' : '新建文件夹',
+                title: pid ? '新建子文件夹' : '新建文件夹',
                 placeholder: '文件夹名称',
                 value: '',
                 okText: '创建',
                 onSubmit: async (name) => {
-                    const { res, body } = await assetApi.createFolder(name, parentId);
+                    const { res, body } = await assetApi.createFolder(name, pid);
                     if (!res.ok) throw new Error((body && body.message) || '创建失败');
                     await this.loadFolders();
-                    if (parentId) {
-                        this.expandedFolders = { ...this.expandedFolders, [parentId]: true };
+                    if (pid) {
+                        this.expandedFolders = { ...this.expandedFolders, [pid]: true };
                         this.saveExpanded();
                     }
                 }
