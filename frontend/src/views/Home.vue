@@ -87,6 +87,7 @@
 import { api } from '../api/client.js';
 import ToolIcon from '../components/ToolIcon.vue';
 import { integrationTools } from '../utils/integration-tools.js';
+import { loadToolOrder } from '../utils/tool-order.js';
 
 export default {
     name: 'Home',
@@ -160,6 +161,7 @@ export default {
         }
     },
     mounted() {
+        this.tools = loadToolOrder(this.tools);
         this.loadRecent();
     },
     methods: {

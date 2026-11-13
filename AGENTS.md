@@ -69,6 +69,7 @@
 | `verify-asset-storage.mjs` | 存储路径、导入导出 | — |
 | `verify-vditor.mjs` / `verify-help.mjs` / `verify-hint.mjs` | 编辑器、帮助、悬停提示 | 4 |
 | `verify-cards.mjs` | 文档卡片布局、响应式降列 | 7 |
+| `verify-tool-order.mjs` | 工具箱真实拖放到首尾、左右放置/取消、刷新和首页相对顺序、恢复默认、无效偏好与保存失败重试、明暗主题下普通下拉菜单对比度；隔离静态服务与临时浏览器 | 2、7 |
 | `ui-verify.mjs` | 既有页面通用断言 | 3、5 |
 | `verify-batch-delete.mjs` | 知识库批量删除 | 9 |
 

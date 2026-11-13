@@ -5,6 +5,8 @@
    ========================================================================== */
 
 :root {
+    --tools-drag-opacity: 0.58;
+    --tools-drop-marker: 4px;
     --brand-mark-size: 32px;
     --adb-file-list-height: 340px;
     --adb-file-preview-height: 280px;

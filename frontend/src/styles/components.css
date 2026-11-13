@@ -184,6 +184,27 @@
     box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
+/* 原生下拉菜单不继承半透明面板的文字色，统一设置控件和菜单项，
+   避免未选项被浏览器系统样式渲染成几乎不可见的浅灰色。 */
+select {
+    color: var(--adb-select-text);
+    background-color: var(--adb-select-background);
+    color-scheme: inherit;
+}
+select option,
+select optgroup {
+    color: var(--adb-select-text);
+    background-color: var(--adb-select-menu);
+}
+select option:checked {
+    color: var(--adb-select-text);
+    background-color: var(--adb-select-selected);
+}
+select option:disabled {
+    color: var(--adb-select-disabled);
+    opacity: 1;
+}
+
 /* ── 消息条 ──────────────────────────────────────────────────────── */
 .notice {
     display: flex;

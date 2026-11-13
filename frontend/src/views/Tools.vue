@@ -1,15 +1,44 @@
 <template>
     <div class="view-page page-tools">
-        <header class="view-head">
-            <h1 class="view-title">工具箱</h1>
-            <p class="view-subtitle">小工具集合</p>
+        <header class="view-head tools-head">
+            <div>
+                <h1 class="view-title">工具箱</h1>
+                <p class="view-subtitle">小工具集合</p>
+            </div>
+            <div class="tool-order-actions">
+                <span class="tool-order-hint">拖动卡片调整顺序 · 在此浏览器保存</span>
+                <button class="btn btn-sm" type="button" @click="resetOrder">恢复默认顺序</button>
+            </div>
         </header>
 
+        <p v-if="saveError" class="notice notice-error" role="alert">{{ saveError }}<button class="btn btn-sm" type="button" @click="persistOrder">重试保存</button></p>
+
         <div class="tools-grid">
-            <div v-for="tool in tools" :key="tool.id" class="tool-card" :class="{ planned: tool.status !== '可用' }">
+            <div
+                v-for="tool in tools"
+                :key="tool.id"
+                class="tool-card"
+                :class="{ planned: tool.status !== '可用', 'is-dragging': draggingId === tool.id, 'is-drop-target': dropTargetId === tool.id, 'drop-after': dropTargetId === tool.id && dropPosition === 'after' }"
+                :data-tool-id="tool.id"
+                draggable="true"
+                @dragstart="startDrag(tool, $event)"
+                @dragover="dragOver(tool, $event)"
+                @dragleave="leaveTarget(tool, $event)"
+                @drop="dropTool(tool, $event)"
+                @dragend="finishDrag"
+            >
                 <div class="tool-card-header">
                     <ToolIcon :tool-id="tool.id" />
-                    <span class="tool-status" :class="{ ready: tool.status === '可用' }">{{ tool.status }}</span>
+                    <div class="tool-card-meta">
+                        <span class="tool-status" :class="{ ready: tool.status === '可用' }">{{ tool.status }}</span>
+                        <span class="tool-drag-handle" title="拖动调整工具顺序" aria-label="拖动调整工具顺序">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle cx="8" cy="6" r="1" /><circle cx="16" cy="6" r="1" />
+                                <circle cx="8" cy="12" r="1" /><circle cx="16" cy="12" r="1" />
+                                <circle cx="8" cy="18" r="1" /><circle cx="16" cy="18" r="1" />
+                            </svg>
+                        </span>
+                    </div>
                 </div>
                 <h3 class="tool-name">{{ tool.name }}</h3>
                 <p class="tool-desc">{{ tool.desc }}</p>
@@ -24,72 +53,77 @@
 <script>
 import ToolIcon from '../components/ToolIcon.vue';
 import { integrationTools } from '../utils/integration-tools.js';
+import { loadToolOrder, moveTool, saveToolOrder } from '../utils/tool-order.js';
+
+function createTools() {
+    return [
+        ...integrationTools.map(tool => ({ ...tool, status: '可用' })),
+        { id: 'port-viewer', name: '端口查看', desc: '查看服务器电脑 TCP / UDP 端口和占用进程，搜索端口冲突', routeName: 'tool-ports', status: '可用' },
+        { id: 'network-speed', name: '实时网速', desc: '实时查看服务器电脑网卡的上传、下载速度与流量趋势', routeName: 'tool-network-speed', status: '可用' },
+        { id: 'unity-logs', name: 'Unity 设备日志', desc: '搜索同局域网 Android / iPad，读取与下载历史日志', routeName: 'tool-unity-logs', status: '可用' },
+        { id: 'android-wireless', name: '安卓无线调试', desc: '搜索无线设备，六位码配对、连接与设备管理', routeName: 'tool-android-wireless', status: '可用' },
+        { id: 'ratio-lock', name: '比例锁定', desc: '锁定宽高比，输入任一侧自动换算另一侧', routeName: 'tool-ratio-lock', status: '可用' },
+        { id: 'earth-sunlight', name: '地球光照', desc: '查看当前太阳直射点、昼夜分界和太阳光方向', routeName: 'tool-earth-sunlight', status: '可用' },
+        { id: 'json-fmt', name: 'JSON 格式化', desc: 'JSON 数据的美化与压缩', routeName: 'tool-json-fmt', status: '规划中' },
+        { id: 'qrcode', name: '二维码生成', desc: '文本或链接快速生成二维码', routeName: 'tool-qrcode', status: '规划中' }
+    ];
+}
 
 export default {
     name: 'Tools',
     components: { ToolIcon },
     data() {
         return {
-            tools: [
-                ...integrationTools.map(tool => ({ ...tool, status: '可用' })),
-                {
-                    id: 'port-viewer',
-                    name: '端口查看',
-                    desc: '查看服务器电脑 TCP / UDP 端口和占用进程，搜索端口冲突',
-                    routeName: 'tool-ports',
-                    status: '可用'
-                },
-                {
-                    id: 'network-speed',
-                    name: '实时网速',
-                    desc: '实时查看服务器电脑网卡的上传、下载速度与流量趋势',
-                    routeName: 'tool-network-speed',
-                    status: '可用'
-                },
-                {
-                    id: 'unity-logs',
-                    name: 'Unity 设备日志',
-                    desc: '搜索同局域网 Android / iPad，读取与下载历史日志',
-                    routeName: 'tool-unity-logs',
-                    status: '可用'
-                },
-                {
-                    id: 'android-wireless',
-                    name: '安卓无线调试',
-                    desc: '搜索无线设备，六位码配对、连接与设备管理',
-                    routeName: 'tool-android-wireless',
-                    status: '可用'
-                },
-                {
-                    id: 'ratio-lock',
-                    name: '比例锁定',
-                    desc: '锁定宽高比，输入任一侧自动换算另一侧',
-                    routeName: 'tool-ratio-lock',
-                    status: '可用'
-                },
-                {
-                    id: 'earth-sunlight',
-                    name: '地球光照',
-                    desc: '查看当前太阳直射点、昼夜分界和太阳光方向',
-                    routeName: 'tool-earth-sunlight',
-                    status: '可用'
-                },
-                {
-                    id: 'json-fmt',
-                    name: 'JSON 格式化',
-                    desc: 'JSON 数据的美化与压缩',
-                    routeName: 'tool-json-fmt',
-                    status: '规划中'
-                },
-                {
-                    id: 'qrcode',
-                    name: '二维码生成',
-                    desc: '文本或链接快速生成二维码',
-                    routeName: 'tool-qrcode',
-                    status: '规划中'
-                }
-            ]
+            tools: createTools(),
+            draggingId: '',
+            dropTargetId: '',
+            dropPosition: 'before',
+            saveError: ''
         };
+    },
+    mounted() {
+        this.tools = loadToolOrder(this.tools);
+    },
+    methods: {
+        startDrag(tool, event) {
+            this.draggingId = tool.id;
+            this.dropTargetId = '';
+            if (event.dataTransfer) {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', tool.id);
+            }
+        },
+        dragOver(tool, event) {
+            if (!this.draggingId || this.draggingId === tool.id) return;
+            event.preventDefault();
+            this.dropTargetId = tool.id;
+            this.dropPosition = event.clientX < event.currentTarget.getBoundingClientRect().left + event.currentTarget.clientWidth / 2 ? 'before' : 'after';
+            if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        },
+        dropTool(tool, event) {
+            event.preventDefault();
+            const sourceId = this.draggingId;
+            if (sourceId && sourceId !== tool.id) {
+                this.tools = moveTool(this.tools, sourceId, tool.id, this.dropPosition);
+                this.persistOrder();
+            }
+            this.finishDrag();
+        },
+        finishDrag() {
+            this.draggingId = '';
+            this.dropTargetId = '';
+        },
+        leaveTarget(tool, event) {
+            if (this.dropTargetId === tool.id && !event.currentTarget.contains(event.relatedTarget)) this.dropTargetId = '';
+        },
+        persistOrder() {
+            this.saveError = saveToolOrder(this.tools) ? '' : '顺序已调整，但浏览器未能保存；刷新后可能恢复，请允许此网站保存数据后重试。';
+        },
+        resetOrder() {
+            this.tools = createTools();
+            this.finishDrag();
+            this.persistOrder();
+        }
     }
 };
 </script>
@@ -101,6 +135,9 @@ export default {
     grid-template-columns: repeat(auto-fit, minmax(min(228px, 100%), 1fr));
     gap: 12px;
 }
+.tools-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--gap-column); flex-wrap: wrap; }
+.tool-order-actions { display: flex; align-items: center; gap: var(--gap-column); flex-wrap: wrap; justify-content: flex-end; }
+.tool-order-hint { color: var(--text-secondary); font-size: var(--text-secondary); }
 .tool-card {
     display: flex;
     flex-direction: column;
@@ -113,6 +150,12 @@ export default {
                 border-color var(--dur-base) var(--ease-out),
                 transform var(--dur-base) var(--ease-out);
 }
+.tool-card[draggable="true"] { cursor: grab; }
+.tool-card[draggable="true"]:active { cursor: grabbing; }
+.tool-card.is-dragging { opacity: var(--tools-drag-opacity); }
+.tool-card.is-drop-target { border-color: var(--accent); box-shadow: inset var(--tools-drop-marker) 0 0 var(--accent); }
+.tool-card.is-drop-target.drop-after { box-shadow: inset calc(0px - var(--tools-drop-marker)) 0 0 var(--accent); }
+.tool-card.is-drop-target:hover { border-color: var(--accent); }
 .tool-card:hover {
     background: var(--panel-background-hover);
     border-color: var(--accent-border);
@@ -125,6 +168,8 @@ export default {
     justify-content: space-between;
     gap: 10px;
 }
+.tool-card-meta { display: inline-flex; align-items: center; gap: var(--adb-small-gap); }
+.tool-drag-handle { display: inline-flex; align-items: center; color: var(--text-secondary); opacity: 0.85; }
 /* 状态标签：可用为成功色软底，规划中为中性灰 */
 .tool-status {
     display: inline-flex;
