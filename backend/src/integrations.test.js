@@ -28,6 +28,11 @@ async function videoFixture(t, overrides = {}) {
         if (args.includes('--version')) return { code: 0, stdout: '2026.10.22\n', stderr: '' };
         if (args.includes('-version')) return { code: 0, stdout: 'ffmpeg version test\n', stderr: '' };
         if (args.includes('--dump-single-json')) return { code: 0, stdout: JSON.stringify({ title: '测试 / 视频', uploader: '测试作者', duration: 60, formats: [{ height: 1080, vcodec: 'avc1', acodec: 'none' }, { height: 720, vcodec: 'avc1', acodec: 'aac' }] }), stderr: '' };
+        // 预览会先问 yt-dlp 要真实直链：高清流通常是视频+音频两条。
+        if (args.includes('-j')) return { code: 0, stdout: JSON.stringify({ requested_downloads: [
+            { url: 'https://cdn.example.com/video.mp4', vcodec: 'avc1', acodec: 'none', http_headers: { Referer: 'https://example.com/' } },
+            { url: 'https://cdn.example.com/audio.m4a', vcodec: 'none', acodec: 'mp4a', http_headers: { 'User-Agent': 'UA' } }
+        ] }), stderr: '' };
         const filePath = args[args.indexOf('-o') + 1].replace('%(ext)s', args.includes('mp3') ? 'mp3' : 'mp4');
         await writeFile(filePath, Buffer.alloc(128, 1));
         options.onLine('TOOLBOX_PROGRESS|64|128|100|1'); options.onLine('TOOLBOX_FILE|' + filePath);
@@ -187,6 +192,35 @@ test('视频探测过期和自由格式参数被拒绝', async t => {
     await assert.rejects(service.download({ probeId: info.id, choiceId: '--exec' }), fail('invalid_choice'));
     await assert.rejects(service.download({ probeId: info.id, choiceId: 'video-720', path: 'C:/other' }), fail('invalid_input'));
     clock = 300001; await assert.rejects(service.download({ probeId: info.id, choiceId: 'video-720' }), fail('expired'));
+});
+test('先看看：把解析结果换成预览票据，音视频分离时用两条输入', async t => {
+    const spawned = [];
+    const f = await videoFixture(t, { previewSpawn: ({ command, args }) => {
+        spawned.push({ command, args });
+        return { stream: Readable.from([Buffer.from('fmp4')]), stop: () => {}, errorText: () => '' };
+    } });
+    const info = await f.service.analyze({ url: 'https://example.com/video' });
+    const preview = await f.service.preparePreview({ probeId: info.id, choiceId: 'video-720' });
+    assert.equal(preview.url, `/api/integrations/yoinks/preview/${preview.id}`);
+    assert.equal(preview.title, info.title);
+    const handle = f.service.openPreview(preview.id);
+    assert.equal(spawned.length, 1);
+    assert.equal(spawned[0].command, f.paths.ffmpeg);
+    const inputs = spawned[0].args.filter((_, index) => spawned[0].args[index - 1] === '-i');
+    assert.deepEqual(inputs, ['https://cdn.example.com/video.mp4', 'https://cdn.example.com/audio.m4a']);
+    assert.deepEqual(spawned[0].args.slice(-7), ['-c', 'copy', '-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-f', 'mp4', 'pipe:1']);
+    // 直链自带 Referer 与 UA 必须带进 ffmpeg，否则 CDN 会 403。
+    assert.ok(spawned[0].args.join(' ').includes('Referer: https://example.com/'));
+    assert.ok(handle.stream);
+    assert.throws(() => f.service.openPreview('11111111-1111-4111-8111-111111111111'), fail('expired'));
+    await assert.rejects(f.service.preparePreview({ probeId: info.id, choiceId: 'nope' }), fail('invalid_choice'));
+    await assert.rejects(f.service.preparePreview({ probeId: info.id, choiceId: 'video-720', extra: 1 }), fail('invalid_input'));
+});
+test('先看看缺少 ffmpeg 时明确提示，不假装可预览', async t => {
+    const f = await videoFixture(t, { detector: async (kind, path) => kind === 'ffmpeg' ? '' : path });
+    await f.service.configure({ ytDlpPath: f.paths.ytDlp, ffmpegPath: '' });
+    const info = await f.service.analyze({ url: 'https://example.com/video' });
+    await assert.rejects(f.service.preparePreview({ probeId: info.id, choiceId: 'video-720' }), fail('missing_dependency'));
 });
 test('视频下载失败不暴露原始 stderr，临时目录被回收', async t => {
     let original;
@@ -365,6 +399,27 @@ test('本机 API 拒绝外部 Host/Origin、跨站和缺少专用头，转发头
     let status;
     requireLocalIntegrationRequest({ socket: { remoteAddress: '192.168.1.2' }, headers: { host: 'localhost' }, get: () => undefined }, { status(code) { status = code; return this; }, json() {} }, () => assert.fail('LAN request accepted'));
     assert.equal(status, 403);
+});
+test('预览接口先换票据再拉流：按 video/mp4 直出，无效编号给出明确状态', async t => {
+    const id = '11111111-1111-4111-8111-111111111111', stream = new Readable({ read() {} });
+    let opened = 0, stopped = 0;
+    const { post, request } = await apiFixture(t, { yoinks: {
+        preparePreview: async body => ({ id, url: `/api/integrations/yoinks/preview/${id}`, title: body.probeId, choiceLabel: '720p' }),
+        openPreview: value => { if (value !== id) throw problem('expired', '预览已过期', 410); opened++; return { stream, stop: () => stopped++ }; }
+    } });
+    const ticket = await (await post('/yoinks/preview', { probeId: 'probe-1', choiceId: 'video-720' })).json();
+    assert.equal(ticket.url, `/api/integrations/yoinks/preview/${id}`);
+    const pending = request(`/yoinks/preview/${id}`);
+    await new Promise(resolve => setTimeout(resolve, 30));
+    stream.push(Buffer.from('fmp4-data'));
+    const response = await pending;
+    assert.equal(response.status, 200); assert.ok(response.headers.get('content-type').includes('video/mp4'));
+    stream.push(null);
+    assert.equal(await response.text(), 'fmp4-data');
+    assert.equal(opened, 1);
+    assert.equal((await request('/yoinks/preview/22222222-2222-4222-8222-222222222222')).status, 410);
+    assert.equal((await request('/yoinks/preview/not-a-uuid')).status, 400);
+    assert.equal(stopped, 1);
 });
 test('流式 API 返回逐条结果、文件安全附件头，不把 Key/文本写日志', async t => {
     const { post, request, logs } = await apiFixture(t, { freellmapi: { chat: async (_body, _signal, emit) => { emit({ type: 'delta', text: 'answer-secret' }); emit({ type: 'done' }); } }, yoinks: { openResult: async () => ({ stream: Readable.from(['test']), name: '中文.mp4', size: 4 }) } });

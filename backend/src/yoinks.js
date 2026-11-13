@@ -6,6 +6,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { appRoot, fields, problem, detectExecutable, executablePath, executableSource, runIntegrationProcess } from './integration-common.js';
 import { resolveVideo, listResolvers } from './video-resolvers.js';
+import { buildPreviewArgs, formatSelector, headersFromArgs, pickStreams, spawnPreview } from './video-preview.js';
 import { createProxyFetch, normalizeProxy, proxyArgs, readSystemProxy, resolveProxy } from './video-proxy.js';
 
 const MiB = 1024 * 1024;
@@ -95,9 +96,9 @@ async function moveFile(source, target) {
     await rm(source, { force: true });
 }
 
-export function createYoinksService({ config, runner = runIntegrationProcess, detector = detectExecutable, fetchImpl = globalThis.fetch, proxyResolver = resolveProxy, fetchFactory = createProxyFetch, componentRoot = appRoot, temporaryRoot = tmpdir(), cacheRoot = '', defaultDownloadDir = join(homedir(), 'Downloads'), now = Date.now, retentionMs = 10 * 60 * 1000, maxConcurrent = 3, stallMs = 5 * 60 * 1000, taskLimit = 50, pruneMs = 24 * 60 * 60 * 1000, reveal = revealFile } = {}) {
+export function createYoinksService({ config, runner = runIntegrationProcess, detector = detectExecutable, fetchImpl = globalThis.fetch, proxyResolver = resolveProxy, fetchFactory = createProxyFetch, componentRoot = appRoot, temporaryRoot = tmpdir(), cacheRoot = '', defaultDownloadDir = join(homedir(), 'Downloads'), now = Date.now, retentionMs = 10 * 60 * 1000, maxConcurrent = 3, stallMs = 5 * 60 * 1000, taskLimit = 50, pruneMs = 24 * 60 * 60 * 1000, reveal = revealFile, previewSpawn = spawnPreview, previewTtlMs = 5 * 60 * 1000 } = {}) {
     const cacheDirectory = cacheRoot || join(temporaryRoot, 'toolbox-video-cache');
-    const probes = new Map(), results = new Map(), jobs = new Map(), waiting = [], active = new Set();
+    const probes = new Map(), results = new Map(), jobs = new Map(), waiting = [], active = new Set(), previews = new Map();
     let analyzing = false, disposed = false;
 
     async function tools() {
@@ -210,6 +211,54 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
                 choices: info.choices.map(({ id: choiceId, label }) => ({ id: choiceId, label })),
                 ffmpegReady: !!value.ffmpegPath, resolvedBy: chain.resolver, attempts: chain.attempts, proxy: proxy.url, proxySource: proxy.source };
         } finally { analyzing = false; }
+    }
+
+    /**
+     * 「先看看」预览：不落盘，由 ffmpeg 把远端流实时转封装成 fMP4 直接喂给浏览器播放器。
+     * 票据只存直链与请求头，重复打开（刷新播放器）会重新起一个 ffmpeg 进程。
+     */
+    function prunePreviews() {
+        for (const [id, item] of previews) if (now() - item.createdAt > previewTtlMs) previews.delete(id);
+        while (previews.size >= 8) previews.delete(previews.keys().next().value);
+    }
+    async function previewInputs(probe, choice, signal) {
+        if (!probe.tools.ffmpegPath) throw problem('missing_dependency', '实时预览需要 ffmpeg 组件：请使用包含内置组件的完整工具箱，或在组件设置里指定 ffmpeg', 503);
+        // ffmpeg 不认 yt-dlp 的 --referer 参数，需要换成等价的请求头。
+        const headers = headersFromArgs(choice.args);
+        // 页面提取方案自带直链；解析结果本身是 m3u8 时 ffmpeg 能直接读。
+        if (choice.url) return { inputs: [choice.url], headers, proxy: probe.proxy };
+        if (/\.m3u8($|\?)/i.test(probe.url)) return { inputs: [probe.url], headers, proxy: probe.proxy };
+        // 通用站点只有网页地址：先让 yt-dlp 取一次真实直链（视频/音频可能分成两条）。
+        const checked = await checkTools(probe.tools, signal);
+        const args = [...commonArgsFor(probe.proxy), ...runtimeArgs(checked), '--no-playlist', '-j', '-f', formatSelector(choice.args), '--', probe.url];
+        const output = await runner(checked.ytDlpPath, args, { signal, timeout: 60000, maxBytes: 8 * MiB });
+        if (output.code !== 0) throw problem('preview_failed', '这个站点拿不到可直接播放的地址，请下载后用本地播放器观看', 502);
+        let info;
+        try { info = JSON.parse(output.stdout); } catch { throw problem('preview_failed', '解析到的播放地址无效，请下载后用本地播放器观看', 502); }
+        const streams = pickStreams(info);
+        if (!streams) throw problem('preview_failed', '这个视频没有可直连播放的格式，请下载后用本地播放器观看', 502);
+        return { inputs: streams.inputs, headers: { ...streams.headers, ...headers }, proxy: probe.proxy };
+    }
+    async function preparePreview(body, signal) {
+        if (disposed) throw problem('closed', '服务正在关闭', 503);
+        fields(body, ['probeId', 'choiceId']);
+        const probe = probes.get(body.probeId);
+        if (!probe || now() - probe.createdAt > 5 * 60000) throw problem('expired', '视频信息已过期，请重新分析', 410);
+        const choice = probe.choices.find(item => item.id === body.choiceId);
+        if (!choice) throw problem('invalid_choice', '请选择本次分析提供的格式');
+        const plan = await previewInputs(probe, choice, signal);
+        prunePreviews();
+        const id = randomUUID();
+        previews.set(id, { ...plan, ffmpegPath: probe.tools.ffmpegPath, title: probe.title, choiceLabel: choice.label, createdAt: now() });
+        return { id, url: `/api/integrations/yoinks/preview/${id}`, title: probe.title, choiceLabel: choice.label };
+    }
+    function openPreview(id) {
+        prunePreviews();
+        const item = previews.get(id);
+        if (!item) throw problem('expired', '预览已过期，请重新点击「先看看」', 410);
+        const args = buildPreviewArgs({ inputs: item.inputs, headers: item.headers, proxy: item.proxy });
+        const handle = previewSpawn({ command: item.ffmpegPath, args, title: item.title });
+        return { stream: handle.stream, stop: handle.stop, errorText: handle.errorText };
     }
 
     function taskView(task) {
@@ -446,10 +495,12 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
         }
         await Promise.allSettled([...active].map(id => jobs.get(id)?.promise).filter(Boolean));
         probes.clear();
+        previews.clear();
         for (const entry of results.values()) for (const stream of entry.streams) stream.destroy();
         await Promise.allSettled([...results.keys()].map(removeResult));
         jobs.clear();
     }
     return { tools, status, resolvers, configure, analyze, download, startTask, listTasks, getTask,
-        cancelTask, retryTask, removeTask, revealTask, cacheInfo, clearCache, openResult, removeResult, dispose };
+        cancelTask, retryTask, removeTask, revealTask, cacheInfo, clearCache, openResult, removeResult,
+        preparePreview, openPreview, dispose };
 }

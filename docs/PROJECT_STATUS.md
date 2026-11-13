@@ -1,5 +1,16 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## 视频下载新增「先看看」实时预览（2026-11-14，v0.8.1 未发版）
+
+**已实现、测试通过并同步本机安装版；未发版、未推送。** 用户问「可以边下边看不」，确认方案后实现。
+
+- 新增 `backend/src/video-preview.js`：`buildPreviewArgs` / `pickStreams` / `headersFromArgs` / `formatSelector` / `spawnPreview`，纯函数为主便于单测。
+- `yoinks.js`：`preparePreview`（票据 5 分钟、最多 8 个）与 `openPreview`（每次 GET 起一个 ffmpeg，`stop()` 由路由在 `close` 时调用）；`previewSpawn` 可注入，测试用假进程。
+- `integration-api.js`：`POST /yoinks/preview` 换票据；`GET /yoinks/preview/:id` 收到首字节才发响应头，起不来或地址失效时仍能返回 JSON 错误（400 / 410 / 502）。
+- 前端：全宽预览卡 + 播放器，错误提示含 HEVC / AV1 说明；切换清晰度、重新解析、离开页面都会关闭预览。
+- 未验证：真实外站在浏览器里的解码效果（本沙箱无外网出口）、移动端 Safari 的 fMP4 表现。
+- 下一步：在安装版实测一次 bad.news 这类 HLS 站点，确认出画时间与拖动行为，再决定是否发版。
+
 ## 视频下载改为后台任务队列（2026-11-14，v0.8.0 未发版）
 
 **代码、测试与前端构建完成，已同步到本机安装版；未发版。** 用户提出四点：去掉体积上限、支持同时下载多个、像迅雷一样设置下载目录并自动放入、支持断点续传。

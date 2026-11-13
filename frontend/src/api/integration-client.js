@@ -44,6 +44,7 @@ export const integrationApi = {
     saveVideoConfig: (value, signal) => request('PUT', '/yoinks/config', value, signal),
     analyzeVideo: (url, signal, resolverId = '') => request('POST', '/yoinks/analyze', { url, ...(resolverId ? { resolverId } : {}) }, signal, undefined, 150000),
     downloadVideo: (probeId, choiceId, signal) => request('POST', '/yoinks/download', { probeId, choiceId }, signal),
+    prepareVideoPreview: (probeId, choiceId, signal) => request('POST', '/yoinks/preview', { probeId, choiceId }, signal, undefined, 90000),
     videoTasks: signal => request('GET', '/yoinks/tasks', undefined, signal),
     cancelVideoTask: (id, signal) => request('POST', `/yoinks/tasks/${encodeURIComponent(id)}/cancel`, {}, signal),
     retryVideoTask: (id, signal) => request('POST', `/yoinks/tasks/${encodeURIComponent(id)}/retry`, {}, signal),

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { Readable } from 'node:stream';
 import { createIntegrationServices, registerIntegrationApi } from '../backend/src/integration-api.js';
 import { createIntegrationConfig, executablePath, problem } from '../backend/src/integration-common.js';
 import { createToolAccess } from '../backend/src/tool-access.js';
@@ -26,7 +27,7 @@ const paths = { ytDlp: join(componentDir, 'yt-dlp.exe'), ffmpeg: join(componentD
 for (const path of Object.values(paths)) await writeFile(path, 'isolated test component, never executed');
 const settingsFile = join(temporary, 'open-source-tools.json');
 const config = createIntegrationConfig(settingsFile);
-const state = { bundleReady: false, videoMode: 'success', videosCancelled: 0, videoRunning: 0, freeMode: 'success', freeCancelled: 0, chatRequests: [], launchRequests: [], apiLogs: [] };
+const state = { bundleReady: false, videoMode: 'success', videosCancelled: 0, videoRunning: 0, previewsStopped: 0, freeMode: 'success', freeCancelled: 0, chatRequests: [], launchRequests: [], apiLogs: [] };
 const delay = ms => new Promise(resolvePromise => setTimeout(resolvePromise, ms));
 const gateway = express(); gateway.use(express.json());
 const testKey = 'freellmapi-isolated-ui-key';
@@ -56,6 +57,8 @@ const service = createIntegrationServices({ config,
         if (args.includes('--version')) return { code: 0, stdout: '2026.10.22\n' };
         if (args.includes('-version')) return { code: 0, stdout: 'ffmpeg version isolated-test\n' };
         if (args.includes('--dump-single-json')) return { code: 0, stdout: JSON.stringify({ title: '隔离验收视频', uploader: '合成测试', duration: 60, formats: [{ vcodec: 'avc1', acodec: 'aac', height: 720 }] }) };
+        // 预览会先问 yt-dlp 要直链，这里直接给一条合成地址，不真的联网。
+        if (args.includes('-j')) return { code: 0, stdout: JSON.stringify({ requested_downloads: [{ url: 'https://media.example.com/isolated.mp4', vcodec: 'avc1', acodec: 'aac', http_headers: { Referer: 'https://example.com/' } }] }) };
         state.videoRunning += 1;
         try {
             for (let i = 1; i <= (state.videoMode === 'slow' ? 100 : 5); i++) {
@@ -67,7 +70,9 @@ const service = createIntegrationServices({ config,
             await writeFile(output, Buffer.alloc(256, 1)); options.onLine('TOOLBOX_FILE|' + output);
             return { code: 0 };
         } finally { state.videoRunning -= 1; }
-    } },
+    },
+    // 预览的 ffmpeg 进程换成固定的 mp4 片段，验收只关心票据与播放器接线，不依赖真实组件。
+    previewSpawn: () => ({ stream: Readable.from([Buffer.from('00000020ftypisom')]), stop: () => { state.previewsStopped += 1; }, errorText: () => '' }) },
     artcraftOptions: { launcher: async file => state.launchRequests.push(file) }
 });
 const app = express(); app.use(access.middleware); app.use(express.json()); registerIntegrationApi(app, { service, access, log: entry => state.apiLogs.push(entry) });
@@ -147,6 +152,11 @@ try {
     await input('video-url', 'https://example.com/watch?v=isolated'); await click('video-analyze'); await wait("!!document.querySelector('[data-test=video-info]')");
     check('视频分析提供清晰度与 MP3', await evaluate("document.querySelector('[data-test=video-info]').textContent.includes('隔离验收视频') && document.querySelector('[data-test=video-choice]').options.length===2"));
     check('下载区显示保存目录与并发上限', await evaluate("document.querySelector('[data-test=video-save-dir]').textContent.includes('auto-downloads') && document.querySelector('[data-test=video-parallel]').textContent.includes('3')"));
+    await click('video-preview'); await wait("!!document.querySelector('[data-test=video-preview-panel]')");
+    check('先看看：解析完直接可播，播放器读实时转封装流', await evaluate("document.querySelector('[data-test=video-preview-player]').getAttribute('src')?.includes('/api/integrations/yoinks/preview/')"));
+    check('预览面板不占用下载队列', (await evaluate("document.querySelectorAll('.task-item').length")) === 0);
+    await click('video-preview-close'); await wait("!document.querySelector('[data-test=video-preview-panel]')");
+    check('关闭预览后播放器被移除并停止拉流', (await evaluate("!document.querySelector('[data-test=video-preview-player]')")) && state.previewsStopped >= 1);
     await input('video-choice', 'audio-mp3'); await click('video-download'); await wait("!!document.querySelector('[data-test=video-progress]')");
     check('下载中显示当前媒体流而非伪造总进度', await evaluate("document.querySelector('[data-test=video-progress]').textContent.includes('不能代表')"));
     await wait("!!document.querySelector('[data-test=video-result]')");

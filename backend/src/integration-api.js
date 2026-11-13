@@ -69,6 +69,31 @@ export function registerIntegrationApi(app, { service = createIntegrationService
     router.put('/yoinks/config', action('yoinks_configure', (req, signal) => service.yoinks.configure(req.body, signal)));
     router.post('/yoinks/analyze', action('yoinks_analyze', (req, signal) => service.yoinks.analyze(req.body, signal)));
     router.post('/yoinks/download', action('yoinks_download', req => service.yoinks.startTask(req.body)));
+    // 「先看看」：POST 换一个短时票据，再用 GET 拉流——<video src> 无法附加集成请求头，GET 也不需要。
+    router.post('/yoinks/preview', action('yoinks_preview', (req, signal) => service.yoinks.preparePreview(req.body, signal)));
+    router.get('/yoinks/preview/:id', (req, res) => {
+        const previewId = /^[a-f0-9-]{36}$/.test(req.params.id) ? req.params.id : '';
+        const fail = error => {
+            const safe = error instanceof IntegrationError ? error : problem('preview_failed', '实时预览失败，请下载后用本地播放器观看', 502);
+            if (!previewId) log({ action: 'yoinks_preview_stream', ok: false, code: 'invalid_input' });
+            if (res.headersSent) { if (!res.destroyed) res.destroy(); return; }
+            res.status(safe.status).json({ error: safe.code, message: safe.message });
+        };
+        if (!previewId) return fail(problem('invalid_input', '预览编号无效'));
+        let preview, stopped = false;
+        try { preview = service.yoinks.openPreview(previewId); } catch (error) { return fail(error); }
+        const stop = () => { if (stopped) return; stopped = true; try { preview.stop(); } catch { /* 进程已结束 */ } };
+        res.once('close', stop); res.once('error', stop);
+        // 收到第一个字节才发响应头：ffmpeg 起不来或直链失效时，前端还能拿到可读的错误信息。
+        preview.stream.once('data', chunk => {
+            if (res.destroyed) return stop();
+            res.status(200).type('video/mp4'); res.setHeader('X-Accel-Buffering', 'no');
+            res.write(chunk);
+            pipeline(preview.stream, res).then(() => { if (!res.writableEnded) res.end(); stop(); }).catch(stop);
+        });
+        preview.stream.once('error', () => fail(problem('preview_failed', '预览中断，请重试或下载后用本地播放器观看', 502)));
+        preview.stream.once('end', () => { if (!res.headersSent) fail(problem('preview_failed', '这个视频没有可播放的画面，请下载后用本地播放器观看', 502)); });
+    });
     router.get('/yoinks/tasks', action('yoinks_tasks', () => service.yoinks.listTasks()));
     router.get('/yoinks/tasks/:id', action('yoinks_task', req => service.yoinks.getTask(taskId(req))));
     router.post('/yoinks/tasks/:id/cancel', action('yoinks_cancel', req => { noFields(req); return service.yoinks.cancelTask(taskId(req)); }));

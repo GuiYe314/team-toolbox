@@ -101,7 +101,7 @@
 
 - `/tools/yoinks`、`/tools/freellmapi`、`/tools/artcraft` 共用 `integration-api.js`，通过 `tool-access.js` 按 Local/Lan 模式校验真实来源、服务器 Host 与浏览器同源上下文；写请求要求 JSON 和 `X-Toolbox-Integration: 1`，禁止任意代理、自由进程参数或网页自动安装器。TASK-041允许显式维护/发布命令准备固定下载组件，不得扩展成浏览器传URL的安装接口。
 - `integration-common.js` 负责独立机器配置 `data/open-source-tools.json`、路径/回环地址验证与进程执行。配置版本 1 仅保存路径和地址，原子保存并拒绝覆盖损坏文件，不进 SQLite/团队备份。进程使用参数数组、隐藏窗口、禁用 Shell、输出/超时限制，取消进程树只按本轮 PID。
-- `yoinks.js` 使用 Yoinks 的 yt-dlp 核心方案，不运行 TUI；禁用外部配置、插件搜索和播放列表，不读取浏览器 Cookie。票据只在内存；下载为队列任务（并发三、排队不限），不设成品体积与总时长，五分钟无字节进展才暂停。按 `url + 清晰度` 派生稳定缓存目录并 `--continue` 续传，取消/失败保留分片供续传；成品移动到下载目录（默认系统「下载」，重名加序号），复核媒体文件边界/类型/大小，仅写缓存目录。关页面任务不中断，正常退出回收；进度不得冒充整项完成；未安装明确未就绪，上游许可见 OPEN_SOURCE_INTEGRATIONS。
+- `yoinks.js` 使用 Yoinks 的 yt-dlp 核心方案，不运行 TUI；禁用外部配置、插件搜索和播放列表，不读取浏览器 Cookie。票据只在内存；下载为队列任务（并发三、排队不限），不设成品体积与总时长，五分钟无字节进展才暂停。按 `url + 清晰度` 派生稳定缓存目录并 `--continue` 续传，取消/失败保留分片供续传；成品移动到下载目录（默认系统「下载」，重名加序号），复核媒体文件边界/类型/大小，仅写缓存目录。关页面任务不中断，正常退出回收；预览走 ffmpeg 实时转封装到响应，不落盘、不占下载并发位，客户端断开即终止；进度不得冒充整项完成；未安装明确未就绪，上游许可见 OPEN_SOURCE_INTEGRATIONS。
 - `freellmapi.js` 只访问回环 `/v1/models?available=true` 和 `/v1/chat/completions`，不跟随重定向。统一 Key 只存后端内存、不回传/落盘，切换地址清除旧 Key，配置和请求互斥。最多九轮完整历史/48000 字、单条/回答 12000 字；消费文本 SSE，不执行工具调用，必须有结束标记。请求 120 秒/2 MiB，取消/断连/退出中止；停止/失败片段不进入历史，清空阻止迟到回填，不保证供应商费用或停止行为。
 - `artcraft.js` 只确认启动已保存、重新验证的 ArtCraft.exe，无自由参数、原生协议或结束进程。只报告启动请求，原生画布在自身窗口，不把网页预览当完整编辑器。提示词只在当前页，不自动注入，不读取其账号、Key 或素材。
 - `integrations.css` 引用 tokens/theme，`IntegrationDialog.vue` Teleport 到 body 并处理 Escape/焦点恢复；日志不记录输入、链接、Key 或模型结果。

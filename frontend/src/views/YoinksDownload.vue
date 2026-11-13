@@ -4,6 +4,19 @@
         <p v-if="error" class="ext-notice is-error" role="alert">{{ error }}</p>
         <p v-if="notice" class="ext-notice" role="status">{{ notice }}</p>
         <div class="ext-workspace">
+            <section v-if="preview" class="ext-card ext-stack preview-card" data-test="video-preview-panel">
+                <div class="ext-row ext-between">
+                    <h2 class="preview-heading">{{ preview.title }}<span class="task-choice"> · {{ preview.choiceLabel }}</span></h2>
+                    <div class="ext-actions">
+                        <button class="btn" type="button" data-test="video-preview-download" :disabled="busy === 'download'" @click="download">下载这个清晰度</button>
+                        <button class="btn" type="button" data-test="video-preview-close" @click="closePreview">关闭预览</button>
+                    </div>
+                </div>
+                <!-- 播放器直接读后端的实时转封装流：不落盘，也不占用下载队列。 -->
+                <video class="preview-player" :src="preview.url" controls autoplay playsinline preload="auto" data-test="video-preview-player" @error="previewError = '浏览器无法直接播放这个视频（常见于 HEVC / AV1 编码或网络中断）。可以加入下载队列，完成后用本地播放器观看。'"></video>
+                <p v-if="previewError" class="ext-hint is-error" data-test="video-preview-error">{{ previewError }}</p>
+                <p class="ext-hint">预览由 ffmpeg 实时转封装，边拉边播、不写磁盘；可以边看边下载，两者互不影响。实时流不支持随意拖动进度条，想从中间看请先下载。关掉预览或离开页面会立即停止拉流。</p>
+            </section>
             <section class="ext-card ext-stack">
                 <div class="ext-row ext-between"><h2>视频来源</h2><span class="ext-badge" :class="{ 'is-ready': config?.ready }" data-test="video-engine-status">{{ config?.ready ? (config.ytDlpSource === 'bundled' ? '内置下载引擎已就绪' : '已找到 yt-dlp') : '组件未就绪' }}</span></div>
                 <form class="ext-stack" @submit.prevent="analyze">
@@ -32,7 +45,11 @@
                     <label class="ext-field">清晰度 / 格式<select v-model="choice" data-test="video-choice" :disabled="busy === 'download'"><option v-for="item in info.choices" :key="item.id" :value="item.id">{{ item.label }}</option></select></label>
                     <p class="ext-hint" data-test="video-quality-hint">{{ qualityHint }}</p>
                     <p v-if="!info.ffmpegReady" class="ext-hint">尚未找到 ffmpeg，仅提供包含音轨的单文件格式；MP3 和高清音视频合并需配置 ffmpeg。</p>
-                    <button class="btn btn-primary" data-test="video-download" :disabled="busy === 'download' || !choice" @click="download">{{ busy === 'download' ? '正在加入…' : '加入下载队列' }}</button>
+                    <div class="ext-actions">
+                        <button class="btn btn-primary" data-test="video-download" :disabled="busy === 'download' || !choice" @click="download">{{ busy === 'download' ? '正在加入…' : '加入下载队列' }}</button>
+                        <button class="btn" type="button" data-test="video-preview" :disabled="!choice || previewBusy || !info.ffmpegReady" @click="startPreview">{{ previewBusy ? '正在准备播放…' : '先看看（边下边看）' }}</button>
+                    </div>
+                    <p v-if="!info.ffmpegReady" class="ext-hint">实时预览需要 ffmpeg：装好后重新解析即可边下边看。</p>
                 </div>
             </section>
             <section class="ext-card ext-stack ext-main">
@@ -88,12 +105,12 @@
             </form>
             <div class="ext-actions"><a href="https://github.com/yt-dlp/yt-dlp/releases" target="_blank" rel="noopener noreferrer">下载 yt-dlp</a><a href="https://ffmpeg.org/download.html" target="_blank" rel="noopener noreferrer">获取 ffmpeg</a></div>
         </IntegrationDialog>
-        <IntegrationDialog v-if="help" title="视频下载帮助" @close="help = false"><p>粘贴一个链接即可，工具箱会按优先级依次尝试所有解析方案：某个方案解析不了就自动换下一个，成功后显示用的哪个方案。也可以指定只用某一个方案重试。</p><p>内置直链媒体、bad.news 页面、yt-dlp 通用解析、网页媒体提取、yt-dlp 通用页面五个方案。没有专用提取器的站点（例如 bad.news）会直接读取网页里的视频地址：单个 MP4 给「原始清晰度」，m3u8 主清单会展开成多个清晰度；解析出的地址下载时会自动带上页面的 Referer。还可以在 <code>data/video-resolvers.json</code> 配置自己的 HTTP 解析服务，数量不限，格式见 docs/video-resolvers.md。</p><p>下载任务同时跑三个，其余自动排队；关掉页面任务也会继续，回到本页能看到进度和结果。下载完成自动存进设置里的保存目录（默认系统「下载」文件夹）。中断、断网或取消后，重新下载同一链接会从断点续传；不超过五分钟没有任何进展才会暂停。缓存可以在任务区一键清理。</p><p>Windows 完整工具箱内置下载引擎。组件设置可指定其他已安装版本；点击“使用内置组件”会清除手动路径覆盖。分析结果五分钟后过期；失败时检查链接、组件版本、网络与网站限制，再重新解析。</p></IntegrationDialog>
+        <IntegrationDialog v-if="help" title="视频下载帮助" @close="help = false"><p>粘贴一个链接即可，工具箱会按优先级依次尝试所有解析方案：某个方案解析不了就自动换下一个，成功后显示用的哪个方案。也可以指定只用某一个方案重试。</p><p>内置直链媒体、bad.news 页面、yt-dlp 通用解析、网页媒体提取、yt-dlp 通用页面五个方案。没有专用提取器的站点（例如 bad.news）会直接读取网页里的视频地址：单个 MP4 给「原始清晰度」，m3u8 主清单会展开成多个清晰度；解析出的地址下载时会自动带上页面的 Referer。还可以在 <code>data/video-resolvers.json</code> 配置自己的 HTTP 解析服务，数量不限，格式见 docs/video-resolvers.md。</p><p>解析成功后可以点「先看看（边下边看）」：由 ffmpeg 把远端流实时转封装成浏览器能边读边播的格式，几秒内出画面，不写磁盘也不占用下载队列，可以边看边下载。实时流不支持随意拖动进度条；HEVC / AV1 编码浏览器可能无法直接播放，这类请下载后用本地播放器观看。</p><p>下载任务同时跑三个，其余自动排队；关掉页面任务也会继续，回到本页能看到进度和结果。下载完成自动存进设置里的保存目录（默认系统「下载」文件夹）。中断、断网或取消后，重新下载同一链接会从断点续传；不超过五分钟没有任何进展才会暂停。缓存可以在任务区一键清理。</p><p>Windows 完整工具箱内置下载引擎。组件设置可指定其他已安装版本；点击“使用内置组件”会清除手动路径覆盖。分析结果五分钟后过期；失败时检查链接、组件版本、网络与网站限制，再重新解析。</p></IntegrationDialog>
     </IntegrationLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import IntegrationLayout from '../components/IntegrationLayout.vue';
 import IntegrationDialog from '../components/IntegrationDialog.vue';
 import { integrationApi as api, operationMessage } from '../api/integration-client.js';
@@ -103,6 +120,7 @@ const tasks = ref([]), meta = ref(null);
 const ytDlpPath = ref(''), ffmpegPath = ref(''), downloadDir = ref(''), proxy = ref('');
 const formTouched = ref(false);
 const busy = ref(''), error = ref(''), notice = ref('');
+const preview = ref(null), previewBusy = ref(false), previewError = ref('');
 const stateText = { queued: '排队中', running: '下载中', done: '已完成', failed: '失败', cancelled: '已暂停' };
 let active = null, disposed = false, timer = null, loading = false, loadingConfig = null;
 const PROXY_SOURCE = { configured: '手动设置', env: '环境变量', system: 'Windows 系统代理' };
@@ -193,12 +211,26 @@ async function restoreComponents() { await run('save', async signal => {
 }); }
 async function analyze() { await run('analyze', async signal => {
     info.value = null; choice.value = ''; attempts.value = [];
+    closePreview();
     try {
         info.value = await api.analyzeVideo(url.value, signal, forcedResolver.value);
         attempts.value = Array.isArray(info.value.attempts) ? info.value.attempts : [];
         choice.value = info.value.choices[0]?.id || '';
     } catch (e) { if (Array.isArray(e.attempts)) attempts.value = e.attempts; throw e; }
 }); }
+// 预览走独立的票据请求：解析直链可能耗时几秒，不能和「加入下载队列」抢同一个 busy。
+async function startPreview() {
+    if (!info.value || !choice.value || previewBusy.value) return;
+    previewBusy.value = true; previewError.value = '';
+    try {
+        const ticket = await api.prepareVideoPreview(info.value.id, choice.value);
+        if (!disposed) preview.value = ticket;
+    } catch (e) { if (!disposed) error.value = operationMessage(e); }
+    finally { previewBusy.value = false; }
+}
+function closePreview() { preview.value = null; previewError.value = ''; }
+// 换清晰度后旧票据对应的不是同一路流，直接关掉，避免播错版本。
+watch(choice, () => { if (preview.value) closePreview(); });
 async function download() {
     await run('download', async signal => {
         const task = await api.downloadVideo(info.value.id, choice.value, signal);
@@ -206,7 +238,7 @@ async function download() {
         await refresh(); startPolling();
     });
 }
-onBeforeUnmount(() => { disposed = true; stopPolling(); stop(); });
+onBeforeUnmount(() => { disposed = true; stopPolling(); stop(); closePreview(); });
 </script>
 
 <style scoped>
@@ -230,6 +262,9 @@ onBeforeUnmount(() => { disposed = true; stopPolling(); stop(); });
 .task-badge.is-done { background: rgba(46, 158, 107, .26); }
 .task-badge.is-failed { background: rgba(210, 96, 79, .2); }
 .task-actions { flex-wrap: wrap; }
+.preview-card { grid-column: 1 / -1; }
+.preview-heading { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.preview-player { display: block; width: 100%; max-height: 66vh; border-radius: var(--radius-md); background: #000; }
 .ext-hint.is-error { color: #d2604f; }
 .btn-link { background: none; border: 0; padding: 0 4px; color: inherit; text-decoration: underline; cursor: pointer; font-size: inherit; }
 @media (max-width: 760px) { .resolver-msg { display: none; } }
