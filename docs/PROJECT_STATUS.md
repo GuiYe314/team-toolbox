@@ -20,7 +20,7 @@ Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
 - 扩展：安装目录 `data/video-resolvers.json` 可配置最多 32 个自定义 HTTP 解析服务（`domains` / `priority` / `enabled`，改完无需重启），或用 `registerResolver()` 注册代码级方案。自定义服务返回的每个地址复用原有 URL 白名单校验（拒绝内网/回环/带凭据），且不允许下发 yt-dlp 参数，避免参数注入。配置格式见 [video-resolvers](video-resolvers.md)。
 - 接口：新增 `GET /api/integrations/yoinks/resolvers`；`POST /yoinks/analyze` 可选 `resolverId` 指定单一方案重试。下载阶段按所选格式取实际媒体地址，1 GiB 上限、15 分钟超时、临时目录与文件校验不变。
 - 前端：页面改为「统一链接解析」，输入框同时接受网页地址、直链与 m3u8，展示方案清单、每次尝试结果与成功方案，并提供「指定方案」下拉。工具 id、路由 `/tools/yoinks`、卡片总数 11 与全部既有 `data-test` 属性、v0.6.0 拖放排序断言均未改动。
-- 验证：`backend` 全量 **671 项（670 通过、0 失败、1 跳过）**，含新增 `video-resolvers.test.js` **7 项**（优先级顺序、失败降级、跳过、全部失败明细、指定方案、自定义方案 URL 校验）；`frontend` 计算 **29/29**；`npm run build` 通过。构建产物静态核对：`yoinks/resolvers`、`resolverId`、统一解析文案与 `video-*` 选择器均在包内。未跑真实外站下载，`bad.news` 类站点实际可用性未验证。
+- 验证：`backend` 全量 **671 项（670 通过、0 失败、1 跳过，`--test-concurrency=2`）**，含新增 `video-resolvers.test.js` **7 项**（优先级顺序、失败降级、跳过、全部失败明细、指定方案、自定义方案 URL 校验）；`frontend` 计算 **32/32**；`npm run build` 通过。默认 `npm test`（无并发上限）在机器高负载时 `android-apk-queue.test.js:93` 的 30/40ms 超时用例出现 1～2 项 unhandledRejection，单独跑该文件 **10/10**、按仓库约定限并发复跑 670/671；此项与本改动无关，未计为通过。构建产物静态核对：`yoinks/resolvers`、`resolverId`、统一解析文案与 `video-*` 选择器均在包内。未跑真实外站下载，`bad.news` 类站点实际可用性未验证。
 - 本机生效：前端产物已备份后同步至 `%LOCALAPPDATA%\team-toolbox\frontend\dist`，后端 `video-resolvers.js`、`yoinks.js`、`integration-api.js` 三个文件同步至安装版 `backend/src`；实例化检查确认注册 `direct-media / ytdlp / ytdlp-generic`，yt-dlp 与 ffmpeg 就绪。安装版后端其余部分仍为 v0.5.0，完整一致需用 v0.6.0 安装器升级。
 - 下一步：在浏览器打开「视频下载」贴入真实链接观察降级链；需要新增站点解析时按 [video-resolvers](video-resolvers.md) 先加自定义 HTTP 方案，确认稳定后再考虑代码级方案。
 
