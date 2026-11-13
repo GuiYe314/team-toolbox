@@ -1,5 +1,14 @@
 # 变更记录（CHANGELOG）
 
+## 2026-11-14 — 视频下载新增 91porna 解析方案：按 video_key 调接口换 HLS（v0.8.2）
+
+- 新增内置方案 `p91`（priority 12）：主机匹配 `91porna.com` 与 `91porna<数字>.*` 系列镜像。这类页面 HTML 里没有 `<video>`、也没有可提取的 m3u8，通用方案抓不到，只能按页面脚本的做法换地址。
+- 解析链路：从 query 取 `video_key`（兼容 `key` / `id`，`/comic/index/embed?id=` 嵌入页同样支持）→ `POST {origin}/api/videos/<key>/playback`（带 Referer / Origin，body 为 `{}`）→ 取 `data.streams.main`（为空退回 `streams.hevc`）。
+- 清晰度与时长：读一次清单，有 `#EXT-X-STREAM-INF` 就展开多档；只有 `#EXTINF` 就是单码率，用 `#EXTINF` 之和当时长，省掉一次 yt-dlp 探测。ffmpeg 就绪时追加「仅音频 · MP3」。每个选项都带直链，下载与「先看看」预览都直连清单。
+- 实测结论（真实链接验证）：清单为 AES-128 加密的单码率流，yt-dlp 自行取 `crypt.key` 解密并合并 MP4，无需额外参数；分片与密钥都不需要 `x-cdn-auth` 头。
+- 报错依旧明确：缺 `video_key` → 「链接里没有 video_key」；接口无地址 → 「这个视频暂时没有可用播放地址」；HTTP 失败 → 带状态码。失败后自动交给 `ytdlp` / `page-media` 等后续方案。
+- 验证：新增 2 项集成测试（换地址 + 清单时长 + 下载直连、缺地址/缺 key 明确报错），`integrations.test.js` **40/40**；后端全量 **722 项（722 通过 / 1 跳过 / 0 失败）**。真实链接端到端：解析 4.5 秒、457 秒视频、121.5 MB，合并 MP4 并按标题自动存进下载目录。
+
 ## 2026-11-14 — 视频下载新增「先看看」实时预览：不落盘边下边看（v0.8.1）
 
 - 新增预览通道：`POST /yoinks/preview` 换一个短时票据，`GET /yoinks/preview/:id` 直接拉流。后端用内置 ffmpeg 读远端流，`-c copy` 实时转封装成 fragmented MP4（`frag_keyframe+empty_moov+default_base_moof`）写进响应，浏览器 `<video>` 边收边播，几秒出画面。

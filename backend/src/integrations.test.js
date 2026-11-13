@@ -149,6 +149,42 @@ test('bad.news 页面只给 MP4 时下载原始文件，仍带防盗链 Referer'
     assert.ok(download.args.includes('--referer'));
     await f.service.removeResult(result.id);
 });
+test('91porna 页面用 video_key 换 HLS 地址：清单给时长，下载直连该清单', async t => {
+    const playlist = '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-KEY:METHOD=AES-128,URI="https://cdn.example.com/k/crypt.key",IV=0x1\n'
+        + '#EXT-X-TARGETDURATION:6\n#EXTINF:5.806,\nseg0.ts\n#EXTINF:4.838,\nseg1.ts\n';
+    const page = '<html><head><title>示例标题 - 91视频|色情视频|成人视频|91porn</title></head><body></body></html>';
+    const seen = [];
+    const f = await videoFixture(t, { fetchImpl: async (url, request = {}) => {
+        seen.push({ url: String(url), method: request.method || 'GET', headers: request.headers || {} });
+        if (String(url).includes('/api/videos/409559/playback')) {
+            return { ok: true, status: 200, json: async () => ({ status: 1, data: { streams: { hevc: '', main: 'https://cdn.example.com/v/409559.m3u8?auth_key=1' } } }), text: async () => '' };
+        }
+        if (String(url).includes('.m3u8')) return { ok: true, status: 200, json: async () => ({}), text: async () => playlist };
+        return { ok: true, status: 200, json: async () => ({}), text: async () => page };
+    } });
+    const info = await f.service.analyze({ url: 'https://91porna.com/comic/index/detail?video_key=409559' });
+    assert.equal(info.resolvedBy.id, 'p91');
+    assert.equal(info.title, '示例标题');
+    assert.equal(info.duration, 11);
+    assert.deepEqual(info.choices.map(x => x.id), ['hls-auto', 'audio-mp3']);
+    const api = seen.find(x => x.url.endsWith('/api/videos/409559/playback'));
+    assert.equal(api.method, 'POST');
+    assert.equal(api.headers.referer, 'https://91porna.com/comic/index/detail?video_key=409559');
+    const result = await f.service.download({ probeId: info.id, choiceId: 'hls-auto' });
+    assert.ok(result.size > 0);
+    const download = f.calls.find(x => x.args.includes('--no-simulate'));
+    assert.deepEqual(download.args.slice(-2), ['--', 'https://cdn.example.com/v/409559.m3u8?auth_key=1']);
+    await f.service.removeResult(result.id);
+});
+test('91porna 没有播放地址或缺 video_key 时明确报错，不假装成功', async t => {
+    const f = await videoFixture(t, { fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ status: 1, data: { streams: {} } }), text: async () => '' }) });
+    const detail = message => error => {
+        assert.ok(error.attempts?.[0]?.message.includes(message), `期望包含「${message}」，实际为「${error.attempts?.[0]?.message}」`);
+        return true;
+    };
+    await assert.rejects(f.service.analyze({ url: 'https://91porna.com/comic/index/detail?video_key=409559', resolverId: 'p91' }), detail('没有可用播放地址'));
+    await assert.rejects(f.service.analyze({ url: 'https://91porna.com/comic/index/detail', resolverId: 'p91' }), detail('video_key'));
+});
 test('没有 ffmpeg 时只提供含音轨视频，不冒充可提取 MP3', async t => {
     const { service, paths } = await videoFixture(t, { detector: async kind => kind === 'ytDlp' ? paths.ytDlp : '' });
     const info = await service.analyze({ url: 'https://example.com/video' });

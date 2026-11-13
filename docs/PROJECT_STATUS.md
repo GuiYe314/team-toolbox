@@ -1,5 +1,16 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## 视频下载新增 91porna 解析方案（2026-11-14，v0.8.2 未发版）
+
+**已实现、实测通过并同步本机安装版；未推送、未发版。**
+
+- 用户给出 `https://91porna.com/comic/index/detail?video_key=409559`，要求「能解析则加进去」。
+- 探测结论：页面用 xgplayer + 内联打包脚本，播放地址由 `POST /api/videos/<video_key>/playback` 换取（返回 `data.streams.main` 的 m3u8，带 `auth_key`）；HTML 里没有任何 `<video>` / m3u8，所以 `ytdlp`、`page-media` 都拿不到。
+- 新增 `p91` 方案（`video-resolvers.js` 内 `p91PlaybackInfo`）：匹配 `91porna.com` 与 `91porna<数字>.*` 镜像；取 key → 换地址 → 读清单得时长/清晰度 → 给「原始清晰度 · HLS（合并为 MP4）」与「仅音频 · MP3」，选项带 `url` 让下载与预览直连。
+- 实测：清单为 AES-128 加密单码率流；分片与 `crypt.key` 均不需要 `x-cdn-auth`；内置 yt-dlp 能直接解密合并。真实下载 121.5 MB / 35 秒完成并自动保存成 `<标题>.mp4`。
+- 测试：`integrations.test.js` 40/40（新增换地址、清单时长、下载直连、缺地址/缺 key 报错）；后端全量 722 通过 / 1 跳过。
+- 未验证：其它镜像域名的接口是否完全一致（按主机名统一匹配，但只实测了 `91porna.com`）；浏览器内「先看看」的实际解码表现。
+
 ## 视频下载新增「先看看」实时预览（2026-11-14，v0.8.1 未发版）
 
 **已实现、测试通过并同步本机安装版；未发版、未推送。** 用户问「可以边下边看不」，确认方案后实现。

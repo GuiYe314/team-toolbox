@@ -43,6 +43,7 @@
 | id | 名称 | priority | 什么时候尝试 |
 |---|---|---|---|
 | `direct-media` | 直链媒体 | 10 | URL 路径以 `.mp4/.webm/.mkv/.mov/.mp3/.m4a/...` 或 `.m3u8` 结尾；做一次 HEAD 校验，跳过网页解析；m3u8 会展开成多个清晰度 |
+| `p91` | 91porna 页面 | 12 | 主机是 `91porna.com` 及 `91porna<数字>.*` 镜像；HTML 里没有直链，按 `video_key` 调站内播放接口换 HLS 地址 |
 | `bad-news` | bad.news 页面 | 15 | 主机是 `bad.news` 或其子域；读取话题页 HTML 里的 `data-source` 媒体地址，支持 MP4 与 HLS |
 | 自定义 HTTP 方案 | 配置里命名 | 配置里给，默认 20 | 配置存在且 `domains` 匹配（未填则所有链接） |
 | `ytdlp` | yt-dlp 通用解析 | 50 | 任何链接（主力兜底），列清晰度与 MP3 |
@@ -79,6 +80,28 @@ bad.news 没有 yt-dlp 提取器，页面把视频地址写在标签属性里：
 帖子页下方通常还挂着推荐视频，页面里会有多个 `data-source`。`bad-news` 会先按帖子号匹配 `data-id`（`/t/6588976` → `data-id="6588976"`），只取正文那一条；匹配不到才退回全部候选，避免规则太严导致解析不了。
 
 同类站点如果页面结构相似，不需要改代码：`page-media`（priority 65）会对任何 `ytdlp` 解析不了的链接做同样的网页媒体提取，作为通用兜底。
+
+## 91porna 这类站点的处理方式
+
+这类站点的 HTML 里**没有** `<video src>`，也没有可提取的 m3u8：播放器由内联脚本 + `xgplayer` 组装，地址要拿 `video_key` 去换。链路是：
+
+```
+详情页 ?video_key=409559
+  → POST {origin}/api/videos/409559/playback   （body 为 {}，带 Referer / Origin）
+  → { status: 1, data: { manifest_method: "GET", streams: { main: "…m3u8?auth_key=…", hevc: "" } } }
+  → 读 streams.main 清单
+```
+
+`p91` 方案做四件事：
+
+1. 从 query 里取 `video_key`（也认 `key` / `id`，`/comic/index/embed?id=` 这种嵌入页同样能用）；取不到就报「缺 video_key」，让降级链继续。
+2. POST 播放接口换地址；`streams.main` 为空时退回 `streams.hevc`，两个都空就明确报「没有可用播放地址」。
+3. 读一次清单：有 `#EXT-X-STREAM-INF` 就展开多清晰度，只有 `#EXTINF` 就用 `#EXTINF` 之和算时长（省掉一次 yt-dlp 探测），给「原始清晰度 · HLS」，ffmpeg 就绪时再给「仅音频 · MP3」。
+4. 每个选项都带上 `url`，下载与「先看看」预览都直连这份清单，不再经过网页。
+
+两个实测结论：清单通常是 **AES-128 加密**（`#EXT-X-KEY:METHOD=AES-128`）的单码率流，yt-dlp 会自己取 `crypt.key` 解密再合并成 MP4，不需要额外参数；分片和密钥都**不需要** `x-cdn-auth` 头，页面 `cdn-config` 里那个值只有个别 CDN 开关才用得上。
+
+`auth_key` 里带过期时间（约 2 小时），所以解析结果要在 5 分钟票据内用掉；超时后重新解析即可。
 
 ## 方式一：不改代码，配置自定义解析服务
 

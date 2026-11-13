@@ -1,6 +1,6 @@
 {
   "name": "team-toolbox-backend",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "private": true,
   "description": "team-toolbox backend (Express + better-sqlite3)",
   "type": "module",
