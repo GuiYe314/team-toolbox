@@ -14,7 +14,7 @@
         <nav class="sidebar glass-panel glass-sheen main-sidebar" aria-label="主导航">
             <div class="ws-head">
                 <span class="ws-mark">
-                    <img class="brand-mark" src="/icons/brand.svg" alt="" aria-hidden="true" />
+                    <AppBrandIcon class="brand-mark" />
                 </span>
                 <span class="ws-name">工具箱</span>
                 <svg class="icon icon-sm ws-caret" viewBox="0 0 24 24" aria-hidden="true">
@@ -206,13 +206,14 @@ import { api } from './api/client.js';
 import PageTree from './components/PageTree.vue';
 import ThemeToggle from './components/ThemeToggle.vue';
 import AssetQrDialog from './components/assets/AssetQrDialog.vue';
+import AppBrandIcon from './components/AppBrandIcon.vue';
 import { copyText } from './utils/clipboard.js';
 
 const EXPANDED_KEY = 'kb-tree-expanded';
 
 export default {
     name: 'App',
-    components: { PageTree, ThemeToggle, AssetQrDialog },
+    components: { PageTree, ThemeToggle, AssetQrDialog, AppBrandIcon },
     data() {
         return {
             treeRows: [],

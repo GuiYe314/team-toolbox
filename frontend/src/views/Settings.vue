@@ -3,9 +3,11 @@
         <header class="set-head">
             <h1 class="set-title">设置</h1>
             <p class="set-desc">
-                配置安卓 ADB 工具、更新源与程序版本。
+                选择应用图标，配置安卓 ADB 工具、更新源与程序版本。
             </p>
         </header>
+
+        <AppIconSettings />
 
         <section class="set-card"><h2 class="set-card-title">安卓调试</h2><AndroidSettingsDialog /></section>
 
@@ -134,13 +136,14 @@
 <script>
 import { api } from '../api/client.js';
 import AndroidSettingsDialog from '../components/AndroidSettingsDialog.vue';
+import AppIconSettings from '../components/AppIconSettings.vue';
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 180000;
 
 export default {
     name: 'SettingsView',
-    components: { AndroidSettingsDialog },
+    components: { AndroidSettingsDialog, AppIconSettings },
     data() {
         return {
             loading: true,

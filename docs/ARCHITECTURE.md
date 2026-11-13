@@ -214,4 +214,10 @@ android-apk-queue.js解析专用长度前缀元数据与连续APK流，严格验
 
 ## 06 石墨字标资产与快捷方式（TASK-044）
 
-assets/icons/ico 与 svg 保存用户选定的 Windows 资产及矢量源；frontend/public/icons 提供 Vite 原样复制的同源品牌资源，index.html 引用 favicon，App.vue 使用静态品牌图像，尺寸走 tokens，业务图标体系不变。create-shortcuts.ps1 只通过 WScript.Shell 保存 .lnk，不执行应用；明确固定入口、工作目录与 ICO，不接受自由命令，拒绝链接输出目录。Windows PowerShell 脚本采用 UTF-8 BOM，CMD 为 ASCII/CRLF。打包脚本显式复制资产和创建入口，安装器指定 SetupIconFile、UninstallDisplayIcon 及各快捷方式 IconFilename；本机快捷方式被 Git 忽略，无新增数据结构或依赖。
+assets/icons/ico 与 svg 保存默认 06 Windows 资产及矢量源；frontend/public/icons 提供 Vite 原样复制的同源品牌资源，index.html 提供默认 favicon，App.vue 通过品牌组件显示图像（个人选择见 TASK-046），尺寸走 tokens，业务图标体系不变。create-shortcuts.ps1 只通过 WScript.Shell 保存 .lnk，不执行应用；明确固定入口、工作目录与 ICO，不接受自由命令，拒绝链接输出目录。Windows PowerShell 脚本采用 UTF-8 BOM，CMD 为 ASCII/CRLF。打包脚本显式复制资产和创建入口，安装器指定 SetupIconFile、UninstallDisplayIcon 及各快捷方式 IconFilename；本机快捷方式被 Git 忽略，无新增数据结构或依赖。
+
+## 应用图标个人偏好（2026-11-13 / TASK-046）
+
+决定在完整工具箱保留 06 默认项并提供四款水墨小猫。`utils/app-icon.js` 维护冻结的 ID/同源资源目录与容错读写；`stores/app-icon.js` 持有共享响应式偏好，在挂载前初始化，统一更新 index.html 的 ICO、矢量/PNG、触摸链接，并处理同源 storage 事件。`AppBrandIcon.vue` 取代侧栏静态引用，`AppIconSettings.vue` 提供原生单选、预览、恢复、失败重试和 ICO 下载；资源失败临时回退默认并提示。主题初始化同时容错浏览器存储不可用，保证设置仍可打开。
+
+个人偏好只保存已知 ID，非法 ID 不产生自定义 URL；临时渲染失败不覆写所选 ID。图像由 frontend/public/icons/ink-cat 同源分发，assets/icons/ink-cat 保存 Windows ICO 及来源/摘要说明；公共文件随既有打包复制。无新增服务接口或共享数据结构；网页选择不操作注册表、真实快捷方式、安装器或 EXE，不重建既有 Release。

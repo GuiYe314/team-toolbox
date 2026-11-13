@@ -8,6 +8,13 @@
     --tools-drag-opacity: 0.58;
     --tools-drop-marker: 4px;
     --brand-mark-size: 32px;
+    --app-icon-preview-size: 80px;
+    --app-icon-card-min: 144px;
+    --app-icon-gap: 12px;
+    --app-icon-small-gap: 6px;
+    --app-icon-border: 1px;
+    --app-icon-focus: 2px;
+    --app-icon-caption-size: 12.5px;
     --adb-file-list-height: 340px;
     --adb-file-preview-height: 280px;
     /* 实时网速 */

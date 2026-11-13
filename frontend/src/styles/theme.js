@@ -6,6 +6,7 @@
 //   3. 主题切换只改 CSS 变量，不触发组件重渲染，性能开销极低。
 
 const KEY = 'tt-theme';
+let sessionTheme = null;
 
 export const THEMES = ['light', 'dark'];
 
@@ -13,9 +14,14 @@ function systemTheme() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-/** 读取当前生效的主题（localStorage 优先，其次系统偏好）。 */
+function savedTheme() {
+    try { return localStorage.getItem(KEY); } catch { return null; }
+}
+
+/** 读取当前主题：本标签页手动选择、已保存偏好、系统偏好。 */
 export function currentTheme() {
-    const saved = localStorage.getItem(KEY);
+    if (sessionTheme) return sessionTheme;
+    const saved = savedTheme();
     return THEMES.includes(saved) ? saved : systemTheme();
 }
 
@@ -31,7 +37,8 @@ export function applyTheme(theme) {
 /** 切换并返回新主题。 */
 export function toggleTheme() {
     const next = currentTheme() === 'dark' ? 'light' : 'dark';
-    localStorage.setItem(KEY, next);
+    sessionTheme = next;
+    try { localStorage.setItem(KEY, next); } catch { /* 无法保存时，本标签页仍可切换主题。 */ }
     applyTheme(next);
     return next;
 }
@@ -41,6 +48,6 @@ export function initTheme() {
     applyTheme(currentTheme());
     // 用户未手动选择过时，跟随系统变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-        if (!localStorage.getItem(KEY)) applyTheme(e.matches ? 'dark' : 'light');
+        if (!THEMES.includes(savedTheme()) && !sessionTheme) applyTheme(e.matches ? 'dark' : 'light');
     });
 }

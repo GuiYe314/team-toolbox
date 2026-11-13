@@ -54,6 +54,7 @@ Thumbs.db
 *.png
 !frontend/src/**/*.png
 !frontend/public/icons/*.png
+!frontend/public/icons/ink-cat/*.png
 !data/**/*.png
 
 # ---- 本地工作区（记忆日志、验证脚本、截图，不入库）----

@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router/index.js';
 import { initTheme } from './styles/theme.js';
+import { initAppIcon } from './stores/app-icon.js';
 
 /* 样式分层：tokens（不变量的尺度）→ theme（Light/Dark 变量）→ glass（玻璃材质）
    → layout（四栏网格）→ components（跨视图原子样式）→ vditor（编辑器 token 适配）。
@@ -26,6 +27,7 @@ import hintDirective from './directives/hint.js';
 
 // 在挂载前应用主题，避免首屏 Light → Dark 闪烁
 initTheme();
+initAppIcon();
 
 const app = createApp(App);
 app.use(router);

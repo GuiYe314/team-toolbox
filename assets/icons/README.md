@@ -11,3 +11,7 @@
 图标清单：android-wireless, apk-install, apk-package-info, artcraft, asset-library, backup, device, earth-sunlight, freellmapi, home, install, json-format, knowledge-base, network-speed, phone-screen, port-viewer, qrcode, ratio-lock, settings, start, stop, toolbox, uninstall, unity-files, unity-logs, yoinks。
 
 实际验证与分发状态只记录在 docs/PROJECT_STATUS.md。
+
+## 可选水墨小猫
+
+完整工具箱的设置页还可选择四款黑白水墨玻璃小猫。Windows ICO 及画稿来源/摘要见 [ink-cat/README.md](ink-cat/README.md)，同源网页资源在 `frontend/public/icons/ink-cat/`；默认 06 安装图标与业务工具图标仍使用上述方案。
