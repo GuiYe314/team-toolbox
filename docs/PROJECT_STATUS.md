@@ -1,5 +1,13 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## 发布 v0.8.2（2026-11-16）
+
+**已打包、已打标签、已发 GitHub Release；本机安装版已同步到同一份代码。**
+
+- 产物：`team-toolbox-Setup-0.8.2.exe`（121,326,570 字节，SHA256 `e6613472…ee2cc`）、`team-toolbox-0.8.2.zip`（164,846,687 字节，SHA256 `c640e670…de4c`）、`team-toolbox-0.8.2-SHA256.txt`、`manifest.json`（latest 0.8.2，非强制更新）。包内 `backend/package.json` 已是 0.8.2，内置 Node 22.22.2（ABI 127）自检通过，`runtime/check.js` 验证原生模块可加载。
+- 本机安装版：`%LOCALAPPDATA%\team-toolbox` 同步为合并后的代码（后端 65 个 js、前端 154 个 chunk 与源码逐一比对一致，依赖未变无需重装），`data/` 未改动；备份在 `sync-backup-20261116-012836`，旧前端产物改名保留为 `frontend/dist.old-*`。冒烟：`/api/health` 返回 0.8.2 / db ok，解析器列表含 `p91(p12)`，`/api/phone-album/config` 按预期 403（需票据）。
+- 环境注意：本机沙箱环境块里同时存在 `HTTP_PROXY` 与 `http_proxy`，PowerShell 的 `Env:` 提供程序大小写不敏感，会让 `scripts/start-services.ps1` 抛「已添加了相同键的项」。从资源管理器双击 `启动.cmd` 不受影响（环境干净）；在带重复大小写变量的终端里启动需先清掉小写副本。
+
 ## 合并远端 v0.7.0 与本地视频下载系列（2026-11-16，版本统一 0.8.2）
 
 **已合并、测试通过并推送到 main；未打标签、未打包、未发版。**
@@ -9,7 +17,7 @@
 - 行尾：远端已把 `CHANGELOG.md` 整文件改成 LF，本地仍是 CRLF，`core.autocrlf=false` 且无 `.gitattributes`，导致合并退化为整文件冲突。本次 `CHANGELOG.md` 一并转 LF，与远端对齐。
 - 版本策略：远端 v0.7.0 标签已被手机相册占用，本地视频下载线内部编号（0.7.0 bad.news → 0.7.1 代理 → 0.8.0 队列 → 0.8.1 预览 → 0.8.2 p91）继续用 0.8.x，合并后统一 **0.8.2**，大于已发布的 0.7.0，已有安装版的升级链不断。
 - 验证：后端全量 **702 项（700 通过 / 1 失败 / 1 跳过）**，失败项是 `android-apk-queue` 在 `--test-concurrency=2` 下的既有抖动，单独复跑 **10/10**（另一次全量出现的 `asset-api` 失败单跑 **62/62**）；前端计算 **34/34**；生产构建通过；`verify-integrations.mjs` **56/56**；`verify-phone-album.mjs` **32/32**（真实私网 TCP，未连接手机硬件）。
-- 未做：Windows 安装包与便携包未重新打包，GitHub Release 未创建，本机安装版仍为 0.8.2 单独同步版本，未接入远端更新清单。
+- 后续：本轮「发布 v0.8.2」已收口——安装包与便携包已打包、标签与 Release 已创建、本机安装版已同步。
 
 ## 视频下载新增 91porna 解析方案（2026-11-14，v0.8.2 未发版）
 
