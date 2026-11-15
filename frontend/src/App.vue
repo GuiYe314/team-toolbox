@@ -1,5 +1,7 @@
 <template>
+    <router-view v-if="$route.meta.mobileUpload" />
     <div
+        v-else
         class="app-layout"
         :class="{
             // 非知识库区块与知识库区块现在都是两栏：主导航+（页面树）+ 主内容。
@@ -264,6 +266,7 @@ export default {
         '$route.fullPath'() {
             this.menu = null;
             this.focusActive();
+            if (!this.$route.meta.mobileUpload && this.treeLoading) this.loadTree();
         }
     },
     mounted() {
@@ -271,7 +274,7 @@ export default {
 
         // 任意视图在新增/保存/删除后派发 kb-changed，页面树据此刷新
         this._changeHandler = () => {
-            this.loadTree();
+            if (!this.$route.meta.mobileUpload) this.loadTree();
         };
         window.addEventListener('kb-changed', this._changeHandler);
 
@@ -279,7 +282,7 @@ export default {
         window.addEventListener('resize', this.applyResponsive);
 
         this.loadExpanded();
-        this.loadTree();
+        if (!this.$route.meta.mobileUpload) this.loadTree();
     },
     beforeUnmount() {
         window.removeEventListener('resize', this.applyResponsive);

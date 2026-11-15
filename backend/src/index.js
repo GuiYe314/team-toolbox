@@ -19,6 +19,7 @@ import { registerUnityLogApi } from './unity-log-api.js';
 import { registerIntegrationApi } from './integration-api.js';
 import { registerNetworkSpeedApi } from './network-speed-api.js';
 import { registerPortViewerApi } from './port-viewer-api.js';
+import { registerPhoneAlbumApi } from './phone-album-api.js';
 import { createToolAccess } from './tool-access.js';
 import { backfillPreviews } from './asset-preview.js';
 import { runMigrations } from './migrate.js';
@@ -37,6 +38,7 @@ const PORT = Number(process.env.PORT) || 3000;
 
 const app = express();
 app.use(access.middleware);
+const phoneAlbum = registerPhoneAlbumApi(app, { getDb: getDefaultDatabase, access });
 // 导入备份会携带全部文档正文，默认 2mb 不足以承载较大知识库，这里放宽到 16mb。
 app.use(express.json({ limit: '16mb' }));
 
@@ -230,8 +232,10 @@ function shutdown(signal) {
     networkSpeedMonitor.dispose();
     portViewer.dispose();
     const integrationsStopped = integrationService.dispose();
+    const albumStopped = phoneAlbum.dispose();
     server.close(async () => {
         await integrationsStopped;
+        await albumStopped;
         closeDefaultDatabase();
         process.exit(0);
     });

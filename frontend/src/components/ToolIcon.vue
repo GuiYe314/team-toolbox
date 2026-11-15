@@ -7,6 +7,7 @@
             <path d="M8 4.5c-2 0-2.6 1-2.6 2.6v2.2c0 1.4-.6 2.2-2 2.2v1c1.4 0 2 .8 2 2.2v2.2C5.4 18.5 6 19.5 8 19.5" />
             <path d="M16 4.5c2 0 2.6 1 2.6 2.6v2.2c0 1.4.6 2.2 2 2.2v1c-1.4 0-2 .8-2 2.2v2.2c0 1.6-.6 2.6-2.6 2.6" />
         </svg>
+        <svg v-else-if="resolved === 'phone-album'" class="icon" viewBox="0 0 24 24"><rect x="4" y="3" width="13" height="18" rx="2" /><path d="m4 15 4-4 4 4 3-3 2 2M19 4v6m-2-2 2 2 2-2" /><circle cx="8" cy="7" r="1" /></svg>
         <svg v-else-if="resolved === 'qrcode'" class="icon" viewBox="0 0 24 24">
             <rect x="3.5" y="3.5" width="7" height="7" rx="1.4" />
             <rect x="13.5" y="3.5" width="7" height="7" rx="1.4" />
@@ -54,6 +55,7 @@
 
 <script>
 const MAP = {
+    'phone-album': 'phone-album',
     'port-viewer': 'port-viewer',
     'network-speed': 'network-speed',
     yoinks: 'yoinks',
