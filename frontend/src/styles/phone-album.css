@@ -1,0 +1,30 @@
+.album-page { width: 100%; max-width: var(--album-page-width); padding: var(--page-padding); margin: 0 auto; box-sizing: border-box; }
+.album-header, .album-actions, .album-item-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--album-gap); }
+.album-actions { justify-content: flex-start; margin-top: var(--album-gap); }
+.album-header { margin-bottom: var(--album-gap); }
+.album-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--album-column-width), 1fr)); gap: var(--album-gap); }
+.album-card { min-width: 0; padding: var(--album-padding); border: var(--album-border) solid var(--panel-border); border-radius: var(--radius-md); background: var(--panel-background); }
+.album-card h2 { font-size: var(--text-section-title); color: var(--text-primary); margin: 0 0 var(--album-gap); }
+.album-muted, .album-help { color: var(--text-secondary); font-size: var(--album-caption-size); line-height: var(--line-relaxed); }
+.album-field { display: flex; flex-direction: column; gap: var(--album-small-gap); margin: var(--album-gap) 0; color: var(--text-primary); }
+.album-field select, .album-field input { width: 100%; min-width: 0; box-sizing: border-box; }
+.album-qr { width: var(--album-qr-size); max-width: 100%; margin: var(--album-gap) auto; padding: var(--album-small-gap); background: var(--adb-qr-background); border-radius: var(--radius-md); box-sizing: border-box; }
+.album-qr svg { display: block; width: 100%; height: auto; }
+.album-list { list-style: none; padding: 0; margin: 0; }
+.album-page .album-list { max-height: var(--album-list-height); overflow-y: auto; }
+.album-item { padding: var(--album-gap) 0; border-bottom: var(--album-border) solid var(--panel-border); overflow-wrap: anywhere; }
+.album-item-head { align-items: flex-start; }
+.album-item-head strong { min-width: 0; flex: 1; overflow-wrap: anywhere; font-weight: var(--weight-medium); }
+.album-success { color: var(--success); }
+.album-summary { margin-top: var(--album-gap); color: var(--text-primary); }
+.album-help { margin-top: var(--album-gap); }
+.album-help summary { cursor: pointer; color: var(--text-primary); }
+.album-mobile { width: 100%; height: 100%; height: 100dvh; overflow: auto; box-sizing: border-box; padding: var(--album-padding); background: var(--background); }
+.album-mobile-content { width: 100%; max-width: var(--album-mobile-width); margin: 0 auto; }
+.album-mobile h1 { font-size: var(--album-mobile-title); margin: 0; color: var(--text-primary); }
+.album-mobile .album-card { margin-bottom: var(--album-gap); }
+.album-mobile .btn { min-height: var(--album-touch-height); white-space: normal; }
+.album-mobile progress { display: block; width: 100%; height: var(--album-progress-height); margin-top: var(--album-small-gap); accent-color: var(--accent); }
+.album-picker input { padding: var(--album-small-gap); border: var(--album-border) solid var(--panel-border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--panel-background); font: inherit; }
+.album-picker input::file-selector-button { min-height: var(--album-touch-height); padding: var(--album-small-gap); margin-right: var(--album-small-gap); background: var(--accent-soft); color: var(--text-primary); border: var(--album-border) solid var(--accent-border); border-radius: var(--radius-sm); cursor: pointer; }
+.album-mobile .notice { overflow-wrap: anywhere; }

@@ -96,6 +96,7 @@ export default {
         return {
             tools: [
                 ...integrationTools.map(tool => ({ ...tool, status: 'ready' })),
+                { id: 'phone-album', name: '手机相册上传', desc: '手机扫码批量上传照片和视频到资源库', routeName: 'tool-phone-album', status: 'ready' },
                 {
                     id: 'port-viewer',
                     name: '端口查看',

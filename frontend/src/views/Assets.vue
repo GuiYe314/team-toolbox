@@ -14,6 +14,7 @@
                 </p>
             </div>
             <div class="am-head-actions">
+                <router-link v-if="!trashMode" class="btn" :to="{ name: 'tool-phone-album', query: typeof folderId === 'number' ? { folderId } : {} }">手机扫码上传</router-link>
                 <button class="btn btn-primary" type="button" @click="pickFiles">
                     <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
                         <line x1="12" y1="5" x2="12" y2="19" />

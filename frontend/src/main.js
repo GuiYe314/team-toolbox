@@ -21,6 +21,7 @@ import './styles/assets.css';
 import './styles/android.css';
 import './styles/unity-logs.css';
 import './styles/integrations.css';
+import './styles/phone-album.css';
 
 // 全局指令：v-hint（延迟 1 秒的悬停提示）
 import hintDirective from './directives/hint.js';
@@ -32,4 +33,5 @@ initAppIcon();
 const app = createApp(App);
 app.use(router);
 app.use(hintDirective);
-app.mount('#app');
+// 等首个路由确定后挂载，手机上传页不会短暂挂载桌面侧栏或请求知识库。
+router.isReady().then(() => app.mount('#app'));

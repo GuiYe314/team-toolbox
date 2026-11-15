@@ -58,6 +58,7 @@ import { loadToolOrder, moveTool, saveToolOrder } from '../utils/tool-order.js';
 function createTools() {
     return [
         ...integrationTools.map(tool => ({ ...tool, status: '可用' })),
+        { id: 'phone-album', name: '手机相册上传', desc: '手机扫码，多选照片和视频，批量保存到工具箱资源库', routeName: 'tool-phone-album', status: '可用' },
         { id: 'port-viewer', name: '端口查看', desc: '查看服务器电脑 TCP / UDP 端口和占用进程，搜索端口冲突', routeName: 'tool-ports', status: '可用' },
         { id: 'network-speed', name: '实时网速', desc: '实时查看服务器电脑网卡的上传、下载速度与流量趋势', routeName: 'tool-network-speed', status: '可用' },
         { id: 'unity-logs', name: 'Unity 设备日志', desc: '搜索同局域网 Android / iPad，读取与下载历史日志', routeName: 'tool-unity-logs', status: '可用' },

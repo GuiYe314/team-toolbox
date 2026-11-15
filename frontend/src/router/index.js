@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
 const routes = [
+    { path: '/phone-album', name: 'phone-album-upload', component: () => import('../views/PhoneAlbumUpload.vue'), meta: { mobileUpload: true } },
+    { path: '/tools/phone-album', name: 'tool-phone-album', component: () => import('../views/PhoneAlbum.vue') },
     {
         path: '/',
         name: 'home',

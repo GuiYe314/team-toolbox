@@ -34,7 +34,7 @@ async function navigate(path, selector) {
 }
 async function reloadTools() {
     await browser.send('Page.reload', { ignoreCache: true });
-    await browser.wait("document.querySelectorAll('.page-tools .tool-card').length===11");
+    await browser.wait("document.querySelectorAll('.page-tools .tool-card').length===12");
 }
 async function drag(source, target, after = false, cancel = false) {
     const point = async (id, part) => browser.evaluate(`(()=>{const e=document.querySelector('[data-tool-id="${id}"]');const r=e.getBoundingClientRect();return {x:r.left+r.width*${part},y:r.top+32}})()`);
@@ -63,7 +63,7 @@ try {
     await navigate('/tools', '.page-tools');
     await browser.evaluate("window.__dragEvents=[];for(const type of ['dragstart','dragenter','dragover','drop','dragend'])document.addEventListener(type,e=>{window.__dragEvents.push([type,e.target.closest?.('[data-tool-id]')?.dataset.toolId,e.clientX,e.clientY])},true)");
     const defaults = await orderedIds();
-    check('全部11张工具卡片及可见拖动提示', defaults.length === 11 && await browser.evaluate("document.querySelector('.tool-order-hint').textContent.includes('拖动')"));
+    check('全部12张工具卡片及可见拖动提示', defaults.length === 12 && await browser.evaluate("document.querySelector('.tool-order-hint').textContent.includes('拖动')"));
     await drag('qrcode', 'yoinks');
     check('实际鼠标拖放可移到第一位', (await orderedIds())[0] === 'qrcode');
     await drag('qrcode', 'json-fmt', true);
@@ -76,7 +76,7 @@ try {
     check('刷新保留顺序', JSON.stringify(await orderedIds()) === JSON.stringify(moved));
     await navigate('/', '.page-home');
     const homeNames = await browser.evaluate("[...document.querySelectorAll('.tool-name')].map(e=>e.textContent)");
-    check('首页已有工具跟随相对顺序', homeNames[0] === '安卓无线调试' && homeNames[1].includes('Yoinks') && homeNames.at(-1) === '二维码生成');
+    check('首页已有工具跟随相对顺序', homeNames[0] === '安卓无线调试' && homeNames[1] === '视频下载' && homeNames.at(-1) === '二维码生成');
     await navigate('/tools', '.page-tools');
     check('路由切回工具箱保留排序', JSON.stringify(await orderedIds()) === JSON.stringify(moved));
     await browser.click('.tool-order-actions button');
@@ -89,7 +89,7 @@ try {
     await browser.evaluate(`localStorage.setItem('${key}',JSON.stringify(['android-wireless','missing','android-wireless',5]))`);
     await reloadTools();
     const migrated = await orderedIds();
-    check('过滤未知及重复id，新工具追加且不丢卡片', migrated[0] === 'android-wireless' && new Set(migrated).size === 11);
+    check('过滤未知及重复id，新工具追加且不丢卡片', migrated[0] === 'android-wireless' && new Set(migrated).size === 12);
     await browser.evaluate(`localStorage.setItem('${key}','{bad')`);
     await reloadTools();
     check('损坏偏好自动回到默认顺序', JSON.stringify(await orderedIds()) === JSON.stringify(defaults));
