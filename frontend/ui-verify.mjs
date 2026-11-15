@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const URL_BASE = process.env.VERIFY_BASE || 'http://127.0.0.1:5173';
-const PORT = 9222;
+const PORT = Number(process.env.CDP_PORT) || 9222;
 
 const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
     '--headless=new', '--disable-extensions', '--disable-gpu',

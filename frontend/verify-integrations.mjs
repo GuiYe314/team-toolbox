@@ -5,13 +5,15 @@ import { mkdtemp, mkdir, readFile, writeFile, rm, readdir } from 'node:fs/promis
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve, join, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
-import { createIntegrationServices, registerIntegrationApi } from '../backend/src/integration-api.js';
-import { createIntegrationConfig, executablePath, problem } from '../backend/src/integration-common.js';
-import { createToolAccess } from '../backend/src/tool-access.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const backendRoot = resolve(process.env.VERIFY_BACKEND_ROOT || join(root, 'backend'));
+const source = name => import(pathToFileURL(join(backendRoot, 'src', name)).href);
+const { createIntegrationServices, registerIntegrationApi } = await source('integration-api.js');
+const { createIntegrationConfig, executablePath, problem } = await source('integration-common.js');
+const { createToolAccess } = await source('tool-access.js');
 const lan = process.env.TT_VERIFY_LAN === '1', access = createToolAccess({ allowLan: lan });
 const pageHost = lan ? access.addresses()[0] : '127.0.0.1';
 assert.ok(pageHost, '局域网验收需要实际私网 IPv4 网卡');
@@ -19,7 +21,7 @@ const require = createRequire(new URL('../backend/package.json', import.meta.url
 const express = require('express');
 const temporary = await mkdtemp(join(tmpdir(), 'tt-integrations-ui-'));
 assert.ok(resolve(temporary).startsWith(resolve(tmpdir()) + sep) && temporary.includes('tt-integrations-ui-'));
-const dist = join(root, 'frontend', 'dist'); assert.ok(existsSync(join(dist, 'index.html')), '先执行 npm run build');
+const dist = resolve(process.env.VERIFY_DIST || join(root, 'frontend', 'dist')); assert.ok(existsSync(join(dist, 'index.html')), '先执行 npm run build');
 const browserProfile = join(temporary, 'browser'); await mkdir(browserProfile);
 const componentDir = join(temporary, 'vendor', 'media', 'win32-x64'); await mkdir(componentDir, { recursive: true });
 const paths = { ytDlp: join(componentDir, 'yt-dlp.exe'), ffmpeg: join(componentDir, 'ffmpeg.exe'), artcraft: join(componentDir, 'ArtCraft.exe') };

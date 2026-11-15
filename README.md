@@ -25,6 +25,7 @@
 | [docs/video-resolvers.md](docs/video-resolvers.md) | 视频下载统一链接解析、自动降级与自定义解析方案配置 |
 | [docs/releases/](docs/releases/) | 各版本发布说明 |
 | [v0.4.0 发布说明](docs/releases/v0.4.0.md) | 内置视频下载、实时网速、Unity 文件管理与 APK 包名 |
+| [v0.7.0 发布说明](docs/releases/v0.7.0.md) | 手机扫码上传相册、水墨小猫图标及原有修复 |
 | [CHANGELOG.md](CHANGELOG.md) | 变更记录（只追加） |
 | [AGENTS.md](AGENTS.md) | 协作代理工作规则 |
 
