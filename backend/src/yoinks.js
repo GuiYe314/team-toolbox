@@ -4,6 +4,7 @@ import { join, basename, dirname, extname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { appRoot, fields, problem, detectExecutable, executablePath, executableSource, runIntegrationProcess } from './integration-common.js';
+import { resolveVideo, listResolvers } from './video-resolvers.js';
 
 const MiB = 1024 * 1024;
 const commonArgs = ['--ignore-config', '--no-plugin-dirs', '--no-playlist', '--no-warnings', '--no-cache-dir', '--socket-timeout', '20', '--retries', '1', '--extractor-retries', '1'];
@@ -77,21 +78,28 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
             return tools();
         });
     }
+    async function resolvers() {
+        return { resolvers: await listResolvers() };
+    }
     async function analyze(body, signal) {
-        fields(body, ['url']); const url = videoUrl(body.url);
+        fields(body, ['url', 'resolverId']); const url = videoUrl(body.url);
+        const forcedResolverId = body.resolverId === undefined ? '' : body.resolverId;
+        if (typeof forcedResolverId !== 'string' || forcedResolverId.length > 64) throw problem('invalid_input', '解析方案编号无效');
         return exclusive(signal, async combined => {
             const value = await checkTools(await tools(), combined);
-            const output = await runner(value.ytDlpPath, [...commonArgs, ...runtimeArgs(value), '--dump-single-json', '--skip-download', '--', url], { signal: combined, timeout: 60000, maxBytes: 4 * MiB });
-            if (output.code !== 0) throw problem('probe_failed', '无法读取视频：请检查链接、网络、网站限制及 yt-dlp 版本；不支持需要登录的内容', 502);
-            let info;
-            try { info = JSON.parse(output.stdout); } catch { throw problem('invalid_output', 'yt-dlp 返回的视频信息无效', 502); }
-            if (!info || info._type === 'playlist' || typeof info.title !== 'string') throw problem('invalid_output', '仅支持单个视频链接，不支持播放列表', 502);
+            // 统一链接解析：按优先级依次尝试所有方案，某个失败自动交给下一个。
+            const chain = await resolveVideo(url, {
+                runner, tools: value, signal: combined, commonArgs, runtimeArgs, videoChoices,
+                validateUrl: videoUrl, forcedResolverId, now: Date.now,
+                childSignal: ms => AbortSignal.any([combined, AbortSignal.timeout(ms)])
+            });
             for (const [id, item] of probes) if (now() - item.createdAt > 5 * 60000) probes.delete(id);
             while (probes.size >= 4) probes.delete(probes.keys().next().value);
-            const id = randomUUID(), title = info.title.slice(0, 300);
-            const choices = videoChoices(info, !!value.ffmpegPath);
-            probes.set(id, { url, title, choices, tools: value, createdAt: now() });
-            return { id, title, uploader: typeof info.uploader === 'string' ? info.uploader.slice(0, 160) : '', duration: Number.isFinite(info.duration) ? Math.max(0, info.duration) : null, choices: choices.map(({ id, label }) => ({ id, label })), ffmpegReady: !!value.ffmpegPath };
+            const id = randomUUID(), info = chain.info;
+            probes.set(id, { url: info.mediaUrl, title: info.title, choices: info.choices, tools: value, resolverId: chain.resolver.id, createdAt: now() });
+            return { id, title: info.title, uploader: info.uploader, duration: info.duration,
+                choices: info.choices.map(({ id: choiceId, label }) => ({ id: choiceId, label })),
+                ffmpegReady: !!value.ffmpegPath, resolvedBy: chain.resolver, attempts: chain.attempts };
         });
     }
     async function removeResult(id) {
@@ -129,7 +137,7 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
                 emit({ type: 'start', message: '正在下载，完成后可能需要合并或转换' });
                 const args = [...commonArgs, ...runtimeArgs(probe.tools), ...choice.args, '--no-simulate', '--newline', '--no-quiet', '--progress', '--progress-delta', '0.5', '--max-filesize', String(maxFileBytes), '--progress-template', 'download:TOOLBOX_PROGRESS|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.speed)s|%(progress.eta)s', '--print', 'after_move:TOOLBOX_FILE|%(filepath)s', '-o', join(directory, 'media.%(ext)s')];
                 if (probe.tools.ffmpegPath) args.push('--ffmpeg-location', probe.tools.ffmpegPath);
-                args.push('--', probe.url);
+                args.push('--', choice.url || probe.url);
                 const output = await runner(probe.tools.ytDlpPath, args, { signal: operationSignal, timeout: downloadTimeoutMs, maxBytes: 2 * MiB, cwd: directory, onLine: line => {
                     if (line.startsWith('TOOLBOX_FILE|')) reportedFile = line.slice('TOOLBOX_FILE|'.length).trim();
                     if (line.startsWith('TOOLBOX_PROGRESS|')) {
@@ -175,5 +183,5 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
         for (const result of results.values()) for (const stream of result.streams) stream.destroy();
         await Promise.allSettled([...results.keys()].map(removeResult));
     }
-    return { tools, configure, analyze, download, openResult, removeResult, dispose };
+    return { tools, resolvers, configure, analyze, download, openResult, removeResult, dispose };
 }

@@ -6,6 +6,20 @@
 - 上传以流式暂存、SHA256和媒体头校验接入既有资源库，复用预览/镜像；同名新建独立草稿，原件保留，不更改数据库结构。管理与上传票据分离，同编号成功回执幂等，取消/断连/到期/撤销清理未完成文件。
 - 限制每批200项、单文件1GiB、会话8GiB和30分钟；手机页不加载团队内容，保留桌面布局规则与工具拖拽排序。使用方法见用户指南，实际验证和真机限制见 [PROJECT_STATUS](docs/PROJECT_STATUS.md)。
 
+
+## 2026-11-14 — v0.6.1 发布
+
+- 发布 Windows x64 安装器、便携 ZIP、SHA256 校验清单与自动更新 `manifest.json`；内置 Node 22.22.2 运行时与固定下载组件。
+- 内容为本条之下的两项：修复新建文件夹把点击事件对象当父级 ID 导致的 SQL 报错，以及 v0.6.0 之后新增的视频下载统一链接解析。
+- 版本号在 `backend/package.json`、`frontend/package.json` 及对应 lock 文件统一为 `0.6.1`；安装器 `AppVersion` 与更新清单 `latest` 由打包脚本按 `-Version` 派生。功能说明见 [v0.6.1 发布说明](docs/releases/v0.6.1.md)。
+
+## 2026-11-14 — 修复新建文件夹报「Too few parameter values」
+
+- 现象：资源管理页点「新建文件夹」/ 文件夹行的「+」，弹窗标题错成「新建子文件夹」，确定后报 `Too few parameter values were provided`。
+- 原因：工具栏按钮写成 `@click="createFolder"`，Vue 把点击事件对象当 `parentId` 传入；树组件 emit 的也是整个节点对象，而绑定直接写成 `@create-child="createFolder"`。对象经 JSON 变成 `{}` 后被当作父文件夹 ID，`better-sqlite3` 按命名参数取键失败，抛出驱动层英文错误，最终以 500 透传给用户。
+- 修复：按钮改为 `createFolder(null)`，树组件改为 `(node) => createFolder(node.id)`，`createFolder` 内部再统一归一化为正整数 ID；后端 `asset-store.js` 新增 `folderRef()`，`createFolder` / `moveFolder` / `moveAssets` 在进 SQL 前挡掉对象与非法值，返回 400「父文件夹 ID 无效」。
+- 验证：`asset-store.test.js` + `asset-api.test.js` **92/92**（新增 3 项回归：对象 / 非法值 / 不存在的父级）；后端全量见 PROJECT_STATUS。修复前后用同一入参对真实接口复现：对象 parentId 从 500 英文错误变为 400 中文提示。
+
 ## 2026-11-14 — TASK-046 四款水墨小猫与应用图标选择
 
 - 纳入墨猫剪影、雪猫烟墨、圆墨小猫、窗边小猫四套黑白水墨玻璃 PNG/多尺寸 ICO，设置页可预览选择、恢复默认 06 石墨字标及下载当前 ICO。
@@ -23,6 +37,20 @@
 ## 2026-11-13 — 玻璃卡通图标候选
 
 - 增加泡泡工具箱、水晶机器人、玻璃小猫和小宇航员四个独立候选方向，提供透明PNG、多尺寸ICO、GIF及离线明暗动画预览；保留提示词和导出依据。当前程序品牌不变，资产与验收状态见 [PROJECT_STATUS](docs/PROJECT_STATUS.md)。
+## 2026-11-13 — 视频下载改为统一链接解析（未发布）
+
+- 新增 `backend/src/video-resolvers.js`：可插拔解析方案注册表与自动降级链。所有链接走同一个 `analyze()` 入口，按 priority 依次尝试，某个方案失败自动交给下一个；返回 `resolvedBy` 与每个方案的 `attempts`（成功 / 失败 / 跳过 / 耗时），全部失败才报错并附带尝试明细。
+- 内置三个方案：直链媒体（HEAD 校验后免网页解析）、yt-dlp 通用解析（原有参数与清晰度逻辑不变）、yt-dlp 通用页面（`--force-generic-extractor` 兜底）。类型不匹配的方案标为跳过，不发网络请求。
+- 支持两类扩展：在安装目录 `data/video-resolvers.json` 配置任意多个自定义 HTTP 解析服务（无需改代码、无需重启），或用 `registerResolver()` 注册代码级方案；配置格式、返回值与安全边界见 [docs/video-resolvers.md](docs/video-resolvers.md)。自定义服务返回的每个地址都复用原有 URL 白名单校验，且不能下发 yt-dlp 参数。
+- 新增 `GET /api/integrations/yoinks/resolvers`；`POST /yoinks/analyze` 可选 `resolverId` 指定单一方案重试；下载阶段按所选格式取实际媒体地址，原有的 1 GiB 上限、15 分钟超时、临时目录与文件校验不变。
+- 前端页面改为「统一链接解析」：输入框同时接受网页地址、直链与 m3u8，展示方案清单、每次尝试的结果、成功方案，并提供「指定方案」下拉。全部 `data-test` 属性、工具 id、路由 `/tools/yoinks`、卡片总数 11 与 v0.6.0 拖放排序断言保持不变。
+- 本条为功能改造记录，未新增任务编号、未发版、未执行真实外站下载与浏览器整包验收；实际状态以 [PROJECT_STATUS](docs/PROJECT_STATUS.md) 为准。
+
+## 2026-11-13 — 视频下载入口改名（未发布）
+
+- 工具箱/首页的「Yoinks 视频下载」卡片改名为「视频下载」，补充用途说明；页面标题改为「视频下载」，组件设置弹窗改为「下载组件设置」。工具 id、路由 `/tools/yoinks`、下载引擎与后端接口均不变，卡片总数仍为 11，v0.6.0 拖放排序验收断言不变。
+- 卡片描述保留「Yoinks」字样，`verify-integrations.mjs` 依卡片文字定位集成工具的断言不受影响。页脚仍保留 Yoinks / yt-dlp 来源署名。
+- README 对应条目同步改名。本条为入口文案调整，未新增任务编号、未发布、未执行浏览器验收；实际发布与验证状态仍以 [PROJECT_STATUS](docs/PROJECT_STATUS.md) 为准。
 
 ## 2026-11-13 — v0.6.0 发布准备与拖放补充
 

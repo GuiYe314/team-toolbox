@@ -178,6 +178,28 @@ describe('文件夹接口', () => {
         assert.equal(again.body.error, 'constraint_failed');
     });
 
+    // 回归：树组件的「新建子文件夹」按钮曾把整个节点对象当 parentId 传来，
+    // 对象进入 SQL 绑定后 better-sqlite3 抛「Too few parameter values were provided」，
+    // 用户只看到一句英文 500。这类输入必须在进 SQL 前挡成 400。
+    test('parentId 传对象或非法值 → 400 中文提示，且不是驱动层报错', async () => {
+        const parent = await send('POST', '/api/asset-folders', { name: '子文件夹父级' });
+        assert.equal(parent.status, 201);
+
+        for (const parentId of [{ id: parent.body.id, name: '子文件夹父级' }, 'abc', 0, -1]) {
+            const r = await send('POST', '/api/asset-folders', { name: '坏入参', parentId });
+            assert.equal(r.status, 400, `parentId=${JSON.stringify(parentId)} 应返回 400`);
+            assert.equal(r.body.error, 'invalid_input');
+            assert.match(r.body.message, /父文件夹 ID 无效/);
+            assert.doesNotMatch(r.body.message, /parameter values/);
+        }
+    });
+
+    test('parentId 指向不存在的文件夹 → 400 父文件夹不存在', async () => {
+        const r = await send('POST', '/api/asset-folders', { name: '孤儿', parentId: 99999 });
+        assert.equal(r.status, 400);
+        assert.match(r.body.message, /父文件夹不存在/);
+    });
+
     test('非法 ID → 400', async () => {
         const r = await send('PUT', '/api/asset-folders/abc', { name: 'x' });
         assert.equal(r.status, 400);

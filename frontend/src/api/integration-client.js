@@ -8,7 +8,9 @@ async function request(method, path, body, signal, onEvent, timeoutMs = 45000) {
         const response = await fetch(base + path, { method, headers: { 'X-Toolbox-Integration': '1', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body), signal: combined });
         if (!response.ok) {
             const error = await response.json().catch(() => ({}));
-            throw new Error(error.message || `请求失败（HTTP ${response.status}）`);
+            const failure = new Error(error.message || `请求失败（HTTP ${response.status}）`);
+            if (Array.isArray(error.attempts)) failure.attempts = error.attempts;
+            throw failure;
         }
         if (!onEvent) return await response.json();
         if (!response.body || !response.headers.get('content-type')?.includes('application/x-ndjson')) throw new Error('服务器未返回实时结果');
@@ -38,8 +40,9 @@ async function request(method, path, body, signal, onEvent, timeoutMs = 45000) {
 
 export const integrationApi = {
     videoConfig: signal => request('GET', '/yoinks/config', undefined, signal),
+    videoResolvers: signal => request('GET', '/yoinks/resolvers', undefined, signal),
     saveVideoConfig: (value, signal) => request('PUT', '/yoinks/config', value, signal),
-    analyzeVideo: (url, signal) => request('POST', '/yoinks/analyze', { url }, signal, undefined, 70000),
+    analyzeVideo: (url, signal, resolverId = '') => request('POST', '/yoinks/analyze', { url, ...(resolverId ? { resolverId } : {}) }, signal, undefined, 150000),
     downloadVideo: (probeId, choiceId, signal, update) => request('POST', '/yoinks/download', { probeId, choiceId }, signal, update, 16 * 60000),
     removeVideo: (id, keepalive = false) => keepalive
         ? fetch(`${base}/yoinks/results/${encodeURIComponent(id)}/remove`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Toolbox-Integration': '1' }, body: '{}', keepalive: true, signal: AbortSignal.timeout(5000) }).then(async response => { if (!response.ok) throw new Error((await response.json()).message || '结果清理失败'); return response.json(); })

@@ -76,7 +76,7 @@ try {
     check('刷新保留顺序', JSON.stringify(await orderedIds()) === JSON.stringify(moved));
     await navigate('/', '.page-home');
     const homeNames = await browser.evaluate("[...document.querySelectorAll('.tool-name')].map(e=>e.textContent)");
-    check('首页已有工具跟随相对顺序', homeNames[0] === '安卓无线调试' && homeNames[1].includes('Yoinks') && homeNames.at(-1) === '二维码生成');
+    check('首页已有工具跟随相对顺序', homeNames[0] === '安卓无线调试' && homeNames[1] === '视频下载' && homeNames.at(-1) === '二维码生成');
     await navigate('/tools', '.page-tools');
     check('路由切回工具箱保留排序', JSON.stringify(await orderedIds()) === JSON.stringify(moved));
     await browser.click('.tool-order-actions button');

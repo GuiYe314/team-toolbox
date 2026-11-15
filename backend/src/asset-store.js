@@ -29,6 +29,22 @@ import { errorMap } from './errors.js';
 const err = (msg, code = 'invalid_input') => errorMap(new Error(msg), '(assets)', code);
 const notFound = (msg) => errorMap(new Error(msg), '(assets)', 'not_found');
 
+/**
+ * 规范化父文件夹 ID。
+ *
+ * 必须挡在进入 SQL 之前：一旦把对象（例如前端事件把整个节点传来）当作绑定值，
+ * better-sqlite3 会按命名参数去取键，抛出的却是
+ * 「Too few parameter values were provided」这种驱动层英文错误，
+ * 用户只会看到一句看不懂的 500。这里统一转成 400 + 中文提示。
+ */
+function folderRef(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value !== 'number' && typeof value !== 'string') throw err('父文件夹 ID 无效');
+    const id = Number(value);
+    if (!Number.isInteger(id) || id <= 0) throw err('父文件夹 ID 无效');
+    return id;
+}
+
 // ══════════════════════════════════════════════════════════════════
 // 常量
 // ══════════════════════════════════════════════════════════════════
@@ -92,15 +108,17 @@ export function createFolder({ connection: db, name, parentId = null, createdBy 
     if (!clean) throw err('文件夹名称不能为空');
     if (clean.length > 100) throw err('文件夹名称不能超过 100 个字符');
 
-    if (parentId != null) {
-        const p = db.prepare('SELECT id FROM asset_folders WHERE id = ?').get(parentId);
+    // 先规范化再落 SQL：对象/非法值在这里就变成 400，不会漏成驱动层 500
+    const pid = folderRef(parentId);
+    if (pid != null) {
+        const p = db.prepare('SELECT id FROM asset_folders WHERE id = ?').get(pid);
         if (!p) throw err('父文件夹不存在');
     }
     try {
         const info = db.prepare(
             'INSERT INTO asset_folders (parent_id, name, created_by) VALUES (?, ?, ?)'
-        ).run(parentId, clean, createdBy);
-        return { id: Number(info.lastInsertRowid), parent_id: parentId, name: clean };
+        ).run(pid, clean, createdBy);
+        return { id: Number(info.lastInsertRowid), parent_id: pid, name: clean };
     } catch (e) {
         if (String(e.code || '').startsWith('SQLITE_CONSTRAINT')) {
             throw err(`同级目录下已存在「${clean}」`, 'constraint_failed');
@@ -143,13 +161,14 @@ export function deleteFolder({ connection: db, id }) {
 export function moveFolder({ connection: db, id, parentId }) {
     const row = db.prepare('SELECT id, parent_id FROM asset_folders WHERE id = ?').get(id);
     if (!row) throw notFound('文件夹不存在');
-    if (parentId == null) {
+    const pid = folderRef(parentId);
+    if (pid == null) {
         db.prepare('UPDATE asset_folders SET parent_id = NULL, updated_at = datetime(\'now\') WHERE id = ?').run(id);
         return { id, parent_id: null };
     }
     // 环检测是**状态冲突**而非输入格式错误，用 conflict(409) 而非 invalid_input(400)，
     // 前端才能区别「参数写错了要改」和「这个操作在当前结构下做不了」。
-    if (parentId === id) throw err('不能把文件夹移入自身', 'conflict');
+    if (pid === id) throw err('不能把文件夹移入自身', 'conflict');
 
     // 用递归 CTE 查自己的全部后代；parentId 落在其中即为成环
     const isDescendant = db.prepare(`
@@ -159,15 +178,15 @@ export function moveFolder({ connection: db, id, parentId }) {
             SELECT f.id FROM asset_folders f JOIN sub ON f.parent_id = sub.id
         )
         SELECT 1 AS hit FROM sub WHERE id = ? LIMIT 1
-    `).get(id, parentId);
+    `).get(id, pid);
     if (isDescendant) throw err('不能把文件夹移入其子文件夹', 'conflict');
 
-    const p = db.prepare('SELECT id FROM asset_folders WHERE id = ?').get(parentId);
+    const p = db.prepare('SELECT id FROM asset_folders WHERE id = ?').get(pid);
     if (!p) throw err('目标文件夹不存在');
     try {
         db.prepare('UPDATE asset_folders SET parent_id = ?, updated_at = datetime(\'now\') WHERE id = ?')
-            .run(parentId, id);
-        return { id, parent_id: parentId };
+            .run(pid, id);
+        return { id, parent_id: pid };
     } catch (e) {
         if (String(e.code || '').startsWith('SQLITE_CONSTRAINT')) {
             throw err('目标目录下已存在同名文件夹', 'constraint_failed');
@@ -732,8 +751,9 @@ export function moveAssets({ connection: db, assetIds, folderId, operator = 'loc
     const ids = (assetIds || []).filter((n) => Number.isInteger(Number(n)) && Number(n) > 0).map(Number);
     if (ids.length === 0) throw err('未选择任何资源');
 
-    if (folderId != null) {
-        const f = db.prepare('SELECT id FROM asset_folders WHERE id = ?').get(folderId);
+    const target = folderRef(folderId);
+    if (target != null) {
+        const f = db.prepare('SELECT id FROM asset_folders WHERE id = ?').get(target);
         if (!f) throw err('目标文件夹不存在');
     }
 
@@ -741,10 +761,10 @@ export function moveAssets({ connection: db, assetIds, folderId, operator = 'loc
     const tx = db.transaction(() => {
         const info = db.prepare(
             `UPDATE assets SET folder_id = ?, updated_at = datetime('now') WHERE id IN (${ph}) AND is_deleted = 0`
-        ).run(folderId, ...ids);
+        ).run(target, ...ids);
         logOp(db, {
             action: 'move',
-            detail: `移动 ${info.changes} 个资源到 ${folderId ?? '未分类'}`,
+            detail: `移动 ${info.changes} 个资源到 ${target ?? '未分类'}`,
             operator
         });
         return info.changes;
