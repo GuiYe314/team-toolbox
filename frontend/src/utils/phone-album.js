@@ -1,5 +1,5 @@
-export const ALBUM_ACCEPT = 'image/*,video/*,.heic,.heif,.mov,.m4v';
-const EXTENSIONS = /\.(jpe?g|png|gif|webp|bmp|avif|heic|heif|mp4|mov|m4v|webm)$/i;
+export const ALBUM_ACCEPT = 'image/*,video/*,.heic,.heif,.mov,.m4v,.livp';
+const EXTENSIONS = /\.(jpe?g|png|gif|webp|bmp|avif|heic|heif|livp|mp4|mov|m4v|webm)$/i;
 export function albumFileId() {
     return [...crypto.getRandomValues(new Uint8Array(16))].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }

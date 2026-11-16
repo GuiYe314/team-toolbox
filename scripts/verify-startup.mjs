@@ -71,6 +71,15 @@ async function fixture(label, behavior = 'ok') {
     await writeFile(join(root, 'backend/src/index.js'), serverSource(behavior, true));
     await writeFile(join(root, 'frontend/node_modules/vite/bin/vite.js'), serverSource('ok', false));
     await writeFile(join(root, 'frontend/node_modules/vite/bin/vite.js.worker.js'), 'setInterval(() => {}, 1000);');
+    await writeFile(join(root, 'browser-probe.ps1'), `param([string]$Mode = 'Development')
+function Start-Process {
+    [CmdletBinding()]param([string]$FilePath, [string[]]$ArgumentList, [string]$WorkingDirectory, [string]$WindowStyle, [string]$RedirectStandardOutput, [string]$RedirectStandardError, [switch]$PassThru)
+    if ($FilePath -match '^http://127\\.0\\.0\\.1:\\d+/$') { Add-Content -LiteralPath (Join-Path $PSScriptRoot 'browser.txt') -Value $FilePath; return }
+    Microsoft.PowerShell.Management\\Start-Process @PSBoundParameters
+}
+& (Join-Path $PSScriptRoot 'scripts/start-services.ps1') -ProjectRoot $PSScriptRoot -NodeExecutable '${process.execPath.replace(/'/g, "''")}' -Mode $Mode -TimeoutSeconds 8
+exit $LASTEXITCODE
+`);
     return item;
 }
 
@@ -87,7 +96,7 @@ else {
     const since = Date.now();
     http.createServer((req,res) => {
         if (req.url === '/write-logs') { console.log('after launcher exit'); console.error('error after launcher exit'); }
-        if (behavior === '503' || (behavior === 'delayed' && Date.now() - since < 1800)) { res.writeHead(503); res.end('waiting'); return; }
+        if (behavior === '503' || fs.existsSync('../unhealthy.flag') || (behavior === 'delayed' && Date.now() - since < 1800)) { res.writeHead(503); res.end('waiting'); return; }
         if (behavior === 'invalid') { res.end('not JSON'); return; }
         if (behavior === 'wrong') { res.end(JSON.stringify({status:'ok',service:'different',db:{ok:true}})); return; }
         if (behavior === 'bad-db') { res.end(JSON.stringify({status:'ok',service:'team-toolbox-backend',db:{ok:false}})); return; }
@@ -112,11 +121,13 @@ async function pidInfo(item, service) {
     catch (error) { if (error.code === 'ENOENT') return null; throw error; }
 }
 async function stopped(item) {
-    for (const service of ['backend', 'frontend']) {
-        const info = await pidInfo(item, service);
-        if (info) assert.equal(alive(info.pid), false, `${service} leaked PID ${info.pid}`);
-        if (info?.childPid) assert.equal(alive(info.childPid), false, `${service} leaked worker PID ${info.childPid}`);
-    }
+    // Windows 会重复分配已退出的 PID；清理验收必须核对本轮项目身份。
+    const rootLiteral = item.root.replace(/'/g, "''");
+    const result = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+        `$ErrorActionPreference='Stop'; $fixtureRoot='${rootLiteral}'; @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($fixtureRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0 }).Count`,
+    ]);
+    assert.equal(result.code, 0, result.output);
+    assert.equal(Number(result.output.trim()), 0, `临时项目服务残留：${item.root}`);
 }
 async function stop(item) {
     const result = await run('cmd.exe', ['/d', '/s', '/c', `""${join(item.root, 'stop.bat')}" /nopause"`]);
@@ -178,13 +189,74 @@ try {
         assert.ok(alive((await pidInfo(first, 'backend')).pid));
     });
 
-    await check('已占用端口拒绝启动，保留原服务和日志', async () => {
+    await check('重复启动复用本目录双服务，不换PID或轮换日志', async () => {
         const oldLog = await readFile(join(first.root, 'logs/backend.log'), 'utf8');
+        const pids = await Promise.all(['backend', 'frontend'].map(name => pidInfo(first, name)));
         const result = await start(first);
-        assert.equal(result.code, 1, result.output);
-        assert.match(result.output, /already in use/);
+        assert.equal(result.code, 0, result.output);
+        assert.match(result.output, /Services already running/);
         assert.equal(await readFile(join(first.root, 'logs/backend.log'), 'utf8'), oldLog);
+        assert.deepEqual(await Promise.all(['backend', 'frontend'].map(name => pidInfo(first, name))), pids);
+        assert.equal(await readFile(join(first.root, 'logs/backend.log.previous'), 'utf8').catch(error => error.code), 'ENOENT');
+    });
+
+    await check('另一个目录占用同端口时拒绝，既有服务继续运行', async () => {
+        const item = await fixture('other-project-port'); item.backendPort = first.backendPort;
+        const result = await start(item);
+        assert.equal(result.code, 1, result.output); assert.match(result.output, /already in use/);
+        assert.equal(await pidInfo(item, 'backend'), null); assert.equal(await pidInfo(item, 'frontend'), null);
         assert.ok(alive((await pidInfo(first, 'backend')).pid));
+    });
+
+    await check('外部进程即使返回工具箱健康JSON也不能冒充本目录服务', async () => {
+        const item = await fixture('foreign-health'), server = createServer((_req,res) => res.end(JSON.stringify({status:'ok',service:'team-toolbox-backend',db:{ok:true}})));
+        await new Promise(done => server.listen(item.backendPort,'127.0.0.1',done));
+        try { const result=await start(item); assert.equal(result.code,1,result.output); assert.match(result.output,/already in use/); assert.equal(await pidInfo(item,'frontend'),null); }
+        finally { await new Promise(done => server.close(done)); }
+    });
+
+    await check('同时点击启动只创建一组服务，两次调用均成功', async () => {
+        const item = await fixture('concurrent','delayed');
+        const results = await Promise.all([start(item,'Development',20),start(item,'Development',20)]);
+        for(const result of results) assert.equal(result.code,0,result.output);
+        assert.equal(results.filter(result=>/Starting backend/.test(result.output)).length,1);
+        assert.equal(results.filter(result=>/Services already running/.test(result.output)).length,1);
+        await stop(item);
+    });
+
+    await check('后端已运行仅补起前端，沿用Local而不擅自开放LAN', async () => {
+        const item = await fixture('backend-only'); assert.equal((await start(item,'Development',8,['-AccessMode','Local'])).code,0);
+        const backend = await pidInfo(item,'backend'), frontend=await pidInfo(item,'frontend');
+        process.kill(frontend.pid); if(frontend.childPid)process.kill(frontend.childPid); await delay(150);
+        const result=await start(item); assert.equal(result.code,0,result.output);
+        assert.equal((await pidInfo(item,'backend')).pid,backend.pid); assert.notEqual((await pidInfo(item,'frontend')).pid,frontend.pid);
+        assert.equal((await pidInfo(item,'frontend')).allowLan,'0'); assert.match(result.output,/Access mode: Local/);
+        await stop(item);
+    });
+
+    await check('前端已运行仅补起后端，已有前端PID保持', async () => {
+        const item = await fixture('frontend-only'); assert.equal((await start(item)).code,0);
+        const backend = await pidInfo(item,'backend'), frontend = await pidInfo(item,'frontend');process.kill(backend.pid);await delay(150);
+        const result=await start(item);assert.equal(result.code,0,result.output);assert.equal((await pidInfo(item,'frontend')).pid,frontend.pid);assert.notEqual((await pidInfo(item,'backend')).pid,backend.pid);await stop(item);
+    });
+
+    await check('已有服务不健康时失败但保留原进程和日志', async () => {
+        const item=await fixture('unhealthy-existing');assert.equal((await start(item,'Release')).code,0);
+        const backend=await pidInfo(item,'backend'), log=await readFile(join(item.root,'logs/backend.log'),'utf8');await writeFile(join(item.root,'unhealthy.flag'),'503');
+        const result=await start(item,'Release',2);assert.equal(result.code,1,result.output);assert.ok(alive(backend.pid));assert.equal(await readFile(join(item.root,'logs/backend.log'),'utf8'),log);await stop(item);
+    });
+
+    await check('补起服务失败只清理新进程，保留复用后端', async () => {
+        const item=await fixture('partial-failure');assert.equal((await start(item,'Release')).code,0);const backend=await pidInfo(item,'backend');
+        await writeFile(join(item.root,'frontend/node_modules/vite/bin/vite.js'),'process.exit(7)');
+        const result=await start(item,'Development',2);assert.equal(result.code,1,result.output);assert.ok(alive(backend.pid));assert.equal((await fetch(`http://127.0.0.1:${item.backendPort}/api/health`)).status,200);await stop(item);
+    });
+
+    for(const mode of ['Development','Release'])await check(`${mode}未运行时启动并打开网页，运行时再次打开同一网页`,async()=>{
+        const item=await fixture('browser-'+mode),env={TT_SKIP_BROWSER:'0',PORT:String(item.backendPort),VITE_DEV_PORT:String(item.frontendPort)};
+        const firstLaunch=await ps(join(item.root,'browser-probe.ps1'),['-Mode',mode],env);assert.equal(firstLaunch.code,0,firstLaunch.output);const backend=await pidInfo(item,'backend');
+        const second=await ps(join(item.root,'browser-probe.ps1'),['-Mode',mode],env);assert.equal(second.code,0,second.output);assert.match(second.output,/Services already running/);assert.equal((await pidInfo(item,'backend')).pid,backend.pid);
+        const urls=(await readFile(join(item.root,'browser.txt'),'utf8')).trim().split(/\r?\n/);assert.deepEqual(urls,[`http://127.0.0.1:${mode==='Release'?item.backendPort:item.frontendPort}/`,`http://127.0.0.1:${mode==='Release'?item.backendPort:item.frontendPort}/`]);await stop(item);
     });
 
     await check('停止入口能关闭本目录的后台双服务', () => stop(first));
@@ -251,7 +323,6 @@ try {
         });
     }
 
-    console.log(`${passed}/${passed} startup integration checks passed`);
 } finally {
     // 身份匹配仍由生产 stop.ps1 执行；不能按端口或公共标题清理进程。
     let cleanupFailed = false;
@@ -268,3 +339,4 @@ try {
     assert.ok(sandbox.startsWith(join(boundary, 'team-toolbox-startup-')));
     if (!cleanupFailed) await rm(sandbox, { recursive: true, force: true });
 }
+if (!process.exitCode) console.log(`${passed}/${passed} startup integration checks passed; temporary services cleaned`);

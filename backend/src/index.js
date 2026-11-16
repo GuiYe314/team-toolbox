@@ -22,6 +22,7 @@ import { registerPortViewerApi } from './port-viewer-api.js';
 import { registerPhoneAlbumApi } from './phone-album-api.js';
 import { createToolAccess } from './tool-access.js';
 import { backfillPreviews } from './asset-preview.js';
+import { disposeLivePhotos } from './live-photo.js';
 import { runMigrations } from './migrate.js';
 import { ensureIndexSynced } from './search-index.js';
 import { getAppVersion } from './version.js';
@@ -227,6 +228,7 @@ const server = await start();
 
 function shutdown(signal) {
     console.log(`[server] received ${signal}, shutting down`);
+    disposeLivePhotos();
     androidService.dispose();
     unityLogService.dispose();
     networkSpeedMonitor.dispose();

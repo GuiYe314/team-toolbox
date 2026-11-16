@@ -13,14 +13,43 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $started = @()
 $savedEnvironment = @{}
+$launchMutex = $null
+$launchLockHeld = $false
+
+function Test-ServiceEntry($Process, $Spec) {
+    if (-not $Process -or $Process.Name -ine 'node.exe' -or -not $Process.ExecutablePath -or -not $Process.CommandLine) { return $false }
+    $match = [regex]::Match($Process.CommandLine, '^\s*(?:"[^"]+"|\S+)\s+(?:--watch\s+)?(?:"([^"]+)"|(\S+))')
+    if (-not $match.Success) { return $false }
+    $entry = $match.Groups[1].Value
+    if (-not $entry) { $entry = $match.Groups[2].Value }
+    if (-not [IO.Path]::IsPathRooted($entry) -or [IO.Path]::GetFullPath($entry) -ine $Spec.Entry) { return $false }
+    $arguments = $Process.CommandLine.Substring($match.Length).TrimStart()
+    return -not ($Spec.Name -eq 'frontend' -and $arguments -match '^(?:"?)(build|preview|optimize)(?:"?)(?:\s|$)')
+}
+
+function Find-RunningService($Spec) {
+    $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Spec.Port -ErrorAction SilentlyContinue)
+    if (-not $listeners.Count) { return }
+    $owners = @($listeners | Select-Object -ExpandProperty OwningProcess -Unique)
+    if ($owners.Count -ne 1) { throw "Port $($Spec.Port) is already in use by another service." }
+    $current = Get-CimInstance Win32_Process -Filter ("ProcessId = " + $owners[0])
+    if (-not (Test-ServiceEntry $current $Spec)) { throw "Port $($Spec.Port) is already in use by another service or project folder." }
+    $Spec.Process = Get-Process -Id $current.ProcessId -ErrorAction Stop
+    $Spec.StartTicks = $Spec.Process.StartTime.ToUniversalTime().Ticks
+    $Spec.Created = $current.CreationDate
+    $Spec.Node = $current.ExecutablePath
+    $Spec.Reused = $true
+    $Spec.BoundMode = if (@($listeners | Where-Object { $_.LocalAddress -notin @('127.0.0.1', '::1') }).Count) { 'Lan' } else { 'Local' }
+    $null = Read-ServiceProcess $Spec
+    Write-Host ("[info] Reusing {0} (PID {1}) from this project folder." -f $Spec.Name, $Spec.Process.Id)
+}
 
 function Read-ServiceProcess($Service) {
     $Service.Process.Refresh()
     if ($Service.Process.HasExited) { throw "$($Service.Name) exited before startup completed. See $($Service.ErrorLog)" }
     $current = Get-CimInstance Win32_Process -Filter ("ProcessId = " + $Service.Process.Id)
     if (-not $current -or $current.CreationDate -ne $Service.Created -or
-        $current.ExecutablePath -ine $Service.Node -or
-        $current.CommandLine -notmatch ('^\s*(?:"[^"]+"|\S+)\s+"' + [regex]::Escape($Service.Entry) + '"(?:\s|$)')) {
+        $current.ExecutablePath -ine $Service.Node -or -not (Test-ServiceEntry $current $Service)) {
         throw "Cannot confirm the identity of $($Service.Name)."
     }
     return $current
@@ -66,25 +95,39 @@ function Stop-NewServices {
 
 try {
     $root = (Get-Item -LiteralPath $ProjectRoot).FullName.TrimEnd('\', '/')
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    try { $lockKey = ([BitConverter]::ToString($hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($root.ToLowerInvariant())))).Replace('-', '') }
+    finally { $hasher.Dispose() }
+    $launchMutex = [Threading.Mutex]::new($false, ('Local\team-toolbox-start-' + $lockKey))
+    try { $launchLockHeld = $launchMutex.WaitOne([TimeSpan]::FromSeconds($TimeoutSeconds)) }
+    catch [Threading.AbandonedMutexException] { $launchLockHeld = $true }
+    if (-not $launchLockHeld) { throw 'Another launch is still starting this project. Please retry when it finishes.' }
     if (-not $PSBoundParameters.ContainsKey('AccessMode') -and $env:TT_ACCESS_MODE) {
         if ($env:TT_ACCESS_MODE -notmatch '^(Local|Lan)$') { throw 'TT_ACCESS_MODE must be Local or Lan.' }
         $AccessMode = $env:TT_ACCESS_MODE
     }
-    $listenHost = if ($AccessMode -eq 'Lan') { '0.0.0.0' } else { '127.0.0.1' }
     if (-not $PSBoundParameters.ContainsKey('BackendPort') -and $env:PORT) { $BackendPort = [int]$env:PORT }
     if (-not $PSBoundParameters.ContainsKey('FrontendPort') -and $env:VITE_DEV_PORT) { $FrontendPort = [int]$env:VITE_DEV_PORT }
     if ($BackendPort -lt 1 -or $BackendPort -gt 65535 -or $FrontendPort -lt 1 -or $FrontendPort -gt 65535 -or ($Mode -eq 'Development' -and $BackendPort -eq $FrontendPort)) { throw 'Invalid service port configuration.' }
     $node = (Get-Command $NodeExecutable -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
     $services = @(@{ Name = 'backend'; Entry = Join-Path $root 'backend\src\index.js'; Directory = Join-Path $root 'backend'; Port = $BackendPort; Path = '/api/health'; Arguments = @() })
     if ($Mode -eq 'Development') {
-        $services += @{ Name = 'frontend'; Entry = Join-Path $root 'frontend\node_modules\vite\bin\vite.js'; Directory = Join-Path $root 'frontend'; Port = $FrontendPort; Path = '/'; Arguments = @('--host', $listenHost, '--port', "$FrontendPort", '--strictPort') }
+        $services += @{ Name = 'frontend'; Entry = Join-Path $root 'frontend\node_modules\vite\bin\vite.js'; Directory = Join-Path $root 'frontend'; Port = $FrontendPort; Path = '/'; Arguments = @() }
     }
-    # Resolve every entry and reject occupied ports before starting any process.
+    # Reuse only this project's absolute entry and verified listener; unrelated ports remain errors.
     foreach ($service in $services) {
         if (-not (Test-Path -LiteralPath $service.Entry -PathType Leaf)) { throw "Missing service entry: $($service.Entry)" }
-        if (@(Get-NetTCPConnection -State Listen -LocalPort $service.Port -ErrorAction SilentlyContinue).Count) {
-            throw "Port $($service.Port) is already in use. This launch will not stop or hide the existing service."
-        }
+        Find-RunningService $service
+    }
+    $existingModes = @($services | Where-Object { $_.Reused } | ForEach-Object { $_.BoundMode } | Select-Object -Unique)
+    if ($existingModes.Count -gt 1) { throw 'Existing project services use different access modes. Stop this project before changing the mode.' }
+    if ($existingModes.Count) {
+        if ($AccessMode -ne $existingModes[0]) { Write-Host '[info] Keeping the existing access mode. Stop this project first to change it.' }
+        $AccessMode = $existingModes[0]
+    }
+    $listenHost = if ($AccessMode -eq 'Lan') { '0.0.0.0' } else { '127.0.0.1' }
+    foreach ($service in $services) {
+        if ($service.Name -eq 'frontend') { $service.Arguments = @('--host', $listenHost, '--port', "$FrontendPort", '--strictPort') }
     }
     $logs = Join-Path $root 'logs'
     $null = New-Item -ItemType Directory -Path $logs -Force
@@ -95,7 +138,7 @@ try {
     $env:VITE_DEV_HOST = $listenHost
     $env:VITE_DEV_PORT = "$FrontendPort"
     if ($Mode -eq 'Release') { $env:NODE_ENV = 'production' }
-    foreach ($service in $services) { Start-LocalService $service $node $logs }
+    foreach ($service in $services) { if (-not $service.Reused) { Start-LocalService $service $node $logs } }
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     $lastReason = 'Waiting for the services to listen.'
@@ -120,6 +163,7 @@ try {
     if (-not $ready) { throw "Services did not become ready in $TimeoutSeconds seconds. $lastReason" }
     foreach ($service in $services) { $null = Read-ServiceProcess $service }
     $url = 'http://127.0.0.1:' + $(if ($Mode -eq 'Release') { $BackendPort } else { $FrontendPort }) + '/'
+    if (-not $started.Count) { Write-Host "[info] Services already running. Opening the existing page: $url" }
     Write-Host "[info] Startup successful. Services are running in the background. $url"
     Write-Host "[info] Access mode: $AccessMode"
     if ($AccessMode -eq 'Lan') {
@@ -150,4 +194,6 @@ try {
     exit 1
 } finally {
     foreach ($name in $savedEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name], 'Process') }
+    if ($launchLockHeld) { $launchMutex.ReleaseMutex() }
+    if ($launchMutex) { $launchMutex.Dispose() }
 }

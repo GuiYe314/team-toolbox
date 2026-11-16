@@ -28,3 +28,5 @@
 .album-picker input { padding: var(--album-small-gap); border: var(--album-border) solid var(--panel-border); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--panel-background); font: inherit; }
 .album-picker input::file-selector-button { min-height: var(--album-touch-height); padding: var(--album-small-gap); margin-right: var(--album-small-gap); background: var(--accent-soft); color: var(--text-primary); border: var(--album-border) solid var(--accent-border); border-radius: var(--radius-sm); cursor: pointer; }
 .album-mobile .notice { overflow-wrap: anywhere; }
+.album-pair-option { display: flex; align-items: center; gap: var(--album-small-gap); color: var(--text-primary); }
+.album-live-badge { display: inline-block; margin-inline-start: var(--album-small-gap); padding: var(--album-small-gap); border: var(--album-border) solid var(--panel-border); border-radius: var(--radius-sm); font-size: var(--album-caption-size); color: var(--text-secondary); }

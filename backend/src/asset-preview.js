@@ -21,6 +21,7 @@ import { extname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { ASSET_DIR, resolveAssetPath, saveDerivedFile } from './asset-storage.js';
+import { prepareLivePhoto } from './live-photo.js';
 
 /** 缩略图边长（像素）。列表里 40~80px 显示，256 足够覆盖 2x 屏。 */
 const THUMB_SIZE = 256;
@@ -69,37 +70,42 @@ function statSource(storageKey) {
  */
 const imageProcessor = {
     id: 'image',
-    exts: new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.tif', '.tiff', '.avif']),
+    exts: new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.tif', '.tiff', '.avif', '.heic', '.heif', '.livp']),
     async run(ctx) {
-        const { abs, size, ext } = ctx;
-        if (size > MAX_SOURCE_BYTES) {
+        let { abs } = ctx;
+        const { size, ext } = ctx;
+        const live = await prepareLivePhoto(abs, ext);
+        if (live) { abs = live.photo; ctx.cleanup = live.cleanup; ctx.livePhoto = live.metadata; }
+        if (!live && size > MAX_SOURCE_BYTES) {
             throw new Error(`图片过大（${Math.round(size / 1048576)}MB），已跳过预览生成`);
         }
 
         // 一次性解码，缩放两次 —— 避免读两遍文件
-        const pipeline = sharp(abs, { failOn: 'none', animated: false });
+        const pipeline = sharp(abs, { failOn: 'none', animated: false, limitInputPixels: 64 * 1024 ** 2 });
         const meta = await pipeline.metadata();
 
         // 极小图直接原样当缩略图（放大只会糊）
         const thumb = (meta.width && meta.height && meta.width <= THUMB_SIZE && meta.height <= THUMB_SIZE)
-            ? await sharp(abs, { failOn: 'none' }).webp({ quality: THUMB_QUALITY }).toBuffer()
-            : await sharp(abs, { failOn: 'none' })
+            ? await sharp(abs, { failOn: 'none', limitInputPixels: 64 * 1024 ** 2 }).rotate().webp({ quality: THUMB_QUALITY }).toBuffer()
+            : await sharp(abs, { failOn: 'none', limitInputPixels: 64 * 1024 ** 2 }).rotate()
                 .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover', position: 'centre' })
                 .webp({ quality: THUMB_QUALITY }).toBuffer();
 
         // 预览图：不放大小图（withoutEnlargement），GIF 动图取首帧
-        const preview = await sharp(abs, { failOn: 'none', animated: false })
+        const preview = await sharp(abs, { failOn: 'none', animated: false, limitInputPixels: 64 * 1024 ** 2 }).rotate()
             .resize(PREVIEW_MAX, PREVIEW_MAX, { fit: 'inside', withoutEnlargement: true })
             .webp({ quality: PREVIEW_QUALITY }).toBuffer();
 
         ctx.outputs.push({ kind: 'thumbnail', buffer: thumb, ext: '.webp' });
         ctx.outputs.push({ kind: 'preview', buffer: preview, ext: '.webp' });
+        if (live?.motionPath) ctx.outputs.push({ kind: 'motion', sourcePath: live.motionPath, ext: '.mp4' });
 
         return {
             width: meta.width || null,
             height: meta.height || null,
             format: meta.format || null,
-            sourceBytes: size
+            sourceBytes: size,
+            ...(live ? { livePhoto: live.metadata } : {})
         };
     }
 };
@@ -379,11 +385,13 @@ export async function generatePreview({ assetId, versionId, originalStorageKey, 
     try {
         metadata = await processor.run(ctx);
     } catch (e) {
+        await ctx.cleanup?.();
         // 处理器失败**绝不影响原件** —— 这里只把失败原因带出去
         return {
             status: 'failed',
             processor: processor.id,
-            error: e.message || String(e)
+            error: e.message || String(e),
+            ...(ctx.livePhoto ? { metadata: { livePhoto: ctx.livePhoto } } : {})
         };
     }
 
@@ -395,10 +403,12 @@ export async function generatePreview({ assetId, versionId, originalStorageKey, 
                 assetId,
                 versionId,
                 buffer: out.buffer,
+                sourcePath: out.sourcePath,
                 kind: out.kind,
                 ext: out.ext
             });
         } catch (e) {
+            await ctx.cleanup?.();
             return {
                 status: 'failed',
                 processor: processor.id,
@@ -407,6 +417,8 @@ export async function generatePreview({ assetId, versionId, originalStorageKey, 
         }
     }
 
+    await ctx.cleanup?.();
+    if (metadata?.livePhoto && keys.motion) metadata.livePhoto.motionStorageKey = keys.motion;
     return {
         status: 'ready',
         processor: processor.id,

@@ -65,6 +65,9 @@ const EXT_MAP = new Map(Object.entries({
     '.webp': { type: 'image', mime: 'image/webp' },
     '.bmp': { type: 'image', mime: 'image/bmp' },
     '.avif': { type: 'image', mime: 'image/avif' },
+    '.heic': { type: 'image', mime: 'image/heic' },
+    '.heif': { type: 'image', mime: 'image/heif' },
+    '.livp': { type: 'image', mime: 'application/zip' },
     // 视频
     '.mp4': { type: 'video', mime: 'video/mp4' },
     '.webm': { type: 'video', mime: 'video/webm' },
@@ -183,7 +186,7 @@ const MAGIC_SIGNATURES = [
     { exts: ['.jpg', '.jpeg'], bytes: [0xff, 0xd8, 0xff] },
     { exts: ['.gif'], prefix: 'GIF8' },
     { exts: ['.pdf'], prefix: '%PDF' },
-    { exts: ['.zip'], bytes: [0x50, 0x4b, 0x03, 0x04] }, // ZIP 容器
+    { exts: ['.zip', '.livp'], bytes: [0x50, 0x4b, 0x03, 0x04] }, // ZIP 容器
     // GLB 虽是基于 ZIP 的容器，但其**前 4 字节被规范改为ASCII "glTF"**，
     // 不是 PK\x03\x04。若沿用 ZIP 签名会把所有合法 GLB 判为伪装。
     { exts: ['.glb'], ascii: { offset: 0, len: 4, value: 'gltf' } },
@@ -343,13 +346,14 @@ export function saveAssetFile({ connection, assetId, versionId, buffer, original
  * @param {string} config.ext 目标扩展名（含点，如 '.glb'、'.png'）
  * @returns {string} 相对 ASSET_DIR 的存储键
  */
-export function saveDerivedFile({ assetId, versionId, buffer, kind, ext }) {
+export function saveDerivedFile({ assetId, versionId, buffer, sourcePath, kind, ext }) {
     const relDir = versionDirKey(assetId, versionId);
     const absDir = join(ASSET_DIR, relDir);
     if (!existsSync(absDir)) mkdirSync(absDir, { recursive: true });
     // storageName 内部已加 kind 前缀，这里不要再拼一次
     const filename = storageName(ext, kind);
-    writeFileSync(join(absDir, filename), buffer);
+    if (sourcePath) copyFileSync(sourcePath, join(absDir, filename));
+    else writeFileSync(join(absDir, filename), buffer);
     return `${relDir}/${filename}`;
 }
 
@@ -369,7 +373,7 @@ export function resolveAssetPath(storageKey) {
     const key = String(storageKey || '');
     // <assetId>/<versionId>/<kind><13~16位时间戳>-<16位hex>.<ext>
     // kind 含 tmp：恢复版本时先把源文件复制成 tmp 暂存，待新版本行建好后再搬进正式目录。
-    if (!/^\d{1,12}\/\d{1,12}\/(original|preview|thumbnail|tmp)\d{10,16}-[0-9a-f]{16}\.[a-z0-9]{1,10}$/.test(key)) {
+    if (!/^\d{1,12}\/\d{1,12}\/(original|preview|thumbnail|motion|tmp)\d{10,16}-[0-9a-f]{16}\.[a-z0-9]{1,10}$/.test(key)) {
         return null;
     }
     const abs = resolvePath(join(ASSET_DIR, key));

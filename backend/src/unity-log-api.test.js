@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { once } from 'node:events';
 import { Readable } from 'node:stream';
+import { request as httpRequest } from 'node:http';
 import { registerUnityLogApi, requireLocalUnityLogRequest } from './unity-log-api.js';
 import { UnityLogError } from './unity-log-http.js';
 
@@ -21,7 +22,19 @@ test('日志 API 拒绝远端、代理头伪装、非法 Host/来源和缺少专
 async function setup(t, service) {
     const app = express(); app.use(express.json()); registerUnityLogApi(app, { service });
     const server = app.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => { server.closeAllConnections(); server.close(); });
-    return (path, body = {}, extra = {}) => fetch(`http://127.0.0.1:${server.address().port}/api/unity-logs${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Toolbox-Unity-Log': '1' }, body: JSON.stringify(body), ...extra });
+    // Windows 的随机端口可能命中 Fetch 禁用端口；原生 HTTP 仍只访问本轮服务。
+    return (path, body = {}, extra = {}) => new Promise((resolve, reject) => {
+        const request = httpRequest(`http://127.0.0.1:${server.address().port}/api/unity-logs${path}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Toolbox-Unity-Log': '1' }, ...extra,
+        }, response => {
+            const chunks = [];
+            response.on('data', chunk => chunks.push(chunk));
+            response.on('error', reject);
+            response.on('end', () => resolve(new Response(Buffer.concat(chunks), { status: response.statusCode, headers: response.headers })));
+        });
+        request.on('error', reject);
+        request.end(JSON.stringify(body));
+    });
 }
 test('API 只接受明确字段，返回发现、历史预览与会话关闭结果', async t => {
     const calls = [];

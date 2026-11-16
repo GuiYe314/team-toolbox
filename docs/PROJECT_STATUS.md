@@ -1,5 +1,25 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## v0.9.0 发布（2026-11-16）
+
+**封版及本地验收完成，等待上传和公开。** 用户明确要求上传发布，基于 `8246b16` / v0.8.2 按功能增量规则选用 v0.9.0。范围为 TASK-048 实况照片及用户追加的 TASK-049 点击启动/直接打开现有网页，不更改独立设备调试版或实际安装数据。最终包与源码一致，后续提交源码、标签和四份 Release 资产；远端结果在本节续记。
+
+- TASK-049 源码验证：`node scripts/verify-startup.mjs` **24/24**，退出0且临时服务全部回收，证据 `build/v090-startup.log`。包括源码/发布入口、首次和重复浏览器调用、连续与同时点击、部分存活补齐、沿用Local、其他目录及伪健康占用拒绝、失败保留原服务、日志轮换和特殊字符路径。第一轮24项场景通过后，收尾按旧PID判断产生误报；改为核对临时项目命令行身份后全量通过，保留 `v090-startup-before-cleanup-fix.log`。
+- 本轮全量后端 **751/751**（51 suites、0跳过，`TT_VERIFY_LIVE_MEDIA=1`、并发2），前端 **37/37**，分别见 `build/v090-backend-tests.log` 与 `v090-frontend-tests.log`。前两次后端750/751均为既有Unity日志测试随机分配到Fetch禁用端口，已将该测试改用只访问本轮服务的原生HTTP，单文件4/4及完整套通过；初始日志保留 `v090-backend-tests-first.log`、`v090-backend-tests-second.log`，未改变Unity产品接口。
+- 最终ZIP的335个源码/静态/图标/脚本/运行时文件摘要一致，CRC、版本、空数据目录及manifest校验通过。最终包内Node22实况浏览器 **24/24**、相册 **32/32**、跨Node运行时 **14/14**；实际CMD的Local/Lan与重复点击 **19/19**，PID保持，通用网页 **53/53**。最终安装器及真实v0.8.2独立副本升级 **25/25**，验证了备份、自动重启、原数据/资源字节/更新源保留和卸载清理。原机器安装身份未变；详细证据、早期失败和四资产摘要见[封版记录](acceptance/V0_9_0_RELEASE_2026-11-16.md)。
+- 未连接真实手机，系统相册导出/扫码及所有厂商变种仍待真机验收；未对实际安装执行更新。无数据库迁移或新依赖，本地output设计稿及运行数据、日志和构建产物不入提交。
+
+## TASK-048 实况照片（2026-11-16）
+
+**以下为开发验证记录，本次发行验证见上方v0.9.0。** 按用户要求 fast-forward 同步 origin/main 至 `8246b16`（v0.8.2），保留原有 `output/` 设计稿和远端视频下载功能，未改动实际安装版。
+
+- 功能：完整工具箱支持有标准 XMP 偏移/目录及内嵌视频的动态 JPEG、LIVP，以及手机页明确开启的同名照片/视频配对。原件保留，资源预览主动播放/停止、默认静音并可下载派生 MP4；后台停止、关闭/离页释放。动态预览限制为30秒、1280像素、64MiB，HEIC 实况封面使用视频首帧；镜像、导出导入和历史恢复保持版本隔离，无数据库迁移或新增依赖。
+- 后端：在 backend 目录设置 `TT_VERIFY_LIVE_MEDIA=1` 后以本机 Node24 运行 `--test --test-concurrency=2`，**751/751**（51 suites、0失败、0跳过），日志 `build/live-photo-full-backend.log`。包含真实 FFmpeg 转码、原件字节不变、HTTP/Range、CRC/路径/媒体边界、镜像、导入 ID 重映射、历史版本恢复及防跨资源派生引用。
+- 前端：frontend 目录 Node24 `--test` **37/37**，`build/live-photo-full-frontend.log`；以 Node24 执行 `node_modules/vite/bin/vite.js build` 通过，日志 `build/live-photo-frontend-build-final.log`，保留已有大 chunk 提示。首次尝试不存在的缓存 npm-cli 路径失败，随后改用实际 Vite 入口构建成功，不将首次失败计为通过。
+- 浏览器：根目录 Node24 `frontend/verify-live-photo.mjs` **24/24**，真实私网 TCP、临时数据库/资源及合成照片/MOV，覆盖同名配对/上传、原件、实际 MP4 解码、默认不预载、静音、停止/后台/关闭/离页、错误恢复，以及旧动态 JPEG 手动重新生成后识别/播放、保持原件与版本、明暗主题操作区无裁切；日志 `build/live-photo-browser.log`。已目视检查 `build/live-photo-dark.png`、`build/live-photo-light.png` 和 `build/live-photo-legacy-dark.png`、`build/live-photo-legacy-light.png`，按钮与说明可见。既有 `frontend/verify-phone-album.mjs` **32/32**，`build/live-photo-album-regression.log`，包括360/390/768px布局、停止/重试/回执和清理。
+- 限制：未连接真实手机，未验收 iPhone/Android 系统相册导出与扫码；浏览器只交付静态图时不能恢复视频，不保证所有厂商变种或下载后相册自动识别。已存资源需主动重新生成预览，未自动扫描真实资源。所有验收使用临时文件/数据库/浏览器，未接触用户真实媒体。
+- 后续：由用户用真实实况原片进行手机扫码及系统相册兼容验收；安装包与发行结果见上方v0.9.0，既有0.8.2安装包不包含本轮功能。Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
+
 ## 发布 v0.8.2（2026-11-16）
 
 **已打包、已打标签、已发 GitHub Release；本机安装版已同步到同一份代码。**

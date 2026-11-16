@@ -32,6 +32,8 @@ import { exportAssetsToZip, extractZip, importAssets } from './asset-transfer.js
 import { generatePreview, listProcessors } from './asset-preview.js';
 import { sendError } from './api.js';
 import { syncToMirror, schedulePreview } from './asset-postprocess.js';
+import { motionStorageKey } from './live-photo.js';
+import { sendLiveVideo } from './live-photo-http.js';
 
 /** 解析正整数 ID；非法返回 null。 */
 function parseId(value) {
@@ -491,6 +493,7 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
                 JSON.stringify(r.metadata || {}),
                 versionId
             );
+            if (r.metadata?.livePhoto) syncToMirror(db, assetId, versionId);
         } else if (r.status === 'failed') {
             db.prepare(
                 "UPDATE asset_versions SET preview_status = 'failed', preview_error = ? WHERE id = ?"
@@ -636,6 +639,7 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
             throw e;
         }
 
+        schedulePreview(db, assetId, result.versionId);
         res.status(201).json({ ...result, ...store.getAsset({ connection: db, id: assetId }) });
     }));
 
@@ -684,7 +688,7 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
         const assetId = parseId(req.params.id);
         if (assetId === null) return res.status(400).json({ error: 'invalid_input', message: '资源 ID 无效' });
 
-        const kind = ['original', 'preview', 'thumbnail'].includes(req.params.kind)
+        const kind = ['original', 'preview', 'thumbnail', 'motion'].includes(req.params.kind)
             ? req.params.kind : 'original';
         const pointer = req.params.pointer;
 
@@ -728,7 +732,8 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
         }
         if (!version) return res.status(404).json({ error: 'not_found', message: '版本不存在' });
 
-        const key = kind === 'preview' ? version.preview_storage_key
+        const key = kind === 'motion' ? motionStorageKey(version.metadata, assetId, version.id)
+            : kind === 'preview' ? version.preview_storage_key
             : kind === 'thumbnail' ? version.thumbnail_storage_key
                 : version.original_storage_key;
 
@@ -736,7 +741,8 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
         if (!key) {
             return res.status(404).json({
                 error: 'not_found',
-                message: kind === 'preview' ? '该版本的预览尚未生成' : '该版本没有缩略图',
+                message: kind === 'motion' ? '该版本的实况播放预览尚未生成'
+                    : kind === 'preview' ? '该版本的预览尚未生成' : '该版本没有缩略图',
                 previewStatus: version.preview_status
             });
         }
@@ -746,6 +752,11 @@ export function registerAssetApi(app, { getDb, basePath = '/api' }) {
 
         let size;
         try { size = statSync(abs).size; } catch { return res.status(404).json({ error: 'not_found', message: '文件不存在' }); }
+
+        if (kind === 'motion') {
+            const name = db.prepare('SELECT name FROM assets WHERE id = ?').get(assetId)?.name || `asset-${assetId}`;
+            return sendLiveVideo(req, res, abs, size, name);
+        }
 
         res.setHeader('Content-Type', assetMimeOf(key));
         res.setHeader('Content-Length', String(size));

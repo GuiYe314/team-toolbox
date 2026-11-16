@@ -39,6 +39,7 @@ import {
 import { join, dirname, sep, resolve as resolvePath, relative, isAbsolute } from 'node:path';
 import { errorMap } from './errors.js';
 import { resolveAssetPath, classifyAsset } from './asset-storage.js';
+import { motionStorageKey } from './live-photo.js';
 
 const err = (msg, code = 'invalid_input') => errorMap(new Error(msg), '(assets)', code);
 
@@ -118,7 +119,8 @@ export function buildExportManifest({ connection: db, assetIds, folderIds = null
             const kinds = [
                 ['original', v.original_storage_key],
                 ['preview', v.preview_storage_key],
-                ['thumbnail', v.thumbnail_storage_key]
+                ['thumbnail', v.thumbnail_storage_key],
+                ['motion', motionStorageKey(v.metadata, asset.id, v.id)]
             ];
             for (const [kind, storageKey] of kinds) {
                 if (!storageKey) continue;
@@ -473,20 +475,29 @@ export function importAssets({ connection: db, manifest, filesDir, assetsRoot })
                 }
                 const storageKey = `${newAssetId}/${newVersionId}/${fileName}`;
 
-                // preview / thumbnail 若包内有也一并落盘
+                // preview / thumbnail / motion 若包内有也一并落盘
                 const extraKeys = {};
-                for (const kind of ['preview', 'thumbnail']) {
+                for (const kind of ['preview', 'thumbnail', 'motion']) {
                     const rel = v.files && v.files[kind];
                     if (!rel) continue;
                     const srcExtra = join(filesDir, rel.replace(/^files\//, ''));
                     if (!existsSync(srcExtra)) continue;
                     try {
                         const eExt = extOf(rel) || '.bin';
+                        if (kind === 'motion' && eExt !== '.mp4') continue;
                         const eName = `${kind}${Date.now()}-${randomBytes(8).toString('hex')}${eExt}`;
                         copyFileSync(srcExtra, join(versionDir, eName));
                         extraKeys[kind] = `${newAssetId}/${newVersionId}/${eName}`;
                     } catch { /* 派生文件缺失不影响导入 */ }
                 }
+
+                const importedMeta = v.metadata && typeof v.metadata === 'object' ? structuredClone(v.metadata) : {};
+                if (importedMeta.livePhoto && typeof importedMeta.livePhoto === 'object' && !Array.isArray(importedMeta.livePhoto)) {
+                    delete importedMeta.livePhoto.motionStorageKey;
+                    if (extraKeys.motion) { importedMeta.livePhoto.motionStorageKey = extraKeys.motion; importedMeta.livePhoto.status = 'ready'; }
+                    else importedMeta.livePhoto.status = 'failed';
+                } else delete importedMeta.livePhoto;
+                db.prepare('UPDATE asset_versions SET metadata = ? WHERE id = ?').run(JSON.stringify(importedMeta), newVersionId);
 
                 // 回填真实存储键
                 db.prepare(`

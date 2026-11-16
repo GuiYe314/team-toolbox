@@ -94,6 +94,7 @@ export function schedulePreview(db, assetId, versionId, ext) {
                     JSON.stringify(r.metadata || {}),
                     versionId, assetId
                 );
+                if (r.metadata?.livePhoto) syncToMirror(db, assetId, versionId);
             } else if (r.status === 'failed') {
                 db.prepare(`
                     UPDATE asset_versions

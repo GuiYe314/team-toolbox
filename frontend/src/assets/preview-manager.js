@@ -17,6 +17,7 @@
 // 体积大且用得少，动态 import 才能让首屏 bundle 不被拖垮。
 
 import { hasPreviewProvider } from './asset-meta.js';
+import { LivePhotoPreviewProvider } from './live-photo-preview.js';
 
 /**
  * Provider 契约：
@@ -683,6 +684,7 @@ export const UnsupportedPreviewProvider = {
 
 /** 全局单例。预览弹窗与详情页共用一个，避免两处各自初始化。 */
 export const previewManager = new PreviewManager()
+    .register(LivePhotoPreviewProvider)
     .register(ImagePreviewProvider)
     .register(VideoPreviewProvider)
     .register(AudioPreviewProvider)

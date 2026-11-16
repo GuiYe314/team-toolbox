@@ -185,7 +185,7 @@ async render() {
         // 幂等保护：asset 与 currentVersion 两个 watch 都可能触发 render
         //（immediate + 依赖变化时序不确定），不去重会出现两份预览并排。
         // 同一资源+同一版本只渲染一次，切换时才真正重渲。
-        const key = `${this.asset.id}:${version ? version.versionNumber : 'latest'}`;
+        const key = `${this.asset.id}:${version ? version.versionNumber : 'latest'}:${version?.previewStatus || ''}:${version?.metadata?.livePhoto?.status || ''}`;
         if (this._renderedKey === key) return;
         this._renderedKey = key;
 

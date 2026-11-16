@@ -28,6 +28,7 @@ import { existsSync, statSync, mkdirSync, copyFileSync, readdirSync, unlinkSync 
 import { resolve as resolvePath, join, relative, isAbsolute, sep, dirname } from 'node:path';
 import { errorMap } from './errors.js';
 import { ASSET_DIR, resolveAssetPath } from './asset-storage.js';
+import { motionStorageKey } from './live-photo.js';
 
 const err = (msg) => errorMap(new Error(msg), '(assets)', 'invalid_input');
 
@@ -155,12 +156,12 @@ export function mirrorFile(mirrorRoot, storageKey) {
 }
 
 /**
- * 把一个版本的全部文件（original/preview/thumbnail）同步到镜像目录。
+ * 把一个版本的全部文件（original/preview/thumbnail/motion）同步到镜像目录。
  *
  * @param {string} mirrorRoot
  * @param {number} assetId
  * @param {number} versionId
- * @param {object} version 版本行（含三个 storage_key）
+ * @param {object} version 版本行（含 storage_key 与实况 metadata）
  * @returns {{ copied: number, failed: number }}
  */
 export function mirrorVersion(mirrorRoot, assetId, versionId, version) {
@@ -170,7 +171,8 @@ export function mirrorVersion(mirrorRoot, assetId, versionId, version) {
     const keys = [
         version.original_storage_key,
         version.preview_storage_key,
-        version.thumbnail_storage_key
+        version.thumbnail_storage_key,
+        motionStorageKey(version.metadata, assetId, versionId)
     ].filter(Boolean);
 
     for (const key of keys) {

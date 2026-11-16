@@ -31,6 +31,7 @@
                     <h3 class="am-detail-name" :title="asset.name">{{ asset.name }}</h3>
                     <div class="am-detail-badges">
                         <span class="am-ver" :class="statusTone">{{ statusLabel }}</span>
+                        <span v-if="versions.some(v => v.isLatest && v.metadata?.livePhoto?.detected)" class="am-ver">实况照片</span>
                         <span class="am-ver am-ver-latest" v-if="asset.latestVersionNumber">
                             最新 v{{ asset.latestVersionNumber }}
                         </span>
@@ -98,6 +99,14 @@
                 <button class="btn btn-sm btn-primary" type="button" @click="$emit('upload-new', asset)">
                     上传新版本
                 </button>
+                <button
+                    v-if="asset.type === 'image' && latestVersion?.originalStorageKey"
+                    id="am-regenerate-preview"
+                    class="btn btn-sm am-regenerate"
+                    type="button"
+                    :disabled="retrying || versionsLoading || busy || previewStatus === 'pending' || previewStatus === 'processing'"
+                    @click="retryPreview"
+                >{{ retrying ? '正在生成…' : '重新生成预览' }}</button>
             </div>
             <p v-if="asset.hasUnpublished && asset.publishedVersionId" class="am-detail-note">
                 最新 v{{ asset.latestVersionNumber }} 尚未发布，客户端仍在使用 v{{ asset.publishedVersionNumber }}。
@@ -432,17 +441,20 @@ export default {
             if (!this.asset || this.retrying) return;
             const v = this.latestVersion;
             if (!v) return;
+            const assetId = this.asset.id;
+            this.retryError = '';
             this.retrying = true;
             try {
-                const { res, body } = await assetApi.regeneratePreview(this.asset.id, v.id);
+                const { res, body } = await assetApi.regeneratePreview(assetId, v.id);
                 if (!res.ok) throw new Error((body && body.message) || '生成失败');
+                if (this.asset?.id !== assetId) return;
                 this.thumbFailed = false;
                 this.$emit('refresh', { action: 'preview' });
             } catch (e) {
                 // 失败必须让用户看到。
                 // 注意不能写 this.previewError —— 那是 computed（只读），
                 // 赋值会被 Vue 警告且不生效。用独立的 retryError 字段。
-                this.retryError = e.message || '生成失败';
+                if (this.asset?.id === assetId) this.retryError = e.message || '生成失败';
             } finally {
                 this.retrying = false;
             }
@@ -542,11 +554,13 @@ export default {
 
 .am-detail-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     padding: 10px 13px;
     flex: none;
 }
 .am-detail-actions .btn { flex: 1; }
+.am-detail-actions .am-regenerate { flex-basis: 100%; }
 .am-detail-note {
     margin: 0 13px 10px;
     padding: 7px 9px;
