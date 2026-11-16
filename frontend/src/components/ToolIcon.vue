@@ -3,7 +3,14 @@
          规范禁止 Emoji 与 3D 图标，因此工具卡片、工具详情页统一走这里，
          保证同一工具在不同页面出现时视觉完全一致。 -->
     <span class="tool-glyph" :class="`is-${resolved}`" aria-hidden="true">
-        <svg v-if="resolved === 'braces'" class="icon" viewBox="0 0 24 24">
+        <svg v-if="resolved === 'image-batch'" class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="15" height="15" rx="2"/><path d="m3 14 4-4 4 4 3-3 4 4M7 21h12a2 2 0 0 0 2-2V7"/><circle cx="7" cy="7" r="1"/></svg>
+        <svg v-else-if="resolved === 'image-ocr'" class="icon" viewBox="0 0 24 24"><path d="M8 3H4a1 1 0 0 0-1 1v4M16 3h4a1 1 0 0 1 1 1v4M3 16v4a1 1 0 0 0 1 1h4M16 21h4a1 1 0 0 0 1-1v-4M7 8h10M12 8v9M9 17h6"/></svg>
+        <svg v-else-if="resolved === 'pdf-tools'" class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h6"/></svg>
+        <svg v-else-if="resolved === 'video-process'" class="icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3zM7 5v14M17 5v14"/></svg>
+        <svg v-else-if="resolved === 'whiteboard'" class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21l4-4 4 4M6 8h4v5H6zM15 8h3v5h-3M10 10h5"/></svg>
+        <svg v-else-if="resolved === 'peer-transfer'" class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="11" height="9" rx="1"/><rect x="16" y="11" width="6" height="10" rx="1"/><path d="M4 17h8l-3-3M12 17l-3 3M20 6h-4l2-2M16 6l2 2"/></svg>
+        <svg v-else-if="resolved === 'android-mirror'" class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="16" height="12" rx="2"/><rect x="15" y="9" width="7" height="12" rx="1"/><path d="M5 19h7M9 15v4M18 18h1"/></svg>
+        <svg v-else-if="resolved === 'braces'" class="icon" viewBox="0 0 24 24">
             <path d="M8 4.5c-2 0-2.6 1-2.6 2.6v2.2c0 1.4-.6 2.2-2 2.2v1c1.4 0 2 .8 2 2.2v2.2C5.4 18.5 6 19.5 8 19.5" />
             <path d="M16 4.5c2 0 2.6 1 2.6 2.6v2.2c0 1.4.6 2.2 2 2.2v1c-1.4 0-2 .8-2 2.2v2.2c0 1.6-.6 2.6-2.6 2.6" />
         </svg>
@@ -55,6 +62,7 @@
 
 <script>
 const MAP = {
+    'image-batch': 'image-batch', 'image-ocr': 'image-ocr', 'pdf-tools': 'pdf-tools', 'video-process': 'video-process', 'whiteboard': 'whiteboard', 'peer-transfer': 'peer-transfer', 'android-mirror': 'android-mirror', 'developer-tools': 'braces',
     'phone-album': 'phone-album',
     'port-viewer': 'port-viewer',
     'network-speed': 'network-speed',

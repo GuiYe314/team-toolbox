@@ -194,6 +194,9 @@ $mediaCode = Invoke-Native -Exe (Join-Path $nodeDist 'node.exe') -ArgList @($med
 if ($mediaCode -ne 0) { throw '视频下载组件准备失败，停止打包。' }
 $mediaCode = Invoke-Native -Exe (Join-Path $nodeDist 'node.exe') -ArgList @($mediaPrepare, '--stage', $appDir)
 if ($mediaCode -ne 0) { throw '视频下载组件/许可暂存校验失败，停止打包。' }
+$scrcpyCode = Invoke-Native -Exe (Join-Path $nodeDist 'node.exe') -ArgList @((Join-Path $projectRoot 'scripts\prepare-scrcpy.mjs'), '--stage', $appDir)
+if ($scrcpyCode -ne 0) { throw '安卓投屏组件/许可暂存校验失败，停止打包。' }
+Copy-Item -LiteralPath (Join-Path $projectRoot 'licenses') -Destination $appDir -Recurse -Force
 $runtimeOut = Join-Path $appDir "runtime"
 New-Item -ItemType Directory -Path $runtimeOut -Force | Out-Null
 Copy-Item (Join-Path $nodeDist "node.exe") (Join-Path $runtimeOut "node.exe") -Force

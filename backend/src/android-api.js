@@ -3,6 +3,7 @@ import { AdbError, createAndroidAdbService } from './android-adb.js';
 import { createToolAccess } from './tool-access.js';
 import { registerPersistentApi } from './android-persistent-api.js';
 import { registerApkQueueApi } from './android-apk-queue-api.js';
+import { registerMirrorApi } from './android-mirror-api.js';
 
 /** 按启动模式校验真实来源，保留专用头及 APK 上传边界。 */
 export function requireLocalAndroidRequest(req, res, next, access = createToolAccess()) {
@@ -22,6 +23,7 @@ export function registerAndroidApi(app, { service = createAndroidAdbService(), a
     router.use((req, res, next) => requireLocalAndroidRequest(req, res, next, access));
     registerPersistentApi(router, service);
     registerApkQueueApi(router, service);
+    registerMirrorApi(router, service);
     const action = (fn, binary = false) => async (req, res) => {
         const controller = new AbortController();
         const cancel = () => { if (!res.writableEnded) controller.abort(); };

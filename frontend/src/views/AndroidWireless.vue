@@ -6,6 +6,7 @@
             <p class="view-subtitle">在运行工具箱的电脑上连接和管理安卓设备。</p>
             <div class="adb-row">
                 <AndroidHelp />
+                <RouterLink class="btn btn-sm" to="/tools/android-mirror">流畅投屏与控制</RouterLink>
                 <AndroidSettingsDialog :disabled="!!busy || qrActive" @saved="configurationSaved" @open-change="settingsActive = $event" />
                 <span class="adb-muted">{{ configured ? 'ADB 已配置' : 'ADB 未配置' }}</span>
             </div>

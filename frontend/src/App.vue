@@ -158,7 +158,13 @@
 
         <!-- ═══ 栏 3：主内容 ═══ -->
         <main class="main-content glass-panel glass-sheen" role="main" ref="mainContentRef">
-            <router-view />
+            <template v-if="onToolsSection">
+                <ToolTabs />
+                <div id="tool-workspace-panel" class="tool-workspace-view" role="tabpanel" :aria-labelledby="`tool-tab-${activeToolId}`">
+                    <router-view />
+                </div>
+            </template>
+            <router-view v-else />
         </main>
 
         <!-- 页面「···」菜单 -->
@@ -209,13 +215,15 @@ import PageTree from './components/PageTree.vue';
 import ThemeToggle from './components/ThemeToggle.vue';
 import AssetQrDialog from './components/assets/AssetQrDialog.vue';
 import AppBrandIcon from './components/AppBrandIcon.vue';
+import ToolTabs from './components/ToolTabs.vue';
+import { toolByRoute } from './utils/tool-catalog.js';
 import { copyText } from './utils/clipboard.js';
 
 const EXPANDED_KEY = 'kb-tree-expanded';
 
 export default {
     name: 'App',
-    components: { PageTree, ThemeToggle, AssetQrDialog, AppBrandIcon },
+    components: { PageTree, ThemeToggle, AssetQrDialog, AppBrandIcon, ToolTabs },
     data() {
         return {
             treeRows: [],
@@ -236,6 +244,8 @@ export default {
         };
     },
     computed: {
+        onToolsSection() { return this.$route.name === 'tools' || !!toolByRoute(this.$route.name); },
+        activeToolId() { return toolByRoute(this.$route.name)?.id || 'toolbox'; },
         /** 是否处于知识库区块（/kb/*），决定页面树栏是否显示 */
         onKbSection() {
             return this.$route.path.startsWith('/kb');

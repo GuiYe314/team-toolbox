@@ -2,13 +2,29 @@
 
 TASK-034 / F-EXT-001～003。操作见 [用户指南第 9 节](USER_GUIDE.md#9-开源工具接入)，进度及验证范围只记录在 [PROJECT_STATUS](PROJECT_STATUS.md)。
 
+TASK-050 调整：网页只保留 Yoinks 视频下载，FreeLLMAPI 和 ArtCraft 的入口及页面已移除，旧地址回工具箱。后端旧接口和机器配置继续兼容；下文保留上游来源、许可及旧接口边界。
+
 ## 接入方式
+
+本地工具的上游来源：
+
+| 组件 | 接入方式与许可 |
+|---|---|
+| [Sharp](https://github.com/lovell/sharp) | 复用已有后端依赖处理位图，Apache-2.0 |
+| [Tesseract.js](https://github.com/naptha/tesseract.js) | 浏览器 Worker、本地 WASM 与中英文模型，Apache-2.0；模型分发包及底层依赖遵循各自许可 |
+| [pdf-lib](https://github.com/Hopding/pdf-lib) | 浏览器内创建及组合 PDF，MIT |
+| [scrcpy](https://github.com/Genymobile/scrcpy) | 固定 5.0.1 Android server，经 ADB 转发和自有 HTTP 接口接入，Apache-2.0；组件来源/大小/SHA-256 见 scripts/scrcpy.lock.json |
+| [Excalidraw](https://github.com/excalidraw/excalidraw) | React 组件接入 Vue；画布本地，用户主动保存到资源库，MIT；字体保留上游许可 |
+| [Monaco Editor](https://github.com/microsoft/monaco-editor) | 浏览器文本差异编辑器，MIT |
+| [PairDrop](https://github.com/schlagmichdoch/PairDrop)、[IT-Tools](https://github.com/CorentinTh/it-tools) | 仅参考直传和工具功能，自行实现信令/界面，不复制其 GPL 应用代码 |
+
+FFmpeg 沿用内置媒体组件与原许可；新增直接使用的库许可保存在 `licenses/`，npm 依赖和字体随其上游许可分发。iOS 可评估 [UxPlay](https://github.com/FDH2/UxPlay) 的 AirPlay 接收方案，当前工具不包含 iOS 投屏服务。
 
 | 项目 | 工具箱提供 | 用户需要准备 |
 |---|---|---|
 | [Yoinks](https://github.com/pablostanley/yoinks) | 网页分析链接、选择清晰度 / MP3、下载进度、取消和保存；适配其 yt-dlp 核心方案 | Windows 完整包内置 yt-dlp、ffmpeg/ffprobe；也可明确配置或复用已有 Yoinks 的组件 |
-| [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) | 本机服务配置、统一 Key 内存管理、实际模型列表、流式文本聊天、取消和原管理页入口 | 已运行的 FreeLLMAPI、统一 API Key，以及上游供应商 Key / 本地模型端点 |
-| [ArtCraft](https://github.com/storytold/artcraft) | 提示词整理 / 编辑 / 复制、本机路径检测与确认启动 | 官方 Windows ArtCraft；模型、账号和素材在 ArtCraft 内配置 |
+| [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) | 网页功能已移除，仅保留旧接口兼容 | 不再需要为工具箱网页配置此服务 |
+| [ArtCraft](https://github.com/storytold/artcraft) | 网页功能已移除，仅保留旧接口兼容 | 不再需要为工具箱网页安装此应用 |
 
 网页不自动运行 npm/npx、安装器或任意脚本。Windows 工具箱只内置固定下载引擎，不捆绑 Yoinks 终端程序、FreeLLMAPI 服务、ArtCraft 编辑器或模型。Yoinks 的终端 TUI 没有可直接嵌入的浏览器界面，网页共享其下载核心思路；ArtCraft 依赖 Rust/Tauri 和原生 IPC，编辑器在自身窗口运行。FreeLLMAPI 的推理与管理登录接口分开，工具箱只接入推理，供应商及路由配置在原管理页完成。界面不承诺所有模型免费或所有视频网站可用。
 

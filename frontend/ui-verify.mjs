@@ -239,7 +239,7 @@ const firstDoc = await evalJs(`(async () => {
 })()`);
 const ROUTES = [
     ['首页', '/'], ['工具箱', '/tools'], ['比例锁定', '/tools/ratio-lock'],
-    ['JSON占位', '/tools/json-fmt'], ['二维码占位', '/tools/qrcode'], ['404', '/nope-404'],
+    ['JSON格式化', '/tools/json-fmt'], ['二维码生成', '/tools/qrcode'], ['404', '/nope-404'],
     ['知识库', '/kb'], ['新建文档', '/kb/new']
 ];
 if (firstDoc) {
@@ -251,7 +251,8 @@ for (const [name, path] of ROUTES) {
     const x = await evalJs(`(() => {
       const q = s => document.querySelector(s);
       const mc = q('.main-content');
-      const view = mc && mc.firstElementChild;
+      // 工具页面顶部有固定标签栏，滚动视图位于 tabpanel 中。
+      const view = q('#tool-workspace-panel')?.firstElementChild || (mc && mc.firstElementChild);
       const vr = view ? view.getBoundingClientRect() : null;
       const vcs = view ? getComputedStyle(view) : null;
       const layout = document.querySelector('.app-layout');

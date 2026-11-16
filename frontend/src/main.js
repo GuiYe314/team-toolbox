@@ -3,6 +3,7 @@ import App from './App.vue';
 import router from './router/index.js';
 import { initTheme } from './styles/theme.js';
 import { initAppIcon } from './stores/app-icon.js';
+import { initToolWorkspace } from './stores/tool-workspace.js';
 
 /* 样式分层：tokens（不变量的尺度）→ theme（Light/Dark 变量）→ glass（玻璃材质）
    → layout（四栏网格）→ components（跨视图原子样式）→ vditor（编辑器 token 适配）。
@@ -22,6 +23,8 @@ import './styles/android.css';
 import './styles/unity-logs.css';
 import './styles/integrations.css';
 import './styles/phone-album.css';
+import './styles/tool-workspace.css';
+import './styles/workshops.css';
 
 // 全局指令：v-hint（延迟 1 秒的悬停提示）
 import hintDirective from './directives/hint.js';
@@ -29,6 +32,7 @@ import hintDirective from './directives/hint.js';
 // 在挂载前应用主题，避免首屏 Light → Dark 闪烁
 initTheme();
 initAppIcon();
+initToolWorkspace();
 
 const app = createApp(App);
 app.use(router);

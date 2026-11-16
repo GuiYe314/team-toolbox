@@ -1,5 +1,47 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## v0.10.0 发布（2026-11-16）
+
+**本地封版验收通过，四份资产已生成，正在提交并上传；尚未公开Release。** 用户授权上传并发布，基于main / `18f0997`，纳入TASK-050～058的分组/标签与八类工具。完整工具箱版本0.10.0，独立设备调试版沿用原发行，无数据库迁移；iOS AirPlay未实现。首次读取远端确认main无分叉，源码不包含原有output设计稿或运行数据。
+
+- 开发验证沿用下方TASK-050～058记录：后端 **768/768、0跳过**（Codex随附Node24.22.1及真实FFmpeg开关）、前端 **55/55**、Windows启动 **24/24**、LAN开发代理 **7/7**；本轮最终生产构建成功并保留大分块提示。首次完整打包在安装器写EXE时遇到Windows文件占用，独立重编译成功，未发布失败产物。证据 `build/v0100-package.log`、`v0100-installer-retry.log`。
+- 最终ZIP解压至新建隔离目录，**752个**源码/静态/图标/脚本/运行时/许可及scrcpy文件与源文件摘要一致，ZIP CRC、版本、空data、无.env/测试/快捷方式及manifest大小/SHA256均通过；`build/v0100-package-audit.json`。运行时兼容 **14/14**，包内Node22.22.2 / ABI127可加载原生依赖，系统Node24 ABI不匹配时给出可读建议。
+- 使用最终包Node22、后端及dist的新工具浏览器 **35/35**，合成H.264投屏 **10/10**；最终dist分组标签 **49/49**、真实拖放排序 **32/32**。证据 `v0100-workshops-browser.log`、`v0100-mirror-browser.log`、`v0100-workspace-browser.log`、`v0100-order-browser.log`。均使用合成媒体/图纸/设备协议及临时浏览器，未连接手机。
+- 最终包真实CMD Local/Lan及生产接口 **26/26**，通用网页 **53/53**；包括重复启动保持PID、实际私网图片转换、互传房间/撤销、投屏组件识别、OCR WASM MIME和相册原件。首次通用回归49/53因旧脚本取到固定标签栏；改为检查tabpanel内的真实视图，保留滚动断言后全量通过。证据 `v0100-local-lan.log`、`v0100-general-browser-final.log`；原失败记录保留 `v0100-local-lan-before-ui-fix.log`。所有临时服务已关闭。
+- 最终安装器、卸载及真实v0.9.0副本自动升级 **25/25**，`v0100-install-upgrade.log`；验证完整备份、最终ZIP下载/解压、自动重启、文档及资源原件字节、更新源保留和卸载保留data；临时当前用户注册已清理，原机器安装身份未变。
+- 四资产完整大小和摘要、验证证据及限制见[封版记录](acceptance/V0_10_0_RELEASE_2026-11-16.md)。当前未修改实际安装或防火墙，安卓投屏、iPhone扫码/相册兼容仍需真机验收；不能把合成投屏或同机双浏览器直传当作手机验证。
+
+下一步：推送发行提交与注释标签，创建草稿Release上传四资产，核对GitHub摘要后正式发布为latest，再用实际更新HTTP客户端匿名核对公开清单。Codex（GPT-6）完成本轮准备，未调用WorkBuddy；积分未提供，无法确认。
+
+## TASK-051～058 图片、文档、投屏及开发工具（2026-11-16）
+
+**以下为八个工具的本地实现及隔离验收记录，发行结果见上方v0.10.0。** 修改完整工具箱，不改独立设备调试版或实际安装目录，无数据库迁移。iOS AirPlay 仅确认可采用 UxPlay 接收及另行转流的方案，当前代码不包含 iOS 投屏服务。
+
+- 功能：图片批处理、浏览器本地中英文 OCR、PDF 合并/页面提取/旋转/水印/图片转 PDF、FFmpeg 视频压缩/截取/MP4/MP3/GIF、scrcpy 5.0.1 网页视频和结构化控制、Excalidraw 白板及主动资源库保存读取、WebRTC 双向文字/文件直传、十项开发转换和文本差异。新入口复用分组/标签/主题，现有用户分组可兼容新增工具；不恢复已移除的 FreeLLMAPI/ArtCraft 页面。
+- 后端：在 backend 目录以随 Codex 工具提供的 **Node v24.22.1**，设置 `TT_VERIFY_LIVE_MEDIA=1` 后运行 `--test --test-concurrency=2 src/*.test.js`，**768/768、0跳过**，证据 `build/workshops-backend-final.log`。包含全部旧测试、真实 FFmpeg、媒体上传/取消/超时清理、互传票据/信令以及本机双通道合成 scrcpy 服务。正常关闭服务会等待媒体处理停止、暂存文件及投屏隧道清理完成，新增关闭清理等待测试。系统 Node v24.19.0 在原有 SQLite 测试中出现原生进程崩溃；同一源码及依赖用24.22.1全量通过，未把初次崩溃算作功能验证成功，原日志保留 `workshops-all-backend.log`、`workshops-native-regression.log`。此前复查764通过/2跳过，最终已打开真实媒体开关补齐。
+- 前端：系统 Node v24.19.0 运行 `node --test src/utils/*.test.js` **55/55**，`build/workshops-frontend-final.log`；最终 Vite 生产构建通过，`build/workshops-build-final.log`，保留 Monaco/Excalidraw 体积较大的分块提示。OCR 模型/WASM、白板字体及组件同源本地分发，部署体积增加；没有 CDN 回退。
+- 新工具综合浏览器：`node frontend/verify-workshops.mjs` **35/35**，`build/workshops-browser-final.log`。验证真实图片转换/错误恢复、三页 PDF、实际 MP3、编码/摘要/正则超时/二维码/差异编辑器、真实本地 OCR 及停止、白板导入/资源库保存读取、两个真实浏览器页面建立 WebRTC 并双向传送文字和文件/摘要核对，以及明暗布局和本地请求。白板上传夹具最初漏接 tags、互传就绪及消息断言最初使用错误控件，均修正夹具后验证；未为断言伪造产品成功状态。
+- 投屏浏览器：`node frontend/verify-android-mirror.mjs` **10/10**，`build/workshops-mirror-browser.log`。使用 FFmpeg 合成 H.264 和 scrcpy 5 帧，实际 WebCodecs 解码成画面、真实鼠标坐标/按键、控制失败后重试、停止保留末帧、后台及真实标签切换释放。验收发现仅偏好硬件解码会拒绝无加速环境，已加入浏览器自动选择的回退；控制队列在暂时失败后可继续，并加入请求时限。合成协议不能代表手机端编码/触控能力已通过。
+- 相关回归：工具分组/标签 **49/49**（`build/workshops-workspace-regression.log`），真实鼠标排序和菜单主题 **32/32**（`workshops-order-regression.log`），真实 LAN 开发代理边界 **7/7**（`workshops-lan-regression.log`）。十八张卡片下滚动距离增加，排序助手改为即时滚动、在卡片正文落点并等待 dragover 稳定，保留真实鼠标操作。沙箱中的浏览器启动/CDP与 esbuild 上级目录读取受限，最终浏览器和构建在授权的沙箱外执行，仍使用临时服务/数据/浏览器。
+- Windows 启动回归：`node scripts/verify-startup.mjs` **24/24**，证据 `build/workshops-startup-regression.log`。源码和发布 CMD 入口、复用/部分存活/失败清理均通过，临时服务已回收，未操作真实项目实例。
+- 组件：实际运行 `node scripts/prepare-scrcpy.mjs`、`--check`，大小/SHA-256/许可通过；以随机临时目录执行 `--stage` 后核对 JAR 摘要及许可复制，发布脚本 PowerShell 语法通过。已将直接使用的库许可纳入源码和打包流程；未执行完整发行打包或安装器验收。
+- 已目视检查 `build/workshops-whiteboard.png`、`workshops-mirror-dark.png` 与 `workshops-mirror-light.png`。全部文件、图纸、流和房间都是合成数据；没有读写真实团队库、连接手机、改防火墙或升级实际安装。iPhone 系统扫码/浏览器互传、真实安卓编码/旋转/权限/触控及 iOS AirPlay 均需后续设备验收。
+
+下一步：本地源码可进行用户试用，完成手机真机兼容检查；发行打包及远端发布另行执行。模型为 Codex（GPT-6），未调用 WorkBuddy；积分未提供，无法确认。
+
+## TASK-050 工具分组与顶部标签（2026-11-16）
+
+**以下为本地实现及隔离验收记录，发行结果见上方v0.10.0。** 用户确认分组同时支持启用/停用及展开/收起；默认固定工具箱标签，打开工具新增对应标签，并追加移除 ArtCraft 创作台和 FreeLLMAPI 模型对话的网页入口与页面。旧地址回工具箱，后端旧接口和机器配置保留兼容；仅修改完整工具箱前端及文档，无团队数据库迁移或新依赖。
+
+- 功能：默认媒体与相册、网络工具、设备调试、常用工具四组，支持新增/改名/排序/删除、下拉归属及跨组拖放；删除组移入固定未分组，首页同步启用状态，分组关闭不关闭已有工具标签。分组及排序为同源浏览器个人偏好；工具标签ID在当前浏览器标签页的 sessionStorage 保存，刷新恢复、独立会话、旧ID过滤，保存失败可重试。标签切换/关闭继续普通路由卸载，不缓存正在采集的工具页面。
+- 前端：Node24 执行 `node --test src/utils/*.test.js` **48/48**，证据 `build/tool-workspace-unit.log`；生产构建通过，`build/tool-workspace-build.log`，保留既有大 chunk 提示。最终构建前清理旧 dist，确认不再包含被移除页面的旧 chunk；未修改依赖或版本号。
+- 浏览器：根目录运行 `node frontend/verify-tool-workspace.mjs` **49/49**、`node frontend/verify-tool-order.mjs` **32/32**；分别见 `build/tool-workspace-browser.log`、`build/tool-order-browser.log`。覆盖分组/标签操作、真实鼠标跨组拖放、前进后退、跨标签同步与会话隔离、刷新/存储禁用/保存失败重试、旧地址、实时页卸载及1280/1600px明暗布局。初轮脚本把程序性 click 当作获得焦点，以及使用了不存在的比例页选择器；修正验收助手及选择器后通过，未为断言改变产品行为。
+- 相关回归：设置 `TT_VERIFY_LAN=1` 后 `node frontend/verify-integrations.mjs` **34/34**、`node frontend/verify-android-wireless.mjs` **187/187**；`node frontend/verify-phone-album.mjs` **32/32**。证据依次为 `build/tool-workspace-integrations.log`、`tool-workspace-android.log`、`tool-workspace-album.log`。旧集成脚本改为保留视频下载完整链路并验证退休地址，相册原12卡等待改为10卡；首次旧断言失败不计为通过。合计浏览器 **334项**，全部为临时服务、配置、资源和浏览器，无真实设备或团队库。
+- 后端：按 `backend/package.json` 的 test 文件清单，以 Node24、`--test --test-concurrency=2`、`TT_VERIFY_LIVE_MEDIA=1` 运行 **713/713**，`build/tool-workspace-backend-tests.log`；补跑清单未列入的 `video-page.test.js`、`video-preview.test.js`、`video-proxy.test.js` **38/38**，`build/tool-workspace-backend-video-tests.log`，共 **751项**通过。后端源码未修改，原兼容接口继续由既有测试覆盖。
+- 已目视检查 `build/tool-workspace-dark.png`、`light.png`、`tool-groups-dark.png`、`light.png`，分组、菜单、横向标签和管理弹窗可见。文档/覆盖矩阵/AGENTS 已同步，保留原 `output/` 设计稿；运行数据、截图、日志、dist 等不纳入源码。本轮未启动或停止真实服务、未更新已安装软件、未做手机真机验收。
+
+下一步：本地源码功能可使用；发行包及远端发布需后续发布任务。Codex 完成，未调用 WorkBuddy；积分未提供，无法确认。
+
 ## v0.9.0 发布（2026-11-16）
 
 **源码上传及正式发布完成**：[v0.9.0](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.9.0)，Release ID **446513315**，非草稿、非预发布，已为仓库latest。发行代码与注释标签均指向 **fcd3b5e1ec1ba007e8d342c1d3d6c7be871e85ba**，main及标签已推送；本条结果另作文档提交，不移动标签或重建资产。基于 `8246b16` / v0.8.2 按功能增量规则选用v0.9.0，纳入TASK-048实况照片和用户追加的TASK-049点击启动/直接打开现有网页；独立设备调试版及用户真实安装数据保持原状。

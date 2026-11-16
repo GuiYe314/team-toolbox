@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import { toolAssets } from './tool-assets-plugin.js';
 import { createRequire } from 'node:module';
 import { cpSync, createReadStream, existsSync, mkdirSync, rmSync, readdirSync, unlinkSync, rmdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -124,7 +125,7 @@ export default defineConfig(({ mode }) => {
     const apiBase = env.VITE_API_BASE || '/api';
 
     return {
-        plugins: [toolAccessPlugin({ allowLan }), vue(), vditorAssets()],
+        plugins: [toolAccessPlugin({ allowLan }), vue(), vditorAssets(), toolAssets()],
         server: {
             host: devHost,
             port: devPort,

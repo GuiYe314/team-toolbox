@@ -1,6 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
 const routes = [
+    { path: '/transfer', name: 'peer-transfer-mobile', component: () => import('../views/PeerTransfer.vue'), meta: { mobileUpload: true } },
+    { path: '/tools/image-batch', name: 'tool-image-batch', component: () => import('../views/MediaWorkshop.vue'), props: { kind: 'image' } },
+    { path: '/tools/image-ocr', name: 'tool-image-ocr', component: () => import('../views/ImageOcr.vue') },
+    { path: '/tools/pdf', name: 'tool-pdf', component: () => import('../views/PdfWorkshop.vue') },
+    { path: '/tools/video-process', name: 'tool-video-process', component: () => import('../views/MediaWorkshop.vue'), props: { kind: 'video' } },
+    { path: '/tools/whiteboard', name: 'tool-whiteboard', component: () => import('../views/Whiteboard.vue') },
+    { path: '/tools/peer-transfer', name: 'tool-peer-transfer', component: () => import('../views/PeerTransfer.vue') },
+    { path: '/tools/android-mirror', name: 'tool-android-mirror', component: () => import('../views/AndroidMirror.vue') },
+    { path: '/tools/developer-tools', name: 'tool-developer-tools', component: () => import('../views/DeveloperTools.vue') },
     { path: '/phone-album', name: 'phone-album-upload', component: () => import('../views/PhoneAlbumUpload.vue'), meta: { mobileUpload: true } },
     { path: '/tools/phone-album', name: 'tool-phone-album', component: () => import('../views/PhoneAlbum.vue') },
     {
@@ -66,16 +75,8 @@ const routes = [
         name: 'tool-yoinks',
         component: () => import('../views/YoinksDownload.vue')
     },
-    {
-        path: '/tools/freellmapi',
-        name: 'tool-freellmapi',
-        component: () => import('../views/FreeLlmChat.vue')
-    },
-    {
-        path: '/tools/artcraft',
-        name: 'tool-artcraft',
-        component: () => import('../views/ArtcraftStudio.vue')
-    },
+    { path: '/tools/freellmapi', redirect: { name: 'tools' } },
+    { path: '/tools/artcraft', redirect: { name: 'tools' } },
     {
         path: '/tools/ports',
         name: 'tool-ports',
@@ -94,7 +95,7 @@ const routes = [
     {
         path: '/tools/json-fmt',
         name: 'tool-json-fmt',
-        component: () => import('../views/ToolEmptyState.vue')
+        component: () => import('../views/DeveloperTools.vue')
     },
     {
         path: '/tools/android-wireless',
@@ -109,7 +110,7 @@ const routes = [
     {
         path: '/tools/qrcode',
         name: 'tool-qrcode',
-        component: () => import('../views/ToolEmptyState.vue')
+        component: () => import('../views/DeveloperTools.vue')
     },
     {
         path: '/settings',

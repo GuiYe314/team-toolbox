@@ -64,7 +64,7 @@ try {
     await mkdir(join(temporary, 'desktop')); await mkdir(join(temporary, 'mobile'));
     desktop = await testBrowser(join(temporary, 'desktop')); mobile = await testBrowser(join(temporary, 'mobile'));
     await desktop.send('Network.setCacheDisabled', { cacheDisabled: true }); await mobile.send('Network.setCacheDisabled', { cacheDisabled: true });
-    await navigate(desktop, '/tools', "document.querySelectorAll('.page-tools .tool-card').length===12");
+    await navigate(desktop, '/tools', "document.querySelectorAll('.page-tools .tool-card').length===10");
     check('工具箱有手机相册入口', await desktop.evaluate("document.querySelector('[data-tool-id=phone-album]').textContent.includes('手机相册上传')"));
     await navigate(desktop, `/tools/phone-album?folderId=${folder.id}`, "!!document.querySelector('#album-create')&&!document.querySelector('#album-create').disabled");
     check('从资源文件夹进入可预选目标和真实私网地址', await desktop.evaluate(`document.querySelector('select').value==='${folder.id}'&&document.querySelectorAll('select')[1].value===${JSON.stringify(base)}`));

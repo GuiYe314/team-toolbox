@@ -34,24 +34,35 @@ async function navigate(path, selector) {
 }
 async function reloadTools() {
     await browser.send('Page.reload', { ignoreCache: true });
-    await browser.wait("document.querySelectorAll('.page-tools .tool-card').length===12");
+    await browser.wait("document.querySelectorAll('.page-tools .tool-card').length===18");
 }
 async function drag(source, target, after = false, cancel = false) {
-    const point = async (id, part) => browser.evaluate(`(()=>{const e=document.querySelector('[data-tool-id="${id}"]');const r=e.getBoundingClientRect();return {x:r.left+r.width*${part},y:r.top+32}})()`);
-    const start = await point(source, 0.5), end = await point(target, after ? 0.8 : 0.2);
+    const point = async (id, part) => browser.evaluate(`(()=>{const e=document.querySelector('[data-tool-id="${id}"]');const r=e.getBoundingClientRect();return {x:r.left+r.width*${part},y:r.top+Math.min(96,r.height/2)}})()`);
+    await browser.evaluate(`document.querySelector('[data-tool-id="${source}"]').scrollIntoView({block:'center',behavior:'instant'})`); await delay(120);
+    const start = await point(source, 0.5);
     await browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...start });
     await browser.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...start });
+    await browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1, x: start.x + 12, y: start.y + 4 }); await delay(80);
+    await browser.wait("!!document.querySelector('.is-dragging')");
+    await browser.evaluate(`document.querySelector('[data-tool-id="${target}"]').scrollIntoView({block:'center',behavior:'instant'})`); await delay(120);
+    const end = await point(target, after ? 0.8 : 0.2);
     for (let i = 1; i <= 16; i++) {
         await browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1, x: start.x + (end.x - start.x) * i / 16, y: start.y + (end.y - start.y) * i / 16 });
         await delay(20);
     }
     // 最后一步可能刚进入子元素；继续移动，让原生 dragover 有机会取消默认行为。
     await browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1, x: end.x + 2, y: end.y + 1 });
+    await delay(150);
     await browser.send('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1, ...end });
-    await delay(80);
+    await delay(150);
     if (cancel) await browser.send('Input.cancelDragging');
     await browser.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...end });
     await delay(120);
+}
+async function restoreGroups() {
+    await browser.click('#manage-tool-groups');
+    await browser.evaluate("[...document.querySelectorAll('.ext-dialog button')].find(el=>el.textContent.trim()==='恢复默认分组').click()");
+    await browser.click('#save-tool-groups'); await browser.wait("!document.querySelector('.ext-overlay')");
 }
 async function screenshot(name) {
     await mkdir(join(root, 'build'), { recursive: true });
@@ -63,7 +74,7 @@ try {
     await navigate('/tools', '.page-tools');
     await browser.evaluate("window.__dragEvents=[];for(const type of ['dragstart','dragenter','dragover','drop','dragend'])document.addEventListener(type,e=>{window.__dragEvents.push([type,e.target.closest?.('[data-tool-id]')?.dataset.toolId,e.clientX,e.clientY])},true)");
     const defaults = await orderedIds();
-    check('全部12张工具卡片及可见拖动提示', defaults.length === 12 && await browser.evaluate("document.querySelector('.tool-order-hint').textContent.includes('拖动')"));
+    check('全部18张工具卡片及可见拖动提示', defaults.length === 18 && await browser.evaluate("document.querySelector('.tool-order-hint').textContent.includes('拖动')"));
     await drag('qrcode', 'yoinks');
     check('实际鼠标拖放可移到第一位', (await orderedIds())[0] === 'qrcode');
     await drag('qrcode', 'json-fmt', true);
@@ -71,6 +82,7 @@ try {
     await drag('android-wireless', 'yoinks');
     const moved = await orderedIds();
     check('目标左半区放前面', moved[0] === 'android-wireless' && moved[1] === 'yoinks');
+    check('跨组拖放同时改变分组归属', await browser.evaluate("!!document.querySelector('[data-group-id=media] [data-tool-id=android-wireless]')"));
     check('只保存工具id顺序', await browser.evaluate(`JSON.stringify(JSON.parse(localStorage.getItem('${key}')))===${JSON.stringify(JSON.stringify(moved))}`));
     await reloadTools();
     check('刷新保留顺序', JSON.stringify(await orderedIds()) === JSON.stringify(moved));
@@ -79,7 +91,9 @@ try {
     check('首页已有工具跟随相对顺序', homeNames[0] === '安卓无线调试' && homeNames[1] === '视频下载' && homeNames.at(-1) === '二维码生成');
     await navigate('/tools', '.page-tools');
     check('路由切回工具箱保留排序', JSON.stringify(await orderedIds()) === JSON.stringify(moved));
-    await browser.click('.tool-order-actions button');
+    await browser.click('.tool-order-reset');
+    check('恢复顺序不改用户分组归属', await browser.evaluate("!!document.querySelector('[data-group-id=media] [data-tool-id=android-wireless]')"));
+    await restoreGroups();
     check('恢复默认顺序', JSON.stringify(await orderedIds()) === JSON.stringify(defaults));
     await reloadTools();
     check('默认顺序在刷新后保留', JSON.stringify(await orderedIds()) === JSON.stringify(defaults));
@@ -89,7 +103,7 @@ try {
     await browser.evaluate(`localStorage.setItem('${key}',JSON.stringify(['android-wireless','missing','android-wireless',5]))`);
     await reloadTools();
     const migrated = await orderedIds();
-    check('过滤未知及重复id，新工具追加且不丢卡片', migrated[0] === 'android-wireless' && new Set(migrated).size === 12);
+    check('过滤未知及重复id，按组排序且不丢卡片', new Set(migrated).size === 18 && await browser.evaluate("document.querySelector('[data-group-id=devices] [data-tool-id]').dataset.toolId==='android-wireless'"));
     await browser.evaluate(`localStorage.setItem('${key}','{bad')`);
     await reloadTools();
     check('损坏偏好自动回到默认顺序', JSON.stringify(await orderedIds()) === JSON.stringify(defaults));
@@ -104,7 +118,7 @@ try {
     // 外部文本/文件拖入不允许改变工具定义或顺序。
     await browser.evaluate("(()=>{const target=document.querySelector('.tool-card'),data=new DataTransfer();data.setData('text/plain','yoinks');target.dispatchEvent(new DragEvent('drop',{bubbles:true,dataTransfer:data}))})()");
     check('忽略外部拖入', (await orderedIds())[0] === 'qrcode');
-    await browser.click('.tool-order-actions button');
+    await browser.click('.tool-order-reset'); await restoreGroups();
     for (const theme of ['light', 'dark']) {
         await browser.evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`); await delay(350);
         for (const width of [1280, 1600]) {

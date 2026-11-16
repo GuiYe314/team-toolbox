@@ -1,134 +1,90 @@
 <template>
     <div class="view-page page-tools">
         <header class="view-head tools-head">
-            <div>
-                <h1 class="view-title">工具箱</h1>
-                <p class="view-subtitle">小工具集合</p>
-            </div>
+            <div><h1 class="view-title">工具箱</h1><p class="view-subtitle">按分组整理，打开工具后可在顶部标签间切换</p></div>
             <div class="tool-order-actions">
-                <span class="tool-order-hint">拖动卡片调整顺序 · 在此浏览器保存</span>
-                <button class="btn btn-sm" type="button" @click="resetOrder">恢复默认顺序</button>
+                <span class="tool-order-hint">拖动卡片排序或移入其他分组</span>
+                <button id="manage-tool-groups" class="btn btn-sm" type="button" @click="showGroups = true">管理分组</button>
+                <button class="btn btn-sm tool-order-reset" type="button" @click="resetOrder">恢复默认顺序</button>
             </div>
         </header>
-
-        <p v-if="saveError" class="notice notice-error" role="alert">{{ saveError }}<button class="btn btn-sm" type="button" @click="persistOrder">重试保存</button></p>
-
-        <div class="tools-grid">
-            <div
-                v-for="tool in tools"
-                :key="tool.id"
-                class="tool-card"
-                :class="{ planned: tool.status !== '可用', 'is-dragging': draggingId === tool.id, 'is-drop-target': dropTargetId === tool.id, 'drop-after': dropTargetId === tool.id && dropPosition === 'after' }"
-                :data-tool-id="tool.id"
-                draggable="true"
-                @dragstart="startDrag(tool, $event)"
-                @dragover="dragOver(tool, $event)"
-                @dragleave="leaveTarget(tool, $event)"
-                @drop="dropTool(tool, $event)"
-                @dragend="finishDrag"
-            >
-                <div class="tool-card-header">
-                    <ToolIcon :tool-id="tool.id" />
-                    <div class="tool-card-meta">
-                        <span class="tool-status" :class="{ ready: tool.status === '可用' }">{{ tool.status }}</span>
-                        <span class="tool-drag-handle" title="拖动调整工具顺序" aria-label="拖动调整工具顺序">
-                            <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
-                                <circle cx="8" cy="6" r="1" /><circle cx="16" cy="6" r="1" />
-                                <circle cx="8" cy="12" r="1" /><circle cx="16" cy="12" r="1" />
-                                <circle cx="8" cy="18" r="1" /><circle cx="16" cy="18" r="1" />
-                            </svg>
-                        </span>
+        <p v-if="state.saveError" class="notice notice-error" role="alert">调整已生效，但浏览器未能保存；刷新后可能恢复。<button class="btn btn-sm" type="button" @click="saveToolPreferences">重试保存</button></p>
+        <div class="tool-groups">
+            <section v-for="group in groups" :key="group.id" class="tool-group" :class="{ 'is-disabled': !group.enabled, 'is-group-target': dropGroupId === group.id }" :data-group-id="group.id" @dragover="overGroup(group, $event)" @drop="dropOnGroup(group, $event)" @dragleave="leaveGroup(group, $event)">
+                <header class="tool-group-head">
+                    <button class="tool-group-fold" type="button" :aria-expanded="group.enabled && !group.collapsed" :aria-controls="`tools-in-${group.id}`" :disabled="!group.enabled" @click="setToolGroupFlag(group.id, 'collapsed', !group.collapsed)">
+                        <svg class="icon icon-sm" :class="{ 'is-folded': group.collapsed || !group.enabled }" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                        <span>{{ group.name }}</span><span class="tool-group-count">{{ group.tools.length }}</span>
+                    </button>
+                    <label class="tool-group-enable"><input type="checkbox" role="switch" :checked="group.enabled" :aria-label="`启用${group.name}分组`" @change="setToolGroupFlag(group.id, 'enabled', $event.target.checked)" /><span>{{ group.enabled ? '已启用' : '已关闭' }}</span></label>
+                </header>
+                <div v-if="group.enabled && !group.collapsed" :id="`tools-in-${group.id}`" class="tools-grid">
+                    <div v-for="tool in group.tools" :key="tool.id" class="tool-card" :class="{ planned: tool.status !== '可用', 'is-dragging': draggingId === tool.id, 'is-drop-target': dropTargetId === tool.id, 'drop-after': dropTargetId === tool.id && dropPosition === 'after' }" :data-tool-id="tool.id" draggable="true" @dragstart="startDrag(tool, $event)" @dragover.stop="dragOver(tool, $event)" @dragleave="leaveTarget(tool, $event)" @drop.stop="dropTool(tool, $event)" @dragend="finishDrag">
+                        <div class="tool-card-header"><ToolIcon :tool-id="tool.id" /><div class="tool-card-meta"><span class="tool-status" :class="{ ready: tool.status === '可用' }">{{ tool.status }}</span><span class="tool-drag-handle" title="拖动排序或移动分组" aria-label="拖动排序或移动分组"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="6" r="1"/><circle cx="16" cy="6" r="1"/><circle cx="8" cy="12" r="1"/><circle cx="16" cy="12" r="1"/><circle cx="8" cy="18" r="1"/><circle cx="16" cy="18" r="1"/></svg></span></div></div>
+                        <h3 class="tool-name">{{ tool.name }}</h3><p class="tool-desc">{{ tool.desc }}</p>
+                        <div class="tool-card-actions"><button class="btn btn-sm" type="button" @click="$router.push({ name: tool.routeName })">{{ tool.status === '可用' ? '打开工具' : '查看详情' }}</button>
+                            <select class="tool-group-select" :aria-label="`${tool.name}所属分组`" :value="group.id" @change="setToolGroup(tool.id, $event.target.value)"><option v-for="option in state.layout.groups" :key="option.id" :value="option.id">{{ option.name }}{{ option.enabled ? '' : '（已关闭）' }}</option></select>
+                        </div>
                     </div>
+                    <p v-if="!group.tools.length" class="tool-group-empty">暂无工具，可从其他分组拖入，或用卡片上的分组选择移动。</p>
                 </div>
-                <h3 class="tool-name">{{ tool.name }}</h3>
-                <p class="tool-desc">{{ tool.desc }}</p>
-                <button class="btn btn-sm" @click="$router.push({ name: tool.routeName })">
-                    {{ tool.status === '可用' ? '打开工具' : '查看详情' }}
-                </button>
-            </div>
+                <p v-else class="tool-group-summary">{{ group.enabled ? '已收起，点击分组名称展开' : '分组已关闭，启用后显示工具入口' }}</p>
+            </section>
         </div>
+        <p class="tool-groups-footer">分组、开关与顺序在此浏览器保存。</p>
+        <ToolGroupManager v-if="showGroups" :layout="state.layout" @close="showGroups = false" @save="saveGroups" />
     </div>
 </template>
-
 <script>
 import ToolIcon from '../components/ToolIcon.vue';
-import { integrationTools } from '../utils/integration-tools.js';
-import { loadToolOrder, moveTool, saveToolOrder } from '../utils/tool-order.js';
-
-function createTools() {
-    return [
-        ...integrationTools.map(tool => ({ ...tool, status: '可用' })),
-        { id: 'phone-album', name: '手机相册上传', desc: '手机扫码，多选照片和视频，批量保存到工具箱资源库', routeName: 'tool-phone-album', status: '可用' },
-        { id: 'port-viewer', name: '端口查看', desc: '查看服务器电脑 TCP / UDP 端口和占用进程，搜索端口冲突', routeName: 'tool-ports', status: '可用' },
-        { id: 'network-speed', name: '实时网速', desc: '实时查看服务器电脑网卡的上传、下载速度与流量趋势', routeName: 'tool-network-speed', status: '可用' },
-        { id: 'unity-logs', name: 'Unity 设备日志', desc: '搜索同局域网 Android / iPad，读取与下载历史日志', routeName: 'tool-unity-logs', status: '可用' },
-        { id: 'android-wireless', name: '安卓无线调试', desc: '搜索无线设备，六位码配对、连接与设备管理', routeName: 'tool-android-wireless', status: '可用' },
-        { id: 'ratio-lock', name: '比例锁定', desc: '锁定宽高比，输入任一侧自动换算另一侧', routeName: 'tool-ratio-lock', status: '可用' },
-        { id: 'earth-sunlight', name: '地球光照', desc: '查看当前太阳直射点、昼夜分界和太阳光方向', routeName: 'tool-earth-sunlight', status: '可用' },
-        { id: 'json-fmt', name: 'JSON 格式化', desc: 'JSON 数据的美化与压缩', routeName: 'tool-json-fmt', status: '规划中' },
-        { id: 'qrcode', name: '二维码生成', desc: '文本或链接快速生成二维码', routeName: 'tool-qrcode', status: '规划中' }
-    ];
-}
-
+import ToolGroupManager from '../components/ToolGroupManager.vue';
+import { groupForTool, UNGROUPED_ID } from '../utils/tool-groups.js';
+import { toolWorkspace, saveToolPreferences, applyToolGroups, setToolGroup, setToolGroupFlag, moveWorkspaceTool, resetToolOrder } from '../stores/tool-workspace.js';
 export default {
-    name: 'Tools',
-    components: { ToolIcon },
-    data() {
-        return {
-            tools: createTools(),
-            draggingId: '',
-            dropTargetId: '',
-            dropPosition: 'before',
-            saveError: ''
-        };
-    },
-    mounted() {
-        this.tools = loadToolOrder(this.tools);
+    name: 'Tools', components: { ToolIcon, ToolGroupManager },
+    data: () => ({ state: toolWorkspace, showGroups: false, draggingId: '', dropTargetId: '', dropPosition: 'before', dropGroupId: '' }),
+    computed: {
+        tools() { return this.state.tools; },
+        groups() { return this.state.layout.groups.map(group => ({ ...group, tools: this.tools.filter(tool => groupForTool(this.state.layout, tool.id) === group.id) })).filter(group => group.id !== UNGROUPED_ID || group.tools.length || this.draggingId); },
     },
     methods: {
+        saveToolPreferences, setToolGroup, setToolGroupFlag,
+        saveGroups(layout) { applyToolGroups(layout); this.showGroups = false; },
+        resetOrder() { resetToolOrder(); this.finishDrag(); },
         startDrag(tool, event) {
-            this.draggingId = tool.id;
-            this.dropTargetId = '';
-            if (event.dataTransfer) {
-                event.dataTransfer.effectAllowed = 'move';
-                event.dataTransfer.setData('text/plain', tool.id);
-            }
+            if (event.target.closest('button,select,input,a')) { event.preventDefault(); return; }
+            this.draggingId = tool.id; this.dropTargetId = ''; this.dropGroupId = '';
+            if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', tool.id); }
         },
         dragOver(tool, event) {
             if (!this.draggingId || this.draggingId === tool.id) return;
-            event.preventDefault();
-            this.dropTargetId = tool.id;
+            event.preventDefault(); this.dropTargetId = tool.id; this.dropGroupId = '';
             this.dropPosition = event.clientX < event.currentTarget.getBoundingClientRect().left + event.currentTarget.clientWidth / 2 ? 'before' : 'after';
             if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
         },
         dropTool(tool, event) {
             event.preventDefault();
-            const sourceId = this.draggingId;
-            if (sourceId && sourceId !== tool.id) {
-                this.tools = moveTool(this.tools, sourceId, tool.id, this.dropPosition);
-                this.persistOrder();
-            }
+            if (this.draggingId && this.draggingId !== tool.id) moveWorkspaceTool(this.draggingId, tool.id, this.dropPosition);
             this.finishDrag();
         },
-        finishDrag() {
-            this.draggingId = '';
-            this.dropTargetId = '';
+        overGroup(group, event) {
+            if (!this.draggingId || !group.enabled || event.target.closest('.tool-card')) return;
+            event.preventDefault(); this.dropGroupId = group.id; this.dropTargetId = '';
         },
-        leaveTarget(tool, event) {
-            if (this.dropTargetId === tool.id && !event.currentTarget.contains(event.relatedTarget)) this.dropTargetId = '';
-        },
-        persistOrder() {
-            this.saveError = saveToolOrder(this.tools) ? '' : '顺序已调整，但浏览器未能保存；刷新后可能恢复，请允许此网站保存数据后重试。';
-        },
-        resetOrder() {
-            this.tools = createTools();
+        dropOnGroup(group, event) {
+            if (!this.draggingId || !group.enabled) return;
+            event.preventDefault();
+            const target = group.tools.filter(tool => tool.id !== this.draggingId).at(-1);
+            if (target) moveWorkspaceTool(this.draggingId, target.id, 'after');
+            else setToolGroup(this.draggingId, group.id);
             this.finishDrag();
-            this.persistOrder();
-        }
-    }
+        },
+        leaveTarget(tool, event) { if (this.dropTargetId === tool.id && !event.currentTarget.contains(event.relatedTarget)) this.dropTargetId = ''; },
+        leaveGroup(group, event) { if (this.dropGroupId === group.id && !event.currentTarget.contains(event.relatedTarget)) this.dropGroupId = ''; },
+        finishDrag() { this.draggingId = ''; this.dropTargetId = ''; this.dropGroupId = ''; },
+    },
 };
 </script>
-
 <style scoped>
 /* 卡片外观与首页「小工具」区块保持一致，同一组件两处呈现不割裂 */
 .tools-grid {

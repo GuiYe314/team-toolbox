@@ -5,6 +5,18 @@
    ========================================================================== */
 
 :root {
+    --tools-space-xs: 6px;
+    --tools-space-sm: 10px;
+    --tools-space-md: 16px;
+    --tools-space-lg: 24px;
+    --tools-border: 1px;
+    --tools-focus: 2px;
+    --tools-tab-height: 42px;
+    --tools-tab-width: 220px;
+    --tools-close-size: 28px;
+    --tools-control-height: 34px;
+    --tools-select-width: 160px;
+    --tools-group-list-height: 460px;
     --tools-drag-opacity: 0.58;
     --tools-drop-marker: 4px;
     --brand-mark-size: 32px;
@@ -177,6 +189,11 @@
     --ports-focus: 2px;
     --ports-short-cell: 62px;
     --ports-pid-cell: 65px;
+
+    --workshop-editor-height: 420px;
+    --workshop-preview-height: 300px;
+    --workshop-board-height: 720px;
+    --workshop-mirror-height: 720px;
 
     /* ── 侧栏宽度（三栏：主导航 / 页面树 / 主内容）─────────────────── */
     --w-main-sidebar: 214px;

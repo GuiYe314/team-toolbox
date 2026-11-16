@@ -1,0 +1,33 @@
+.workshop { max-width: var(--ext-page-width); }
+.workshop-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--ext-gap-lg); align-items: start; }
+.workshop-panel { padding: var(--ext-gap-lg); border: var(--ext-border-width) solid var(--panel-border); border-radius: var(--radius-lg); background: var(--panel-background); display: grid; gap: var(--ext-gap-md); min-width: 0; }
+.workshop-panel h2, .workshop-panel h3 { margin: 0; }
+.workshop-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ext-gap-md); }
+.workshop label { display: grid; gap: var(--ext-gap-xs); color: var(--text-secondary); }
+.workshop .input, .workshop select, .workshop textarea { width: 100%; min-width: 0; }
+.workshop select { color: var(--adb-select-text); background: var(--adb-select-background); border: var(--ext-border-width) solid var(--adb-select-border); border-radius: var(--radius-sm); padding: var(--ext-gap-sm); }
+.workshop option { background: var(--adb-select-menu); color: var(--adb-select-text); }
+.workshop select:focus-visible, .workshop textarea:focus-visible { outline: var(--ext-focus-width) solid var(--focus-ring); outline-offset: var(--ext-border-width); }
+.workshop textarea { min-height: var(--workshop-editor-height); resize: vertical; font-family: var(--font-mono); background: var(--surface-solid); color: var(--text-primary); border: var(--ext-border-width) solid var(--panel-border); border-radius: var(--radius-md); padding: var(--ext-gap-md); }
+.workshop-note { color: var(--text-secondary); line-height: 1.7; margin: 0; overflow-wrap: anywhere; }
+.workshop-error { padding: var(--ext-gap-md); background: var(--danger-soft); border-radius: var(--radius-sm); color: var(--danger); overflow-wrap: anywhere; }
+.workshop-success { color: var(--success); }
+.workshop-drop { padding: var(--ext-gap-lg); border: var(--ext-border-width) dashed var(--accent-border); border-radius: var(--radius-md); background: var(--accent-soft); }
+.workshop-list { display: grid; gap: var(--ext-gap-sm); list-style: none; margin: 0; padding: 0; }
+.workshop-item { padding: var(--ext-gap-md); border: var(--ext-border-width) solid var(--panel-border); border-radius: var(--radius-md); background: var(--surface-solid); min-width: 0; overflow-wrap: anywhere; }
+.workshop-item .ext-row { align-items: center; }
+.workshop-grow { flex: 1; min-width: 0; }
+.workshop-small { font-size: var(--text-tag); color: var(--text-secondary); }
+.workshop progress { width: 100%; accent-color: var(--accent); }
+.workshop-preview { display: block; max-width: 100%; max-height: var(--workshop-preview-height); margin: auto; object-fit: contain; border-radius: var(--radius-md); }
+.workshop-result { white-space: pre-wrap; overflow-wrap: anywhere; max-height: var(--workshop-editor-height); overflow: auto; padding: var(--ext-gap-md); border-radius: var(--radius-md); background: var(--surface-sunken); color: var(--text-primary); font-family: var(--font-mono); }
+.workshop-tabs { display: flex; flex-wrap: wrap; gap: var(--ext-gap-xs); }
+.workshop-tabs .is-active { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
+.workshop-editor { height: var(--workshop-editor-height); border: var(--ext-border-width) solid var(--panel-border); border-radius: var(--radius-md); overflow: hidden; }
+.whiteboard-stage { height: var(--workshop-board-height); border: var(--ext-border-width) solid var(--panel-border); border-radius: var(--radius-lg); overflow: hidden; }
+.transfer-mobile { min-height: 100vh; padding: var(--ext-gap-md); background: var(--background); color: var(--text-primary); }
+.transfer-mobile .workshop-grid { grid-template-columns: minmax(0, 1fr); }
+.transfer-qr { width: var(--adb-qr-size); max-width: 100%; border-radius: var(--radius-md); }
+.mirror-stage { display: grid; place-items: center; min-height: var(--adb-screen-empty-height); background: var(--surface-sunken); border-radius: var(--radius-md); overflow: hidden; }
+.mirror-stage canvas { display: block; max-width: 100%; max-height: var(--workshop-mirror-height); touch-action: none; object-fit: contain; outline-color: var(--focus-ring); }
+@media (max-width: 1400px) { .workshop-grid { grid-template-columns: minmax(0, 1fr); } }

@@ -50,7 +50,7 @@
 
 | 脚本 | 覆盖 | 对应约定 |
 |---|---|---|
-| `verify-integrations.mjs` | Yoinks 组件/视频分析/下载领取/取消清理，FreeLLMAPI 实际 HTTP 模型与流/多轮/停止/清空/凭据隔离，ArtCraft 提示词/路径/确认启动，主题/1280 布局/Teleport/焦点；临时数据与模拟本机服务 | 1、2、7 |
+| `verify-integrations.mjs` | Yoinks 组件/视频分析/预览/下载队列/取消清理/离页后台、旧集成地址回工具箱，主题/1280 布局/Teleport/焦点；临时设置、媒体与离线执行器 | 1、2、7 |
 | `verify-overlay-position.mjs` | 浮层定位、遮罩铺满视口、弹窗居中 | 1、8 |
 | `verify-full-backup.mjs` | 全量备份：菜单明示范围、包结构完整、非法包被拒 | 9 |
 | `verify-search.mjs` | 全文检索：中文子串命中、英文词边界、空状态、清除恢复 | 10 |
@@ -70,10 +70,11 @@
 | `verify-vditor.mjs` / `verify-help.mjs` / `verify-hint.mjs` | 编辑器、帮助、悬停提示 | 4 |
 | `verify-cards.mjs` | 文档卡片布局、响应式降列 | 7 |
 | `verify-tool-order.mjs` | 工具箱真实拖放到首尾、左右放置/取消、刷新和首页相对顺序、恢复默认、无效偏好与保存失败重试、明暗主题下普通下拉菜单对比度；隔离静态服务与临时浏览器 | 2、7 |
+| `verify-tool-workspace.mjs` | 分组管理/归属/启停/折叠、首页及跨标签同步、工具标签去重/切换/关闭/键盘/前进后退/刷新/独立会话、实时页卸载、保存失败重试/禁用存储、旧地址与明暗布局；隔离静态服务与临时浏览器 | 1、2、7 |
 | `verify-app-icon.mjs` | 五款品牌预览/选择、ICO 与 PNG 静态资产、全部 favicon/触摸/侧栏同步、刷新/路由/跨标签与恢复默认、非法偏好/存储禁用/保存失败重试、资源失败回退/重试及原设置入口；隔离静态服务与临时浏览器 | 2、7 |
 | `verify-phone-album.mjs` | 真实私网接收/二维码、手机照片与视频多选、资源原件/预览、失败重试/回执核对、停止/后台/到期/电脑离页撤销及360/390/768明暗布局；隔离数据库/资源/浏览器，不代表手机真机验收 | 2、7 |
 | `verify-live-photo.mjs` | 明确同名原片配对、LIVP上传和原件保留、实况标识、真实视频解码/停止/失败恢复、后台/关闭/离页释放及明暗布局；临时数据库、合成媒体和浏览器，不代表手机真机验收 | 1、2、7 |
-| `ui-verify.mjs` | 既有页面通用断言 | 3、5 |
+| `ui-verify.mjs` | 既有页面通用断言，工具页检查标签面板内的实际滚动视图 | 3、5 |
 | `verify-batch-delete.mjs` | 知识库批量删除 | 9 |
 
 
@@ -116,13 +117,14 @@
 
 ## 开源工具接入边界（F-EXT-001～003 / TASK-034）
 
-- `/tools/yoinks`、`/tools/freellmapi`、`/tools/artcraft` 共用 `integration-api.js`，通过 `tool-access.js` 按 Local/Lan 模式校验真实来源、服务器 Host 与浏览器同源上下文；写请求要求 JSON 和 `X-Toolbox-Integration: 1`，禁止任意代理、自由进程参数或网页自动安装器。TASK-041允许显式维护/发布命令准备固定下载组件，不得扩展成浏览器传URL的安装接口。
+- TASK-050 移除 FreeLLMAPI 与 ArtCraft 网页入口和页面，旧网页地址重定向工具箱；下列相关后端接口及机器配置仅保留兼容，不能重新加入工具目录或文档使用教程。浏览器验收继续完整覆盖 Yoinks，不要求启动真实模型网关或原生应用。
+- Yoinks 及旧 FreeLLMAPI、ArtCraft 后端接口共用 `integration-api.js`，通过 `tool-access.js` 按 Local/Lan 模式校验真实来源、服务器 Host 与浏览器同源上下文；写请求要求 JSON 和 `X-Toolbox-Integration: 1`，禁止任意代理、自由进程参数或网页自动安装器。TASK-041允许显式维护/发布命令准备固定下载组件，不得扩展成浏览器传URL的安装接口。
 - `integration-common.js` 负责独立机器配置 `data/open-source-tools.json`、路径/回环地址验证与进程执行。配置版本 1 仅保存路径和地址，原子保存并拒绝覆盖损坏文件，不进 SQLite/团队备份。进程使用参数数组、隐藏窗口、禁用 Shell、输出/超时限制，取消进程树只按本轮 PID。
 - `yoinks.js` 使用 Yoinks 的 yt-dlp 核心方案，不运行 TUI；禁用外部配置、插件搜索和播放列表，不读取浏览器 Cookie。票据只在内存；下载为队列任务（并发三、排队不限），不设成品体积与总时长，五分钟无字节进展才暂停。按 `url + 清晰度` 派生稳定缓存目录并 `--continue` 续传，取消/失败保留分片供续传；成品移动到下载目录（默认系统「下载」，重名加序号），复核媒体文件边界/类型/大小，仅写缓存目录。关页面任务不中断，正常退出回收；预览走 ffmpeg 实时转封装到响应，不落盘、不占下载并发位，客户端断开即终止；进度不得冒充整项完成；未安装明确未就绪，上游许可见 OPEN_SOURCE_INTEGRATIONS。
 - `freellmapi.js` 只访问回环 `/v1/models?available=true` 和 `/v1/chat/completions`，不跟随重定向。统一 Key 只存后端内存、不回传/落盘，切换地址清除旧 Key，配置和请求互斥。最多九轮完整历史/48000 字、单条/回答 12000 字；消费文本 SSE，不执行工具调用，必须有结束标记。请求 120 秒/2 MiB，取消/断连/退出中止；停止/失败片段不进入历史，清空阻止迟到回填，不保证供应商费用或停止行为。
 - `artcraft.js` 只确认启动已保存、重新验证的 ArtCraft.exe，无自由参数、原生协议或结束进程。只报告启动请求，原生画布在自身窗口，不把网页预览当完整编辑器。提示词只在当前页，不自动注入，不读取其账号、Key 或素材。
 - `integrations.css` 引用 tokens/theme，`IntegrationDialog.vue` Teleport 到 body 并处理 Escape/焦点恢复；日志不记录输入、链接、Key 或模型结果。
-- 修改后运行 backend 的 `npm test`（含 `integrations.test.js`）、前端 `npm run build` 和根目录 `node frontend/verify-integrations.mjs`。验收用临时文件、离线执行器、模拟回环模型服务和临时浏览器，不访问团队数据库、真实模型账户或已有桌面程序；不得把合成验证描述为真实外站下载/模型推理/原生应用验收。
+- 修改后运行 backend 的 `npm test`（含 `integrations.test.js`）、前端 `npm run build` 和根目录 `node frontend/verify-integrations.mjs`。验收用临时文件、离线执行器和临时浏览器，不访问团队数据库、真实模型账户或已有桌面程序；不得把合成验证描述为真实外站下载/模型推理/原生应用验收。
 
 ### 内置下载组件（TASK-041）
 
@@ -221,3 +223,20 @@
 - 用户授权的四款水墨小猫属于品牌画稿，允许其 PNG/ICO 色值；业务控件仍遵守 theme/tokens。完整工具箱设置保留 06 默认项，选择只更新侧栏、favicon/触摸图标与当前浏览器偏好；固定内置 ID，不接受任意资源 URL，不进入团队数据库或备份。
 - 共享状态负责初始化和同源标签同步；保存失败必须提示并允许重试，资源失败临时回退默认，不改写用户选择。网页不得自动修改 Windows 快捷方式、注册表或已安装程序图标，ICO 下载供用户手动使用。
 - 改动后运行前端计算测试、构建和 `node frontend/verify-app-icon.mjs`；使用隔离静态服务/临时浏览器检查全部资源、明暗布局、键盘、刷新、跨标签同步和设置原有入口。未修改启动/安装器时，不要求重建安装包或重跑 Windows 快捷方式验收。
+
+### 工具分组与顶部标签（F-UI-005、F-UI-006 / TASK-050）
+
+- 工具目录统一在 `tool-catalog.js`，首页、工具箱及标签只接受内置稳定 ID 和固定路由。个人分组在 `tool-groups.js`、共享状态在 `stores/tool-workspace.js`；分组/开关/折叠存 localStorage 并同源同步，兼容既有排序键，不进入团队数据库或备份。
+- 分组最多16个、名称1～24字且规范化后不能重名，固定“未分组”不可删除或改名；删除组只移动归属。启停只控制入口，不关闭已有标签。拖到卡片改变组内顺序，跨组拖放同时移动归属；恢复顺序与恢复分组分别操作。
+- 工具标签由 `ToolTabs.vue` 与独立 store 管理，sessionStorage 仅保存当前浏览器标签页的已打开工具ID；不保存 URL、票据、输入或采集状态。默认工具箱不可关闭，切换/关闭使用普通路由卸载，禁止 KeepAlive 隐藏仍在运行的 ADB、日志、屏幕或上传页。下载后台队列按原行为继续。
+- 存储禁用/损坏必须可降级，保存失败保持当前界面并可重试；管理弹窗复用 body Teleport、Escape、键盘焦点陷阱及恢复。颜色走 theme，尺寸走 tokens；多标签横向滚动不能挤压正文或遮住当前关闭按钮。
+- 修改后执行前端计算测试/构建、`node frontend/verify-tool-workspace.mjs` 与 `node frontend/verify-tool-order.mjs`，并回归受影响工具。全部使用临时服务、浏览器及合成数据，不读取真实团队库或连接手机。
+
+## 本地文件、投屏与开发工具（TASK-051～058）
+
+- 图片/视频处理在 `media-tools.js` 与 `media-tools-api.js`，仅接收 multipart 文件和结构化选项；随机私有暂存、流式上传、最多两项活动任务、十分钟总限，图片32MiB/3200万像素、视频1GiB、输出256MiB。FFmpeg 隐藏且禁用 Shell、只允许 file/pipe 协议和固定格式，取消/断连/超时/退出停止并清理；超时须明确结束 HTTP 等待，原件不覆盖。正常关闭服务必须等待媒体处理、临时文件和安卓投屏隧道清理完成再退出。媒体正文及文件名不进入日志、资源库或备份。
+- OCR 的 Worker/WASM/中英文模型和白板字体通过 `tool-assets-plugin.js` 同源本地分发，不回退 CDN。OCR 可立即停止，后台/离页终止 Worker。PDF、开发转换只在浏览器，正则独立 Worker 最多2秒，差异编辑器卸载释放编辑器及文本模型；输入不持久化。
+- 白板使用单独 React 根，导入文件最多20MiB/5000元素，拒绝外链图片、嵌入和脚本链接。资源库保存必须用户主动且新建资源，不覆盖同名图纸；不提供自动保存或多人同步，离页释放根和网络请求。
+- 互传只以短期房间提供同源 HTTP 信令，文件经 WebRTC data channel 传输，不使用公共发现或外部 STUN/TURN；服务器不保留正文。邀请码仅fragment，管理票据仅内存，最多16房间/30分钟；单文件100MiB、接收总200MiB、分块背压和 SHA-256 核对，接收必须确认。停止/离页撤销并释放通道，下载前不写磁盘。
+- 安卓投屏只使用锁定 scrcpy server 和明确在线序列号，随机手机临时 JAR、动态 ADB forward 及回环 TCP，禁止任意代理、自由命令、音频/剪贴板同步。帧按 scrcpy 5 会话/配置/关键帧协议有界解析，控制仅结构化触控/白名单按键/ASCII。停止、后台、离页、设备断开/配置变化或20秒无心跳须回收；控制请求暂时失败不得永久破坏后续队列。WebCodecs 安全上下文限制须展示，iOS AirPlay 为独立后续方案。
+- 变更后运行完整后端（含 `media-workshops.test.js`、`transfer-rooms.test.js`、`android-mirror.test.js`）、前端测试/构建、`node scripts/prepare-scrcpy.mjs --check`、`node frontend/verify-workshops.mjs` 和 `node frontend/verify-android-mirror.mjs`，并回归工具分组和局域网边界。浏览器使用合成媒体/图纸/协议和隔离服务，不连接真机或团队数据库；合成 H.264 解码不能冒充手机投屏验收。Windows 原生 SQLite 测试如出现运行时原生崩溃，可用已验证兼容的另一 Node 运行时复查，并记录实际版本及限制。

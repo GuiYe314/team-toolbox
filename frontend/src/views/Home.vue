@@ -66,6 +66,7 @@
         <!-- 工具卡片 -->
         <section class="section">
             <h2 class="section-title">小工具</h2>
+            <p v-if="!tools.length" class="empty-hint">工具分组已关闭，可到工具箱的“管理分组”中重新启用。</p>
             <div class="tools-grid">
                 <div v-for="tool in tools" :key="tool.id" class="tool-card" :class="{ 'planned': tool.status === 'planned' }">
                     <div class="tool-card-header">
@@ -86,67 +87,15 @@
 <script>
 import { api } from '../api/client.js';
 import ToolIcon from '../components/ToolIcon.vue';
-import { integrationTools } from '../utils/integration-tools.js';
-import { loadToolOrder } from '../utils/tool-order.js';
+import { toolWorkspace } from '../stores/tool-workspace.js';
+import { toolIsEnabled } from '../utils/tool-groups.js';
 
 export default {
     name: 'Home',
     components: { ToolIcon },
     data() {
         return {
-            tools: [
-                ...integrationTools.map(tool => ({ ...tool, status: 'ready' })),
-                { id: 'phone-album', name: '手机相册上传', desc: '手机扫码批量上传照片和视频到资源库', routeName: 'tool-phone-album', status: 'ready' },
-                {
-                    id: 'port-viewer',
-                    name: '端口查看',
-                    desc: '查看电脑 TCP / UDP 端口、占用进程与连接状态',
-                    status: 'ready',
-                    routeName: 'tool-ports'
-                },
-                {
-                    id: 'network-speed',
-                    name: '实时网速',
-                    desc: '实时查看服务器电脑上传、下载速度及最近流量趋势',
-                    status: 'ready',
-                    routeName: 'tool-network-speed'
-                },
-                {
-                    id: 'unity-logs',
-                    name: 'Unity 设备日志',
-                    desc: '搜索局域网设备，查看和下载 Unity 历史日志',
-                    routeName: 'tool-unity-logs',
-                    status: 'ready'
-                },
-                {
-                    id: 'android-wireless',
-                    name: '安卓无线调试',
-                    desc: '搜索、配对和管理服务器电脑连接的安卓设备',
-                    status: 'ready',
-                    routeName: 'tool-android-wireless'
-                },
-                {
-                    id: 'earth-sunlight',
-                    name: '地球光照',
-                    desc: '查看当前太阳直射点、昼夜分界和太阳光方向',
-                    status: 'ready',
-                    routeName: 'tool-earth-sunlight'
-                },
-                {
-                    id: 'json-fmt',
-                    name: 'JSON 格式化',
-                    desc: 'JSON 数据的美化与压缩',
-                    status: 'planned',
-                    routeName: 'tool-json-fmt'
-                },
-                {
-                    id: 'qrcode',
-                    name: '二维码生成',
-                    desc: '文本或链接快速生成二维码',
-                    status: 'planned',
-                    routeName: 'tool-qrcode'
-                }
-            ],
+            workspace: toolWorkspace,
             // F-KB-008：首页最近更新
             recent: [],
             recentTotal: 0,
@@ -157,12 +106,12 @@ export default {
         };
     },
     computed: {
+        tools() { return this.workspace.tools.filter(tool => tool.home !== false && toolIsEnabled(this.workspace.layout, tool.id)).map(tool => ({ ...tool, status: tool.status === '可用' ? 'ready' : 'planned' })); },
         hasMore() {
             return this.recent.length < this.recentTotal;
         }
     },
     mounted() {
-        this.tools = loadToolOrder(this.tools);
         this.loadRecent();
     },
     methods: {

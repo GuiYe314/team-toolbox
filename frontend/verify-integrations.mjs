@@ -1,4 +1,4 @@
-// TASK-034 隔离真实浏览器验收：临时设置/组件/媒体、模拟本机 FreeLLMAPI，绝不接触团队数据库。
+// 视频下载隔离浏览器验收：临时设置/组件/媒体，不访问真实网站、设备或团队数据库。
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile, rm, readdir } from 'node:fs/promises';
@@ -25,35 +25,13 @@ assert.ok(resolve(temporary).startsWith(resolve(tmpdir()) + sep) && temporary.in
 const dist = resolve(process.env.VERIFY_DIST || join(root, 'frontend', 'dist')); assert.ok(existsSync(join(dist, 'index.html')), '先执行 npm run build');
 const browserProfile = join(temporary, 'browser'); await mkdir(browserProfile);
 const componentDir = join(temporary, 'vendor', 'media', 'win32-x64'); await mkdir(componentDir, { recursive: true });
-const paths = { ytDlp: join(componentDir, 'yt-dlp.exe'), ffmpeg: join(componentDir, 'ffmpeg.exe'), artcraft: join(componentDir, 'ArtCraft.exe') };
+const paths = { ytDlp: join(componentDir, 'yt-dlp.exe'), ffmpeg: join(componentDir, 'ffmpeg.exe') };
 for (const path of Object.values(paths)) await writeFile(path, 'isolated test component, never executed');
 const settingsFile = join(temporary, 'open-source-tools.json');
 const config = createIntegrationConfig(settingsFile);
-const state = { bundleReady: false, videoMode: 'success', videosCancelled: 0, videoRunning: 0, previewsStopped: 0, freeMode: 'success', freeCancelled: 0, chatRequests: [], launchRequests: [], apiLogs: [] };
+const state = { bundleReady: false, videoMode: 'success', videosCancelled: 0, videoRunning: 0, previewsStopped: 0, apiLogs: [] };
 const delay = ms => new Promise(resolvePromise => setTimeout(resolvePromise, ms));
-const gateway = express(); gateway.use(express.json());
-const testKey = 'freellmapi-isolated-ui-key';
-gateway.use((req, res, next) => req.get('authorization') === 'Bearer ' + testKey ? next() : res.status(401).json({ error: 'invalid_key' }));
-gateway.get('/v1/models', (_req, res) => state.freeMode === 'model-error' ? res.status(429).json({ error: 'rate_limited' }) : res.json({ data: [{ id: 'text-test', execution_status: 'ready' }, { id: 'auto', execution_status: 'ready' }, { id: 'disabled', execution_status: 'needsKey' }] }));
-gateway.post('/v1/chat/completions', async (req, res) => {
-    state.chatRequests.push(req.body);
-    if (state.freeMode === 'request-error') return res.status(429).json({ error: 'rate_limited' });
-    res.type('text/event-stream'); let completed = false, closed = false;
-    res.on('close', () => { closed = true; if (!completed) state.freeCancelled++; });
-    const pieces = state.freeMode === 'slow' ? Array(100).fill('等待片段。') : ['这是', '隔离测试', '的回答。', '<script>window.__injected=1</script>'];
-    for (const text of pieces) {
-        if (closed) return;
-        res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: text } }] }) + '\n\n');
-        await delay(state.freeMode === 'slow' ? 100 : 35);
-    }
-    if (closed) return;
-    if (state.freeMode === 'incomplete') { completed = true; res.end(); return; }
-    res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { total_tokens: 10 } }) + '\n\n');
-    res.write('data: [DONE]\n\n'); completed = true; res.end();
-});
 const listen = (app, host = '127.0.0.1') => new Promise(resolvePromise => { const server = app.listen(0, host, () => resolvePromise(server)); });
-const gatewayServer = await listen(gateway);
-const gatewayBase = `http://127.0.0.1:${gatewayServer.address().port}/v1`;
 const service = createIntegrationServices({ config,
     yoinksOptions: { componentRoot: temporary, temporaryRoot: temporary, defaultDownloadDir: join(temporary, 'auto-downloads'), detector: async (kind, path) => path ? executablePath(path, kind) : state.bundleReady ? paths[kind] : '', runner: async (file, args, options) => {
         if (args.includes('--version')) return { code: 0, stdout: '2026.10.22\n' };
@@ -74,10 +52,10 @@ const service = createIntegrationServices({ config,
         } finally { state.videoRunning -= 1; }
     },
     // 预览的 ffmpeg 进程换成固定的 mp4 片段，验收只关心票据与播放器接线，不依赖真实组件。
-    previewSpawn: () => ({ stream: Readable.from([Buffer.from('00000020ftypisom')]), stop: () => { state.previewsStopped += 1; }, errorText: () => '' }) },
-    artcraftOptions: { launcher: async file => state.launchRequests.push(file) }
+    previewSpawn: () => ({ stream: Readable.from([Buffer.from('00000020ftypisom')]), stop: () => { state.previewsStopped += 1; }, errorText: () => '' }) }
 });
-const app = express(); app.use(access.middleware); app.use(express.json()); registerIntegrationApi(app, { service, access, log: entry => state.apiLogs.push(entry) });
+const apiRequests = [];
+const app = express(); app.use((req, _res, next) => { if (req.path.startsWith('/api/')) apiRequests.push(req.path); next(); }); app.use(access.middleware); app.use(express.json()); registerIntegrationApi(app, { service, access, log: entry => state.apiLogs.push(entry) });
 app.get('/api/documents/tree', (_req, res) => res.json({ items: [] }));
 app.get('/api/documents', (_req, res) => res.json({ items: [], total: 0 }));
 app.use('/api', (_req, res) => res.status(501).json({ message: '隔离验收不提供其他接口' }));
@@ -108,7 +86,7 @@ async function wait(expression) {
 const selector = name => `[data-test="${name}"]`;
 async function click(name) { await evaluate(`(()=>{const element=document.querySelector(${JSON.stringify(selector(name))});element.focus();element.click();})()`); await delay(60); }
 async function input(name, value) { await evaluate(`(()=>{const element=document.querySelector(${JSON.stringify(selector(name))});element.value=${JSON.stringify(value)};element.dispatchEvent(new Event('input',{bubbles:true}));element.dispatchEvent(new Event('change',{bubbles:true}));})()`); }
-async function navigate(path) { await send('Page.navigate', { url: base + path }); await wait(`location.pathname===${JSON.stringify(path)} && !!document.querySelector('.view-page')`); await delay(100); }
+async function navigate(path, expected = path) { await send('Page.navigate', { url: base + path }); await wait(`location.pathname===${JSON.stringify(expected)} && !!document.querySelector('.view-page')`); await delay(100); }
 function check(name, value) { checks.push({ name, pass: !!value }); console.log(`${value ? 'PASS' : 'FAIL'} ${name}`); assert.ok(value, name); }
 async function screenshot(name) { await mkdir(join(root, 'build'), { recursive: true }); await writeFile(join(root, 'build', name), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64')); }
 async function backToTools() { await evaluate("document.querySelector('.ext-back').click()"); await wait("location.pathname==='/tools'"); }
@@ -138,8 +116,8 @@ try {
         ? "const original=document.execCommand;document.execCommand=function(command,...args){const result=original.call(this,command,...args);if(command==='copy' && result)window.__copied=document.activeElement?.value;return result;};"
         : "Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{window.__copied=text}},configurable:true});" });
     await navigate('/');
-    check('首页存在三项集成工具', await evaluate("['Yoinks','FreeLLMAPI','ArtCraft'].every(text=>Array.from(document.querySelectorAll('.tool-card')).some(card=>card.textContent.includes(text)))"));
-    await navigate('/tools'); check('工具箱存在三项可进入卡片', await evaluate("document.querySelectorAll('.tool-card').length>=9"));
+    check('首页保留视频下载且移除两项工具', await evaluate("[...document.querySelectorAll('.page-home .tool-card')].some(el=>el.textContent.includes('视频下载'))&&!document.querySelector('.page-home').textContent.includes('FreeLLMAPI')&&!document.querySelector('.page-home').textContent.includes('ArtCraft')"));
+    await navigate('/tools'); check('工具箱十项卡片包含视频下载', await evaluate("document.querySelectorAll('.tool-card').length===10&&!!document.querySelector('[data-tool-id=yoinks]')"));
     await tool('Yoinks'); await wait("location.pathname==='/tools/yoinks'");
     check('未配置组件时提示真实未就绪', await evaluate("document.querySelector('.ext-badge').textContent.includes('未就绪') && document.querySelector('[data-test=video-analyze]').disabled"));
     await click('video-settings');
@@ -194,78 +172,26 @@ try {
     check('回到页面仍能看到在途任务', await evaluate("!!document.querySelector('[data-test=video-task-running]')"));
     await click('video-stop'); await waitForVideoStop(); await backToTools();
     state.videoMode = 'success';
-    await tool('FreeLLMAPI'); await wait("location.pathname==='/tools/freellmapi'");
-    check('首次进入无虚构模型且需要 Key', await evaluate("document.querySelector('[data-test=free-model]').options.length===1 && document.querySelector('[data-test=free-refresh]').disabled"));
-    if (lan) {
-        await wait("!!document.querySelector('[data-test=free-dashboard-remote]')");
-        check('远程页面隐藏回环管理链接并说明服务器位置', await evaluate("!document.querySelector('[data-test=free-dashboard]') && document.querySelector('[data-test=free-dashboard-remote]')?.textContent.includes('服务器电脑')"));
+    for (const old of ['freellmapi', 'artcraft']) {
+        await navigate('/tools/' + old, '/tools');
+        check('旧工具地址 ' + old + ' 返回工具箱', await evaluate("document.querySelector('#tool-tab-toolbox').getAttribute('aria-selected')==='true'&&!document.querySelector('.ext-page')"));
     }
-    await click('free-settings'); await input('free-base', gatewayBase); await input('free-key', testKey); await click('free-settings-save'); await wait("!document.querySelector('.ext-overlay')");
-    check('Key 没有落盘', !(await readFile(settingsFile, 'utf8')).includes(testKey));
-    await click('free-refresh'); await wait("document.querySelector('[data-test=free-model]').options.length===3");
-    check('实际 HTTP 模型列表过滤不可用模型', await evaluate("document.querySelector('[data-test=free-model]').textContent.includes('text-test') && !document.querySelector('[data-test=free-model]').textContent.includes('disabled')"));
-    await input('free-prompt', '第一次测试'); await click('free-send'); await wait("document.querySelector('[data-test=free-answer]')?.textContent.includes('隔离测试') && !document.querySelector('[data-test=free-stop]')");
-    check('流式回答展示文本且脚本不执行', await evaluate("!window.__injected && document.querySelector('[data-test=free-answer]').textContent.includes('<script>') && !document.querySelector('[data-test=free-answer] script')"));
-    await input('free-prompt', '第二次追问'); await click('free-send'); await wait("document.querySelectorAll('[data-test=free-turn]').length===2 && !document.querySelector('[data-test=free-stop]')");
-    check('第二轮携带完整第一轮历史', state.chatRequests[1].messages.length === 3 && state.chatRequests[1].messages[0].content === '第一次测试');
-    state.freeMode = 'slow'; await input('free-prompt', '停止测试'); await click('free-send'); await wait("Array.from(document.querySelectorAll('[data-test=free-answer]')).at(-1)?.textContent.includes('等待片段')"); await click('free-stop'); await wait("!document.querySelector('[data-test=free-stop]')"); await delay(150);
-    check('停止生成传递到上游并保留不完整标记', state.freeCancelled >= 1 && await evaluate("document.querySelector('[data-test=free-conversation]').textContent.includes('片段未加入历史')"));
-    state.freeMode = 'success'; await input('free-prompt', '停止后重试'); await click('free-send'); await wait("!document.querySelector('[data-test=free-stop]')");
-    check('失败或停止的片段不进入后续上下文', state.chatRequests.at(-1).messages.length === 5 && !state.chatRequests.at(-1).messages.some(item => item.content === '停止测试'));
-    state.freeMode = 'slow'; await input('free-prompt', '清空测试'); await click('free-send'); await wait("!!document.querySelector('[data-test=free-stop]')"); await click('free-clear'); await delay(300);
-    check('清空取消在途生成并阻止迟到回填', await evaluate("document.querySelectorAll('[data-test=free-turn]').length===0"));
-    state.freeMode = 'request-error'; await wait("!document.querySelector('[data-test=free-stop]')"); await input('free-prompt', '额度错误'); await click('free-send'); await wait("document.querySelector('.ext-notice.is-error')?.textContent.includes('频率')");
-    check('上游额度错误明确显示且可重填问题', await evaluate("document.querySelector('[data-test=free-conversation]').textContent.includes('重填问题')"));
-    state.freeMode = 'success';
-    await click('free-settings');
-    check('已保存 Key 不回显到输入框或 localStorage', await evaluate(`document.querySelector('[data-test=free-key]').value==='' && !JSON.stringify(localStorage).includes(${JSON.stringify(testKey)})`));
-    await evaluate("document.querySelector('.ext-dialog').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))"); await wait("!document.querySelector('.ext-overlay')");
-    check('Escape 关闭并恢复焦点', await evaluate("document.activeElement===document.querySelector('[data-test=free-settings]')"));
-    state.freeMode = 'slow'; await input('free-prompt', '离页测试'); await click('free-send'); await wait("!!document.querySelector('[data-test=free-stop]')"); const beforeLeaving = state.freeCancelled; await backToTools(); await delay(300);
-    check('离开聊天页取消上游', state.freeCancelled > beforeLeaving);
-    state.freeMode = 'success';
-    await tool('ArtCraft'); await wait("location.pathname==='/tools/artcraft'");
-    check('ArtCraft 未安装不会启用启动或伪造画布', await evaluate("document.querySelector('[data-test=art-open]').disabled && document.querySelector('.ext-page').textContent.includes('自己的桌面窗口')"));
-    await input('art-subject', '一座海边灯塔，前景有岩石'); await click('art-build');
-    check('提示词由用户要求整理且可编辑', await evaluate("document.querySelector('[data-test=art-draft]').value.includes('海边灯塔')"));
-    if (lan) {
-        check('私网 HTTP 使用真实非安全上下文', await evaluate('!isSecureContext && !navigator.clipboard'));
-        const point = await evaluate("(()=>{const r=document.querySelector('[data-test=art-copy]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");
-        await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
-        await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
-        await delay(100);
-        check('HTTP 复制后回收临时元素并恢复按钮焦点', await evaluate("!document.querySelector('.clipboard-source') && document.activeElement===document.querySelector('[data-test=art-copy]')"));
-    } else await click('art-copy');
-    check('提示词复制内容正确', await evaluate("window.__copied===document.querySelector('[data-test=art-draft]').value"));
-    await click('art-settings'); await input('art-path', paths.artcraft); await click('art-settings-save'); await wait("!document.querySelector('.ext-overlay')");
-    await click('art-open'); check('启动前需确认且显示明确路径', state.launchRequests.length === 0 && await evaluate("document.querySelector('.ext-dialog code').textContent.includes('ArtCraft.exe')"));
-    await click('art-confirm'); await wait("!document.querySelector('.ext-overlay')");
-    check('只启动已保存应用，不把提示词当进程参数', state.launchRequests.length === 1 && state.launchRequests[0].toLowerCase() === paths.artcraft.toLowerCase());
-    check('启动请求不冒称原生编辑器已就绪', await evaluate("document.querySelector('.ext-notice').textContent.includes('尚未检测')"));
-    await click('art-open'); await click('art-confirm'); await wait("document.querySelector('.ext-dialog .is-error')?.textContent.includes('已发送')");
-    check('重复启动有冷却且失败不关闭确认框', state.launchRequests.length === 1);
-    await evaluate("document.querySelector('.ext-dialog').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
     for (const theme of ['light', 'dark']) {
         await evaluate(`document.documentElement.setAttribute('data-theme',${JSON.stringify(theme)});localStorage.setItem('tt-theme',${JSON.stringify(theme)})`); await delay(300);
-        await screenshot(`integrations-artcraft-${theme}.png`);
-        check(`ArtCraft ${theme} 布局无区域溢出`, await evaluate("Array.from(document.querySelectorAll('.ext-card')).every(el=>el.scrollWidth<=el.clientWidth+2)"));
-        await navigate('/tools/freellmapi'); await click('free-refresh'); await wait("document.querySelector('[data-test=free-model]').options.length===3");
-        check(`模型下拉 ${theme} 有不透明主题底色`, await evaluate("(()=>{const s=getComputedStyle(document.querySelector('[data-test=free-model]'));return !['transparent','rgba(0, 0, 0, 0)'].includes(s.backgroundColor) && s.color!==s.backgroundColor})()"));
-        await screenshot(`integrations-chat-${theme}.png`);
         await navigate('/tools/yoinks'); await wait("document.querySelector('[data-test=video-engine-status]')?.textContent.includes('就绪')"); await delay(300);
         await input('video-url', 'https://example.com/test');
         for (let attempt = 0; attempt < 3 && !(await evaluate("!!document.querySelector('[data-test=video-info]')")); attempt++) { await click('video-analyze'); await delay(600); }
         await wait("!!document.querySelector('[data-test=video-info]')");
         await screenshot(`integrations-yoinks-${theme}.png`);
         check(`下载页 ${theme} 内容无横向溢出`, await evaluate("Array.from(document.querySelectorAll('.ext-card')).every(el=>el.scrollWidth<=el.clientWidth+2)"));
-        await navigate('/tools/artcraft');
     }
     await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
-    for (const path of ['/tools/yoinks', '/tools/freellmapi', '/tools/artcraft']) {
+    for (const path of ['/tools/yoinks']) {
         await navigate(path);
         check(`1280 宽度 ${path} 页面边界与输入可见`, await evaluate("(()=>{const r=document.querySelector('.ext-workspace').getBoundingClientRect();return r.left>=0 && r.right<=innerWidth+1 && Array.from(document.querySelectorAll('.ext-card')).every(el=>el.scrollWidth<=el.clientWidth+2)})()"));
     }
-    check('未向浏览器泄露 Key、URL、问题或回答的操作日志', !JSON.stringify(state.apiLogs).includes(testKey) && !JSON.stringify(state.apiLogs).includes('第一次测试') && !JSON.stringify(state.apiLogs).includes('example.com'));
+    check('页面不请求已移除工具接口', apiRequests.every(path => !/^\/api\/integrations\/(freellmapi|artcraft)/.test(path)));
+    check('操作日志不记录视频URL', !JSON.stringify(state.apiLogs).includes('example.com'));
     check('浏览器没有直接访问外部服务或 CDN', outsideRequests.length === 0);
     check('浏览器运行异常为零', errors.length === 0);
     console.log(`开源工具浏览器验收：${checks.length}/${checks.length} 通过`);
@@ -276,7 +202,7 @@ try {
     if (ws?.readyState === WebSocket.OPEN) { try { await send('Browser.close'); } catch { /* 关闭可能先于响应 */ } ws.close(); }
     if (browser.exitCode === null) browser.kill();
     for (const item of pending.values()) { clearTimeout(item.timeout); item.reject(new Error('验收结束')); } pending.clear();
-    await service.dispose(); server.closeAllConnections(); gatewayServer.closeAllConnections();
-    await Promise.all([new Promise(resolvePromise => server.close(resolvePromise)), new Promise(resolvePromise => gatewayServer.close(resolvePromise))]);
+    await service.dispose(); server.closeAllConnections();
+    await new Promise(resolvePromise => server.close(resolvePromise));
     for (let index = 0; index < 20; index++) { try { await rm(temporary, { recursive: true, force: true }); break; } catch { await delay(150); } }
 }
