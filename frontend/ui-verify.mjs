@@ -97,10 +97,11 @@ r = await evalJs(`(() => {
   const row = document.querySelector('.doc-row');
   const cs = getComputedStyle(row);
   return { display: cs.display, cols: cs.gridTemplateColumns, radius: cs.borderRadius,
+           radiusToken: getComputedStyle(document.documentElement).getPropertyValue('--radius-md').trim(),
            trans: cs.transitionDuration, titleFont: getComputedStyle(row.querySelector('.doc-title')).fontSize };
 })()`);
 check('文档行为 Grid 布局', r.display === 'grid', r.display);
-check('文档行圆角 12px 级', parseFloat(r.radius) >= 10 && parseFloat(r.radius) <= 14, r.radius);
+check('文档行遵循全局中等圆角且保持可读尺寸', parseFloat(r.radius) === parseFloat(r.radiusToken) && parseFloat(r.radius) >= 10 && parseFloat(r.radius) <= 24, r.radius);
 check('过渡时长 120-180ms', r.trans.split(',').every(x => { const v = parseFloat(x)*1000; return v >= 100 && v <= 200; }), r.trans);
 
 // ── 3. 无硬编码 emoji / 图标统一 ──

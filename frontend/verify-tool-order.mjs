@@ -1,3 +1,5 @@
+import { TOOLS } from './src/utils/tool-catalog.js';
+const toolCount = TOOLS.length;
 // 工具排序/下拉主题验收：隔离静态服务、只读合成页面树和临时浏览器。
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -34,7 +36,7 @@ async function navigate(path, selector) {
 }
 async function reloadTools() {
     await browser.send('Page.reload', { ignoreCache: true });
-    await browser.wait("document.querySelectorAll('.page-tools .tool-card').length===18");
+    await browser.wait("document.querySelectorAll('.page-tools .tool-card').length==="+toolCount+"");
 }
 async function drag(source, target, after = false, cancel = false) {
     const point = async (id, part) => browser.evaluate(`(()=>{const e=document.querySelector('[data-tool-id="${id}"]');const r=e.getBoundingClientRect();return {x:r.left+r.width*${part},y:r.top+Math.min(96,r.height/2)}})()`);
@@ -74,7 +76,7 @@ try {
     await navigate('/tools', '.page-tools');
     await browser.evaluate("window.__dragEvents=[];for(const type of ['dragstart','dragenter','dragover','drop','dragend'])document.addEventListener(type,e=>{window.__dragEvents.push([type,e.target.closest?.('[data-tool-id]')?.dataset.toolId,e.clientX,e.clientY])},true)");
     const defaults = await orderedIds();
-    check('全部18张工具卡片及可见拖动提示', defaults.length === 18 && await browser.evaluate("document.querySelector('.tool-order-hint').textContent.includes('拖动')"));
+    check('全部'+toolCount+'张工具卡片及可见拖动提示', defaults.length === toolCount && await browser.evaluate("document.querySelector('.tool-order-hint').textContent.includes('拖动')"));
     await drag('qrcode', 'yoinks');
     check('实际鼠标拖放可移到第一位', (await orderedIds())[0] === 'qrcode');
     await drag('qrcode', 'json-fmt', true);
@@ -103,7 +105,7 @@ try {
     await browser.evaluate(`localStorage.setItem('${key}',JSON.stringify(['android-wireless','missing','android-wireless',5]))`);
     await reloadTools();
     const migrated = await orderedIds();
-    check('过滤未知及重复id，按组排序且不丢卡片', new Set(migrated).size === 18 && await browser.evaluate("document.querySelector('[data-group-id=devices] [data-tool-id]').dataset.toolId==='android-wireless'"));
+    check('过滤未知及重复id，按组排序且不丢卡片', new Set(migrated).size === toolCount && await browser.evaluate("document.querySelector('[data-group-id=devices] [data-tool-id]').dataset.toolId==='android-wireless'"));
     await browser.evaluate(`localStorage.setItem('${key}','{bad')`);
     await reloadTools();
     check('损坏偏好自动回到默认顺序', JSON.stringify(await orderedIds()) === JSON.stringify(defaults));

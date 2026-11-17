@@ -1,5 +1,27 @@
 # 架构说明（ARCHITECTURE）
 
+## 知识工作台、SOP与快速计算（TASK-062～067）
+
+数据库连续迁移009（计算方案）、010（SOP模板和执行）、011（工作台）。正文仍在 `documents`；`kb_entries` 统一保存有类型及乐观版本的资料库、模板、画布、同步块、工作区、评论和动作；`kb_note_meta` 保存每篇笔记的资料库与属性；`kb_note_revisions` 通过 SQL 更新触发器覆盖原编辑器和工作台的标题/正文历史；`kb_daily_notes` 对日期建立唯一约束。历史每篇20份、全局50MiB，配置实体总16MiB；SOP每次执行复制不可变模板快照，计算以 BigInt 有理数计算，仅显示阶段舍入。
+
+独立服务 `knowledge-workbench-{validation,store,api}.js`、`knowledge-links.js`、`knowledge-transfer.js` 负责校验、事务、关系索引、安全HTML、剪藏及文件迁移；前端 `/kb/workbench` 拆分为笔记、属性、块编辑、资料库、图谱/画布、模板/动作及迁移组件。原详情页继续使用原 Markdown 渲染，高级链接和嵌入在工作台阅读。所有团队数据服务端持久化，浏览器只有当前草稿和临时布局，不用 localStorage 保存知识资料。
+
+`/api/knowledge-workbench`、`/api/knowledge-sops`、`/api/quick-calculations` 分别要求知识库/SOP/计算专用头，复用真实 TCP 来源、Host、同源和 Local/Lan 校验；JSON上限分别12MiB、128KiB、8KiB，均在全局解析器之前注册。内容备份导入专用96MiB上限，其他API不放大。版本冲突返回409且保留草稿，永久删除/恢复须显式确认。剪藏仅公开HTTPS/443，逐跳校验DNS并固定连接IP，不使用Cookie或脚本；12秒、1MiB、最多4跳。关系索引最多2000篇/8MiB、图上100节点，均提示截断。
+
+动作仅模板新建、属性设值和开始SOP；主动请求UUID幂等，事件仅来自工作台新建及实际属性变化，一轮执行、不递归，不提供Shell/任意HTTP/通知。笔记创建、保存与动作在同一事务，失败全部回滚。模板和按钮默认值也校验类型及关联资料库；已有字段值、模板/动作、汇总依赖阻止破坏性配置修改。
+
+版本1内容快照增加可选 `quick_calculations`、`sops`、`workbench`，全量ZIP仍复用该快照并包含附件。旧备份可读；新备份恢复将分类、文档及扩展放在同一事务，先建立全部实体/属性，再校验依赖并重映射正文/历史/模板/按钮/画布/工作区中的笔记引用。代码中的示例ID不改写，回收站不进索引，导入修正不制造虚假历史；已有同名文档或同ID实体不覆盖。Markdown ZIP只迁移正文与层级，不等价于全量备份。
+
+## 点击反馈（2026-11-17 / TASK-061）
+
+`ClickFeedback.vue` 在应用根部单例挂载，观察实际 click；原生按钮的键盘激活复用 click，自定义 role 页面树单独观察 Enter/空格。不阻止事件、不重放操作。效果通过 body Teleport 绘制，按目标可见矩形和圆角裁切，禁止指针事件，不给原控件加入定位、overflow 或子节点。排除禁用、输入、第三方编辑器/画布及显式关闭区；同控件替换，最多4个、180ms内回收。路由更新后检查存活目标，滚动、拖动、窗口变化、后台、辅助偏好和卸载清理；颜色、时长及绘制层级分别归 theme/tokens，无网络或持久化。
+
+## 液态玻璃视觉（2026-11-17 / TASK-060）
+
+保持 tokens → theme → glass → layout → components → 业务样式的依赖方向。颜色/渐变材质与反光遮罩在 theme，尺度及动效时间在 tokens；框架仅对大型玻璃面板使用背景模糊，卡片、图标底座、标签与按钮复用渐变/内阴影，避免层层模糊。反光伪元素只绘制边缘并禁止指针事件，正文不叠加白色遮罩。
+
+CSS 媒体查询处理减少动态/透明度偏好，后者使主容器与弹窗实底、关闭背景模糊及环境层；无 backdrop-filter 时使用不透明回退。全部本地 CSS 实现，不增加外站、运行时动画、持久化字段或依赖；浮层仍要求 body Teleport。
+
 ## 本地工具扩展边界（2026-11-16，TASK-051～058）
 
 保持 Vue/Express：Sharp/FFmpeg 上传处理由独立媒体服务提供流式临时接收、固定参数、超时、取消和结果领取；OCR 的 worker/WASM/中英文模型随前端本地分发；PDF 和开发转换在浏览器内完成。Excalidraw 通过专门 React 根接入 Vue，画布文件由用户主动下载或保存到现有资源接口，无新增数据库结构。
@@ -88,6 +110,7 @@
 
 ## 安卓无线调试模块补充（2026-11-05）
 
+- TASK-059：六个右侧工具复用 `AndroidToolSection.vue` 的标题、活动状态、键盘可访问按钮及 `v-show` 正文容器。收放状态只在组件内存中，不写存储；折叠不卸载工具或暂停在途工作，原有配置/设备变化、后台与路由卸载清理继续由业务组件负责。
 - TASK-019 / F-ADB-001：前端 `/tools/android-wireless` → `/api/android/*` → 独立 ADB 服务，沿用 Vue 与 Express，不依赖浏览器直接访问 USB 或运行本机命令。
 - ADB 安装于服务器；模块按 F-OPS-005 的 Local/Lan 模式允许本机或实际同网段访问，写请求检查 JSON、自定义请求头和浏览器同源上下文。仅 `POST /api/android/apk/inspect`、`POST /api/android/apk/install`、`POST /api/android/apk/install-batch` 与 `POST /api/android/persistent/upload` 使用 `application/octet-stream` 上传，仍检查网络来源、同源上下文与专用头；其他接口不放行二进制。常规知识库/资源库的受控内网访问边界保持原约定。
 - 服务使用内置参数列表或已保存自定义命令的校验结果，以 `spawn`、`shell: false`、隐藏窗口、限量捕获、超时和取消执行。执行接口以命令 ID 解析参数；HOME 设置仅增加严格校验的组件与当前用户字段，其他命令拒绝这两个字段。自定义命令必须确认目标、内容和版本，不提供临时自由执行或全局断开接口。

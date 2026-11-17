@@ -54,6 +54,8 @@ v0.1 采用 `0.x` 编号而非 `1.0.0`，原因：系统**未内置认证与权�
 
 ## 版本说明
 
+v0.11.0的知识工作台、SOP与快速计算见[发布说明](releases/v0.11.0.md)，属于v0.10.0之后的功能增量，纳入TASK-059～067。SQLite追加009～011迁移，升级前须保留全量备份；独立设备调试版不随本版改号，仍提供四份发行资产。验证及发行状态只写PROJECT_STATUS。
+
 v0.4.0 的功能与升级方式见 [发布说明](releases/v0.4.0.md)。下载引擎随 Windows x64 完整包分发，必须保留 vendor/media/win32-x64 下的版本、来源和全部许可，以及 runtime/NODE-LICENSE.txt；二进制不进入源码提交。发布进度及封版证据仍只记录在 PROJECT_STATUS。
 
 各版本功能、资产与限制见 [v0.3.1 发布说明](releases/v0.3.1.md)、[封版验收报告](acceptance/V0_3_1_RELEASE_2026-11-11.md) 和 [v0.3.0 发布说明](releases/v0.3.0.md)、[封版验收报告](acceptance/V0_3_0_RELEASE_2026-11-10.md) 和 [v0.2.0 发布说明](releases/v0.2.0.md)。发布进度仅记录在 [PROJECT_STATUS](PROJECT_STATUS.md)，历史版本可在 GitHub Releases 中追溯。

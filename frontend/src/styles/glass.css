@@ -25,14 +25,14 @@
    ========================================================================== */
 
 .glass-panel {
-    background: var(--glass-background);
+    background: var(--glass-material);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--blur-saturate));
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--blur-saturate));
-    border: 1px solid var(--glass-border);
+    border: var(--glass-line) solid var(--glass-border);
     box-shadow: var(--shadow), var(--shadow-inset);
 }
 
-/* 顶部内高光：模拟玻璃上沿受光，是"玻璃感"的关键细节 */
+/* 仅描绘外缘反光，避免整层白色高光覆盖文字；不增加模糊或事件拦截。 */
 .glass-sheen {
     position: relative;
     overflow: hidden;
@@ -40,17 +40,22 @@
 .glass-sheen::before {
     content: "";
     position: absolute;
-    inset: 0 0 auto;
-    height: 40%;
+    inset: 0;
+    border-radius: inherit;
+    padding: var(--glass-line);
     pointer-events: none;
-    background: linear-gradient(180deg, var(--glass-highlight), transparent);
-    opacity: 0.85;
+    background: var(--glass-rim);
+    -webkit-mask: var(--glass-mask) content-box, var(--glass-mask);
+    mask: var(--glass-mask) content-box, var(--glass-mask);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
 }
 
 /* 非玻璃表面：半透明底 + 细边框，用于内层卡片与列表项 */
 .surface {
-    background: var(--panel-background);
+    background: var(--surface-material);
     border: 1px solid var(--panel-border);
+    box-shadow: var(--surface-shadow);
 }
 
 .surface-hover {
@@ -58,12 +63,32 @@
                 border-color var(--dur-base) var(--ease-out);
 }
 .surface-hover:hover {
-    background: var(--panel-background-hover);
+    background: var(--surface-material-hover);
 }
 
 /* 不支持 backdrop-filter 时回退为更实的背景，保证可读性 */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass-panel {
-        background: var(--glass-background-strong);
+    .glass-panel, .dialog {
+        background: var(--glass-background-opaque) !important;
     }
+}
+
+@supports not (mask-composite: exclude) {
+    .glass-sheen::before { display: none; }
+}
+
+/* 尊重系统辅助偏好；不通过 JS 动画持续占用渲染线程。 */
+@media (prefers-reduced-transparency: reduce) {
+    .glass-panel, .dialog, .dropdown {
+        background: var(--glass-background-opaque) !important;
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+    }
+    .overlay { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+    .app-backdrop, .glass-sheen::before { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    .tool-card:hover, .btn:active { transform: none !important; }
 }

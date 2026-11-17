@@ -1,6 +1,5 @@
 <template>
-    <section class="apk-info-panel" aria-labelledby="adb-apk-info-title">
-        <h2 id="adb-apk-info-title">查看 APK 包名</h2>
+    <AndroidToolSection class="apk-info-panel" section-id="adb-apk-info" title="查看 APK 包名" :activity="busy ? '读取中' : ''">
         <div class="apk-info-row">
             <label>电脑上的 APK 文件<input ref="fileInput" id="adb-apk-info-file" class="input" type="file" accept=".apk" :disabled="disabled || busy" @change="chooseFile" /></label>
             <button id="adb-apk-info-read" class="btn btn-primary" :disabled="disabled || busy || !file" @click="readPackage">读取包名</button>
@@ -16,14 +15,15 @@
             <label>APK 包名<input id="adb-apk-info-package" class="input" :value="result.packageName" readonly @focus="$event.target.select()" /></label>
             <button id="adb-apk-info-copy" class="btn" @click="copyPackage">复制包名</button>
         </div>
-    </section>
+    </AndroidToolSection>
 </template>
 
 <script>
 import { inspectApkPackage } from '../api/android-apk-info-client.js';
 import { copyText } from '../utils/clipboard.js';
+import AndroidToolSection from './AndroidToolSection.vue';
 export default {
-    name: 'AndroidApkInfo', props: { disabled: Boolean }, emits: ['busy-change'],
+    name: 'AndroidApkInfo', components: { AndroidToolSection }, props: { disabled: Boolean }, emits: ['busy-change'],
     data() { return { file: null, result: null, busy: false, progress: 0, error: '', notice: '' }; },
     mounted() {
         this._revision = 0;
@@ -66,8 +66,6 @@ export default {
 </script>
 
 <style scoped>
-.apk-info-panel { padding: var(--page-padding); margin-bottom: var(--gap-column); border: 1px solid var(--panel-border); border-radius: var(--radius-md); background: var(--panel-background); }
-.apk-info-panel h2 { margin: 0 0 var(--gap-column); font-size: var(--text-section-title); }
 .apk-info-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--gap-column); }
 .apk-info-row label { flex: 1; min-width: min(var(--adb-command-column), 100%); color: var(--text-secondary); }
 .apk-info-row .input { display: block; width: 100%; box-sizing: border-box; margin-top: var(--adb-small-gap); }

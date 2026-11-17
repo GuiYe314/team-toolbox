@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test src/utils/solar-position.test.js src/utils/network-speed.test.js src/utils/port-viewer.test.js src/utils/tool-order.test.js src/utils/app-icon.test.js src/utils/phone-album.test.js src/utils/live-photo.test.js src/utils/tool-groups.test.js src/utils/tool-tabs.test.js src/utils/workshops.test.js",
+    "test": "node --test src/utils/solar-position.test.js src/utils/network-speed.test.js src/utils/port-viewer.test.js src/utils/tool-order.test.js src/utils/app-icon.test.js src/utils/phone-album.test.js src/utils/live-photo.test.js src/utils/tool-groups.test.js src/utils/tool-tabs.test.js src/utils/workshops.test.js src/utils/knowledge-workbench.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

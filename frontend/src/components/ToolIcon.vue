@@ -4,6 +4,7 @@
          保证同一工具在不同页面出现时视觉完全一致。 -->
     <span class="tool-glyph" :class="`is-${resolved}`" aria-hidden="true">
         <svg v-if="resolved === 'image-batch'" class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="15" height="15" rx="2"/><path d="m3 14 4-4 4 4 3-3 4 4M7 21h12a2 2 0 0 0 2-2V7"/><circle cx="7" cy="7" r="1"/></svg>
+        <svg v-else-if="resolved === 'quick-calculation'" class="icon" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 5h8v4H8zM8 13h2M14 13h2M8 17h2M15 16v3M14 18h2"/></svg>
         <svg v-else-if="resolved === 'image-ocr'" class="icon" viewBox="0 0 24 24"><path d="M8 3H4a1 1 0 0 0-1 1v4M16 3h4a1 1 0 0 1 1 1v4M3 16v4a1 1 0 0 0 1 1h4M16 21h4a1 1 0 0 0 1-1v-4M7 8h10M12 8v9M9 17h6"/></svg>
         <svg v-else-if="resolved === 'pdf-tools'" class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h6"/></svg>
         <svg v-else-if="resolved === 'video-process'" class="icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3zM7 5v14M17 5v14"/></svg>
@@ -62,6 +63,7 @@
 
 <script>
 const MAP = {
+    'quick-calculation': 'quick-calculation',
     'image-batch': 'image-batch', 'image-ocr': 'image-ocr', 'pdf-tools': 'pdf-tools', 'video-process': 'video-process', 'whiteboard': 'whiteboard', 'peer-transfer': 'peer-transfer', 'android-mirror': 'android-mirror', 'developer-tools': 'braces',
     'phone-album': 'phone-album',
     'port-viewer': 'port-viewer',
@@ -99,10 +101,12 @@ export default {
 .tool-glyph {
     display: grid;
     place-items: center;
-    width: 34px;
-    height: 34px;
+    width: var(--tool-glyph-size);
+    height: var(--tool-glyph-size);
     border-radius: var(--radius-sm);
-    background: var(--accent-soft);
+    border: var(--glass-line) solid var(--accent-border);
+    background: var(--control-highlight), var(--accent-soft);
+    box-shadow: var(--shadow-inset);
     color: var(--accent);
 }
 .tool-glyph.is-grid { background: var(--panel-background-hover); color: var(--text-secondary); }

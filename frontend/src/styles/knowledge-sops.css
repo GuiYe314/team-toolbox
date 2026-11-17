@@ -1,0 +1,23 @@
+.sop-page { max-width: var(--ext-page-width); }
+.sop-layout { display: grid; grid-template-columns: minmax(var(--sop-list-width), .65fr) minmax(0, 1.6fr); align-items: start; gap: var(--ext-gap-lg); }
+.sop-page label, .sop-editor label { display: grid; gap: var(--ext-gap-xs); color: var(--text-secondary); }
+.sop-page .input, .sop-editor .input { width: 100%; min-width: 0; box-sizing: border-box; }
+.sop-page select.input, .sop-page select.input:focus { color: var(--adb-select-text); background: var(--adb-select-background); transition: border-color var(--dur-base) var(--ease-out); }
+.sop-page textarea, .sop-editor textarea { width: 100%; min-height: var(--sop-note-height); resize: vertical; box-sizing: border-box; padding: var(--ext-gap-sm); border: var(--ext-border-width) solid var(--panel-border); border-radius: var(--radius-sm); background: var(--surface-solid); color: var(--text-primary); font: inherit; }
+.sop-page textarea:focus-visible, .sop-editor textarea:focus-visible { outline: var(--ext-focus-width) solid var(--focus-ring); outline-offset: var(--ext-border-width); }
+.sop-library-list { max-height: var(--sop-list-height); overflow: auto; }
+.sop-list-button { display: grid; gap: var(--ext-gap-xs); width: 100%; text-align: left; padding: var(--ext-gap-md); border: var(--ext-border-width) solid var(--panel-border); border-radius: var(--radius-md); background: var(--surface-solid); color: var(--text-primary); font: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.sop-list-button span { font-size: var(--text-tag); color: var(--text-secondary); }
+.sop-list-button.is-active { background: var(--selected-material); border-color: var(--accent-border); }
+.sop-list-button:focus-visible { outline: var(--ext-focus-width) solid var(--focus-ring); outline-offset: var(--ext-border-width); }
+.sop-list-button:disabled { color: var(--text-secondary); cursor: default; }
+.sop-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: var(--line-relaxed); }
+.sop-template-steps { margin: 0; padding-left: var(--ext-gap-lg); display: grid; gap: var(--ext-gap-md); }
+.sop-checklist label { display: flex; align-items: flex-start; gap: var(--ext-gap-md); padding: var(--ext-gap-md); border: var(--ext-border-width) solid var(--panel-border); border-radius: var(--radius-md); color: var(--text-primary); background: var(--surface-solid); }
+.sop-step-check { flex: none; accent-color: var(--accent); width: var(--sop-checkbox-size); height: var(--sop-checkbox-size); }
+.sop-checklist label.is-done { background: var(--accent-soft); }
+.sop-progress-text { margin: 0; font-weight: var(--weight-semibold); }
+.sop-detail progress { width: 100%; accent-color: var(--accent); }
+.sop-editor-steps { display: grid; gap: var(--ext-gap-sm); }
+.sop-editor-step { display: grid; gap: var(--ext-gap-sm); }
+@media (max-width: 1400px) { .sop-layout { grid-template-columns: minmax(0, 1fr); } .sop-library-list { max-height: var(--sop-compact-height); } }

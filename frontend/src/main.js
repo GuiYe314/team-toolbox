@@ -16,6 +16,7 @@ import './styles/theme.css';
 import './styles/glass.css';
 import './styles/layout.css';
 import './styles/components.css';
+import './styles/click-feedback.css';
 import './styles/vditor.css';
 import './styles/hint.css';
 import './styles/assets.css';
@@ -25,6 +26,9 @@ import './styles/integrations.css';
 import './styles/phone-album.css';
 import './styles/tool-workspace.css';
 import './styles/workshops.css';
+import './styles/quick-calculation.css';
+import './styles/knowledge-sops.css';
+import './styles/knowledge-workbench.css';
 
 // 全局指令：v-hint（延迟 1 秒的悬停提示）
 import hintDirective from './directives/hint.js';

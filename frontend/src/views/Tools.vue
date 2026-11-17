@@ -101,8 +101,9 @@ export default {
     gap: 8px;
     padding: 16px;
     border-radius: var(--radius-lg);
-    background: var(--panel-background);
+    background: var(--surface-material);
     border: 1px solid var(--panel-border);
+    box-shadow: var(--surface-shadow);
     transition: background var(--dur-base) var(--ease-out),
                 border-color var(--dur-base) var(--ease-out),
                 transform var(--dur-base) var(--ease-out);
@@ -114,9 +115,9 @@ export default {
 .tool-card.is-drop-target.drop-after { box-shadow: inset calc(0px - var(--tools-drop-marker)) 0 0 var(--accent); }
 .tool-card.is-drop-target:hover { border-color: var(--accent); }
 .tool-card:hover {
-    background: var(--panel-background-hover);
+    background: var(--surface-material-hover);
     border-color: var(--accent-border);
-    transform: translateY(-1px);
+    transform: translateY(var(--surface-hover-offset));
 }
 .tool-card.planned { opacity: 0.82; }
 .tool-card-header {

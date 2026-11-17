@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
 const routes = [
+    { path: '/tools/quick-calculation', name: 'tool-quick-calculation', component: () => import('../views/QuickCalculation.vue') },
     { path: '/transfer', name: 'peer-transfer-mobile', component: () => import('../views/PeerTransfer.vue'), meta: { mobileUpload: true } },
     { path: '/tools/image-batch', name: 'tool-image-batch', component: () => import('../views/MediaWorkshop.vue'), props: { kind: 'image' } },
     { path: '/tools/image-ocr', name: 'tool-image-ocr', component: () => import('../views/ImageOcr.vue') },
@@ -27,6 +28,8 @@ const routes = [
         name: 'kb-new',
         component: () => import('../views/DocumentEdit.vue')
     },
+    { path: '/kb/sops', name: 'kb-sops', component: () => import('../views/KnowledgeSops.vue') },
+    { path: '/kb/workbench', name: 'kb-workbench', component: () => import('../views/KnowledgeWorkbench.vue') },
     {
         // 必须注册在 /kb/:id 之前，否则 "trash" 会被当成文档 id。
         path: '/kb/trash',

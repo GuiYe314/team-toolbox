@@ -20,20 +20,23 @@ body {
     overflow: hidden;
 }
 
-/* 环境层：两处极淡色晕，让玻璃有可折射的内容。固定在视口，不参与布局 */
+/* 静态环境光与弧形反射，为通透玻璃提供层次；不加载图片或运行逐帧动画。 */
 .app-backdrop {
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
     background:
-        radial-gradient(1100px 720px at 8% -10%, var(--background-tint-a), transparent 62%),
-        radial-gradient(900px 640px at 104% 108%, var(--background-tint-b), transparent 58%);
+        radial-gradient(ellipse at 66% 118%, transparent 46%, var(--background-ribbon) 49%, transparent 56%),
+        radial-gradient(ellipse at -8% 18%, var(--background-tint-a), transparent 56%),
+        radial-gradient(ellipse at 94% 108%, var(--background-tint-b), transparent 60%),
+        radial-gradient(ellipse at 76% -25%, var(--background-tint-c), transparent 56%);
     transition: opacity var(--dur-theme) var(--ease-out);
 }
 
 /* 四栏网格 */
 .app-layout {
+    box-sizing: border-box;
     position: relative;
     z-index: 1;
     height: 100vh;
@@ -147,8 +150,8 @@ body {
 .view-title {
     margin: 0;
     font-size: var(--text-page-title);
-    font-weight: var(--weight-bold);
-    letter-spacing: -0.015em;
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--title-tracking);
     color: var(--text-primary);
 }
 .view-subtitle {

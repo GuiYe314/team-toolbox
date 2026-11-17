@@ -1,0 +1,28 @@
+/* 绘制层在 body 下，既不影响原控件布局，也不截断按钮关联的菜单。 */
+.click-feedback {
+    position: fixed;
+    z-index: var(--z-click-feedback);
+    overflow: hidden;
+    pointer-events: none;
+    user-select: none;
+    contain: strict;
+}
+.click-feedback--primary {
+    --click-feedback-fill: var(--click-feedback-primary-fill);
+    --click-feedback-rim: var(--click-feedback-primary-rim);
+}
+.click-feedback-wave {
+    position: absolute;
+    border-radius: var(--radius-pill);
+    background: radial-gradient(circle, var(--click-feedback-fill) 0 42%, var(--click-feedback-rim) 56%, transparent 70%);
+    animation: click-feedback-wave var(--dur-click-feedback) var(--ease-out) both;
+    pointer-events: none;
+}
+@keyframes click-feedback-wave {
+    from { transform: translate(-50%, -50%) scale(var(--click-feedback-start-scale)); opacity: var(--click-feedback-opacity); }
+    40% { opacity: var(--click-feedback-opacity); }
+    to { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce), (prefers-reduced-transparency: reduce) {
+    .click-feedback { display: none; }
+}

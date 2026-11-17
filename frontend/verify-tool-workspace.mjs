@@ -1,3 +1,5 @@
+import { TOOLS } from './src/utils/tool-catalog.js';
+const toolCount = TOOLS.length;
 // 分组/标签浏览器验收：静态产物、合成只读接口、独立浏览器；不连接真实设备或团队库。
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -32,7 +34,7 @@ async function reload() { await browser.send('Page.reload', { ignoreCache: true 
 async function shot(name) { const result = await browser.send('Page.captureScreenshot', { format: 'png' }); await writeFile(join(root, 'build', name), Buffer.from(result.data, 'base64')); }
 try {
     browser = await testBrowser(temporary);
-    await navigate('/tools', "document.querySelectorAll('.page-tools .tool-card').length===18");
+    await navigate('/tools', "document.querySelectorAll('.page-tools .tool-card').length==="+toolCount+"");
     check('默认十八项工具按四组显示，仅一个固定工具箱标签', await browser.evaluate("document.querySelectorAll('.tool-group').length===4&&document.querySelectorAll('[role=tab]').length===1&&document.querySelector('[role=tab]').textContent.includes('工具箱')&&!document.querySelector('[data-tab-id=toolbox] .tool-tab-close')"));
     check('两项已移除工具没有卡片', await browser.evaluate("!document.querySelector('.page-tools').textContent.includes('ArtCraft')&&!document.querySelector('.page-tools').textContent.includes('FreeLLMAPI')"));
     await browser.click(group('media') + ' .tool-group-fold');
@@ -61,7 +63,7 @@ try {
     await manageGroups(); await browser.fill(`[data-edit-group="${custom}"] input`, '不会保存'); await clickText('.ext-dialog button', '取消');
     check('取消编辑不改变分组且恢复管理按钮焦点', await browser.evaluate(`document.querySelector('${group(custom)}').textContent.includes('项目工具')&&document.activeElement.id==='manage-tool-groups'`));
     await manageGroups(); await browser.click('[aria-label="删除项目工具分组"]'); await browser.click('#save-tool-groups'); await browser.wait("!document.querySelector('.ext-overlay')");
-    check('删除分组将工具放到未分组且不丢工具', await browser.evaluate("!!document.querySelector('[data-group-id=ungrouped] [data-tool-id=ratio-lock]')&&document.querySelectorAll('.page-tools .tool-card').length===18"));
+    check('删除分组将工具放到未分组且不丢工具', await browser.evaluate("!!document.querySelector('[data-group-id=ungrouped] [data-tool-id=ratio-lock]')&&document.querySelectorAll('.page-tools .tool-card').length==="+toolCount+""));
     await browser.evaluate("window.__storageSet=Storage.prototype.setItem;Storage.prototype.setItem=function(){throw new DOMException('full','QuotaExceededError')}");
     await browser.click(group('media') + ' .tool-group-fold');
     check('偏好保存失败明确提示，当前折叠仍生效', await browser.evaluate(`document.querySelector('.page-tools [role=alert]').textContent.includes('未能保存')&&!document.querySelector('${card('yoinks')}')`));
@@ -124,7 +126,7 @@ try {
     await toolbox();
     const ids = await browser.evaluate("[...document.querySelectorAll('.page-tools [data-tool-id]')].map(el=>el.dataset.toolId)");
     await browser.evaluate(`sessionStorage.setItem('${tabsKey}',JSON.stringify([...${JSON.stringify(ids)},'artcraft','freellmapi','ratio-lock','unknown']))`); await reload();
-    check('旧标签过滤退休/未知及重复ID', await browser.evaluate("document.querySelectorAll('[role=tab]').length===19&&!document.querySelector('[data-tab-id=artcraft]')&&!document.querySelector('[data-tab-id=freellmapi]')"));
+    check('旧标签过滤退休/未知及重复ID', await browser.evaluate("document.querySelectorAll('[role=tab]').length==="+(toolCount+1)+"&&!document.querySelector('[data-tab-id=artcraft]')&&!document.querySelector('[data-tab-id=freellmapi]')"));
     for (const theme of ['dark', 'light']) {
         await browser.evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`); await delay(300);
         for (const width of [1280, 1600]) {
@@ -141,7 +143,7 @@ try {
     }
     for (const old of ['freellmapi', 'artcraft']) { await navigate('/tools/' + old, "location.pathname==='/tools'&&!!document.querySelector('.page-tools')"); check(`旧${old}地址回工具箱`, await browser.evaluate("!!document.querySelector('#tool-tab-toolbox[aria-selected=true]')")); }
     await browser.evaluate(`localStorage.setItem('${groupKey}','bad');sessionStorage.setItem('${tabsKey}','bad')`); await reload();
-    check('损坏分组和标签偏好回到默认', await browser.evaluate("document.querySelectorAll('.page-tools .tool-card').length===18&&document.querySelectorAll('[role=tab]').length===1"));
+    check('损坏分组和标签偏好回到默认', await browser.evaluate("document.querySelectorAll('.page-tools .tool-card').length==="+toolCount+"&&document.querySelectorAll('[role=tab]').length===1"));
     const injected = await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(window,'localStorage',{get(){throw new DOMException('blocked','SecurityError')}});Object.defineProperty(window,'sessionStorage',{get(){throw new DOMException('blocked','SecurityError')}});" });
     await reload(); await open('ratio-lock', '/tools/ratio-lock');
     check('存储完全禁用仍可打开工具和标签', await browser.evaluate("!!document.querySelector('#tool-tab-ratio-lock')&&document.querySelector('.page-tool .view-title')?.textContent==='比例锁定'"));

@@ -117,6 +117,11 @@ export function buildFullBackup({ connection: db }) {
             documents: documents.counts.documents,
             categories: documents.counts.categories,
             tags: documents.counts.tags,
+            quick_calculations: documents.counts.quick_calculations,
+            sop_templates: documents.counts.sop_templates,
+            sop_runs: documents.counts.sop_runs,
+            workbench_entries: documents.counts.workbench_entries,
+            note_revisions: documents.counts.note_revisions,
             assets: assetManifest ? assetManifest.assets.length : 0,
             asset_files: files.length,
             uploads: uploads.length

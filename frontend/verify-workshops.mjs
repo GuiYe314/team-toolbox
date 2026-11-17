@@ -1,5 +1,6 @@
 // 合成文件 + 真实Sharp/FFmpeg/OCR/PDF/白板/WebRTC；不读取团队数据，不连接手机。
 import assert from 'node:assert/strict';
+import { TOOLS } from './src/utils/tool-catalog.js';
 import { createRequire } from 'node:module';
 import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -43,7 +44,7 @@ async function setPeerInput(selector,value){await browser.evaluate(`{const el=wi
 try{
     browser=await testBrowser(temporary);
     if (process.env.VERIFY_WORKSHOP_ONLY !== 'transfer') {
-    await navigate('/tools','.page-tools');check('十八个工具卡片和新增分组入口',await browser.evaluate("document.querySelectorAll('.tool-card').length===18&&!!document.querySelector('[data-tool-id=image-batch]')&&!!document.querySelector('[data-tool-id=android-mirror]')"));
+    await navigate('/tools','.page-tools');check('目录工具卡片和新增分组入口',await browser.evaluate("document.querySelectorAll('.tool-card').length==="+TOOLS.length+"&&!!document.querySelector('[data-tool-id=image-batch]')&&!!document.querySelector('[data-tool-id=android-mirror]')"));
     await navigate('/tools/image-batch','#media-files');await browser.choose('#media-files',image);await browser.select('select','jpeg');await browser.click('#media-start');await waitLong("!!document.querySelector('.workshop-item a[download]')");
     check('真实图片上传处理并显示可解码预览',await browser.evaluate("document.querySelector('.workshop-item').textContent.includes('完成')&&document.querySelector('.workshop-item img').naturalWidth===320"));
     await browser.evaluate("{const data=new DataTransfer();data.items.add(new File(['bad'],'broken.png',{type:'image/png'}));const input=document.querySelector('#media-files');input.files=data.files;input.dispatchEvent(new Event('change',{bubbles:true}));}");await browser.click('#media-start');await waitLong("document.querySelector('.workshop-item:last-child').textContent.includes('失败')");check('损坏图片逐项失败，成功结果保留',await browser.evaluate("document.querySelectorAll('.workshop-item a[download]').length===1&&!!document.querySelector('[role=alert]')"));

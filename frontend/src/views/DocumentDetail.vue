@@ -15,6 +15,7 @@
                     </template>
                 </div>
                 <div class="topbar-actions" v-if="doc">
+                    <router-link class="nt-ghost" :to="`/kb/workbench?note=${doc.id}`">工作台 · 关联与历史</router-link>
                     <MarkdownHelp />
                     <button class="nt-ghost" type="button" @click="goEdit">编辑</button>
                     <button class="nt-ghost nt-ghost-danger" type="button" @click="askDelete">删除</button>

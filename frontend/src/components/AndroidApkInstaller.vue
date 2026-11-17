@@ -1,6 +1,5 @@
 <template>
-    <section class="adb-apk" aria-labelledby="adb-apk-title">
-        <h2 id="adb-apk-title">APK 传送安装</h2>
+    <AndroidToolSection class="adb-apk" section-id="adb-apk" title="APK 传送安装" :activity="busy ? (phase === 'upload' ? '上传中' : '安装中') : ''">
         <label class="adb-apk-mode"><input id="adb-apk-batch-mode" v-model="batchMode" type="checkbox" :disabled="disabled || busy">多设备安装</label>
         <div class="adb-apk-row">
             <label v-if="!batchMode" for="adb-apk-device">安装设备
@@ -84,15 +83,17 @@
             </ol>
             <button v-if="!busy && failedSerials.length" id="adb-apk-retry-failed" class="btn btn-sm" type="button" :disabled="disabled" @click="selectFailed">{{ queueRun ? `只选择失败安装项（${failedItems.length} 项）` : `只选择失败设备（${failedSerials.length} 台）` }}</button>
         </div>
-    </section>
+    </AndroidToolSection>
 </template>
 
 <script>
 import { androidApi } from '../api/android-client.js';
 import { installApks } from '../api/android-apk-queue-client.js';
+import AndroidToolSection from './AndroidToolSection.vue';
 
 export default {
     name: 'AndroidApkInstaller',
+    components: { AndroidToolSection },
     props: { devices: { type: Array, default: () => [] }, disabled: Boolean },
     emits: ['busy-change'],
     data() { return { serial: '', batchMode: false, selectedSerials: [], file: null, pending: false, busy: false, progress: 0, phase: '', error: '', notice: '', result: null,
@@ -189,8 +190,6 @@ export default {
 </script>
 
 <style scoped>
-.adb-apk { padding: var(--page-padding); margin-bottom: var(--gap-column); border: 1px solid var(--panel-border); border-radius: var(--radius-md); background: var(--panel-background); }
-.adb-apk h2 { margin: 0 0 var(--gap-column); font-size: var(--text-section-title); }
 .adb-apk-row, .adb-apk-actions { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--gap-column); }
 .adb-apk-row label { flex: 1; min-width: min(var(--adb-command-column), 100%); color: var(--text-secondary); }
 .adb-apk-row .input { display: block; width: 100%; box-sizing: border-box; margin-top: var(--adb-small-gap); }

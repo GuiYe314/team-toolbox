@@ -1,6 +1,5 @@
 <template>
-    <section class="adb-section persistent-panel" aria-labelledby="adb-persistent-title">
-        <h2 id="adb-persistent-title">Unity 替换 persistentDataPath 中文件</h2>
+    <AndroidToolSection class="adb-section persistent-panel" section-id="adb-persistent" title="Unity 替换 persistentDataPath 中文件" :activity="busy">
         <div class="persistent-row">
             <label>目标设备<select id="adb-persistent-device" v-model="serial" class="input adb-select" :disabled="disabled || !!busy">
                 <option value="" disabled>选择已连接设备</option><option v-for="device in online" :key="device.serial" :value="device.serial">{{ device.model || '安卓设备' }} · {{ device.serial }}</option>
@@ -56,14 +55,15 @@
             </div>
             <p class="adb-muted">仅支持普通文件，单文件最多 256 MiB；UTF-8 文本预览最多 256 KiB。不会停止 App；运行中的 App 可能继续修改文件。设备拒绝访问时请检查权限，不会自动 root 或更改权限。</p>
         </template>
-    </section>
+    </AndroidToolSection>
 </template>
 
 <script>
 import { androidApi } from '../api/android-client.js';
 import { persistentApi } from '../api/android-persistent-client.js';
+import AndroidToolSection from './AndroidToolSection.vue';
 export default {
-    name: 'AndroidPersistentFiles', props: { devices: { type: Array, default: () => [] }, disabled: Boolean }, emits: ['busy-change'],
+    name: 'AndroidPersistentFiles', components: { AndroidToolSection }, props: { devices: { type: Array, default: () => [] }, disabled: Boolean }, emits: ['busy-change'],
     data() { return { serial: '', packageName: '', apps: [], query: '', directory: null, path: '', file: null, fileName: '', mode: 'add', pending: null, previewResult: null, busy: '', uploading: false, progress: 0, error: '', notice: '', maximum: 256 * 1024 * 1024 }; },
     computed: {
         online() { return this.devices.filter(device => device.state === 'device'); },
@@ -141,8 +141,6 @@ export default {
 </script>
 
 <style scoped>
-.persistent-panel { padding: var(--page-padding); margin-bottom: var(--gap-column); border: 1px solid var(--panel-border); border-radius: var(--radius-md); background: var(--panel-background); }
-.persistent-panel h2 { font-size: var(--text-section-title); margin: 0 0 var(--gap-column); }
 .persistent-row, .persistent-actions { display: flex; gap: var(--gap-column); align-items: flex-end; flex-wrap: wrap; margin-bottom: var(--gap-column); }
 .persistent-row label { flex: 1; min-width: 0; color: var(--text-secondary); font-size: var(--text-body); }
 .persistent-row .input { display: block; margin-top: var(--adb-small-gap); width: 100%; box-sizing: border-box; }

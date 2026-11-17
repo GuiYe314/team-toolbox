@@ -22,6 +22,9 @@ import { registerPortViewerApi } from './port-viewer-api.js';
 import { registerPhoneAlbumApi } from './phone-album-api.js';
 import { registerMediaToolsApi } from './media-tools-api.js';
 import { registerTransferApi } from './transfer-api.js';
+import { registerQuickCalculationApi } from './quick-calculation-api.js';
+import { registerKnowledgeSopsApi } from './knowledge-sops-api.js';
+import { registerKnowledgeWorkbenchApi } from './knowledge-workbench-api.js';
 import { createToolAccess } from './tool-access.js';
 import { backfillPreviews } from './asset-preview.js';
 import { disposeLivePhotos } from './live-photo.js';
@@ -42,6 +45,11 @@ const PORT = Number(process.env.PORT) || 3000;
 const app = express();
 app.use(access.middleware);
 const phoneAlbum = registerPhoneAlbumApi(app, { getDb: getDefaultDatabase, access });
+registerQuickCalculationApi(app, { getDb: getDefaultDatabase, access });
+registerKnowledgeSopsApi(app, { getDb: getDefaultDatabase, access });
+registerKnowledgeWorkbenchApi(app, { getDb: getDefaultDatabase, access });
+// 含最多50MiB历史和16MiB工作台配置的内容备份；只放宽精确导入端点。
+app.post('/api/backup/import', express.json({ limit: '96mb' }));
 // 导入备份会携带全部文档正文，默认 2mb 不足以承载较大知识库，这里放宽到 16mb。
 app.use(express.json({ limit: '16mb' }));
 

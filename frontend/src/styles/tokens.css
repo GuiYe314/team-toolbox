@@ -5,6 +5,15 @@
    ========================================================================== */
 
 :root {
+    --sop-list-width: 300px;
+    --sop-list-height: 600px;
+    --sop-compact-height: 260px;
+    --sop-note-height: 88px;
+    --sop-checkbox-size: 18px;
+    --calc-controls-width: 320px;
+    --calc-table-width: 500px;
+    --calc-table-height: 620px;
+    --calc-saved-height: 420px;
     --tools-space-xs: 6px;
     --tools-space-sm: 10px;
     --tools-space-md: 16px;
@@ -68,7 +77,7 @@
     --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
         "Liberation Mono", monospace;
 
-    --text-page-title: 30px;
+    --text-page-title: 28px;
     --text-section-title: 17px;
     --text-nav: 15px;
     --text-doc-title: 14px;
@@ -87,16 +96,26 @@
     --line-relaxed: 1.75;
 
     /* ── 圆角阶梯 ────────────────────────────────────────────────── */
-    --radius-xl: 24px;   /* 主容器 */
-    --radius-lg: 20px;   /* 侧栏 */
-    --radius-md: 12px;   /* 列表项 */
-    --radius-sm: 10px;   /* 按钮 */
+    --radius-xl: 32px;   /* 主容器 */
+    --radius-lg: 26px;   /* 侧栏与卡片 */
+    --radius-md: 18px;   /* 内层面板 */
+    --radius-sm: 12px;   /* 输入框 */
     --radius-pill: 999px;/* 标签 */
 
     /* ── 模糊强度（仅大型 Panel 使用，见 performance 约定）────────── */
-    --blur-lg: 30px;
-    --blur-md: 20px;
-    --blur-saturate: 135%;
+    --blur-lg: 36px;
+    --blur-md: 24px;
+    --blur-saturate: 165%;
+    --glass-line: 1px;
+    --glass-elevation: 0 16px 48px;
+    --glass-dialog-elevation: 0 28px 80px;
+    --surface-elevation: 0 5px 16px;
+    --control-elevation: 0 2px 6px;
+    --overlay-blur: 8px;
+    --control-press-offset: 1px;
+    --surface-hover-offset: -1px;
+    --tool-glyph-size: 38px;
+    --title-tracking: -0.025em;
 
     /* ── 间距 ────────────────────────────────────────────────────── */
     --gap-column: 14px;
@@ -132,6 +151,8 @@
     --adb-screen-dialog-offset: 150px;
     --adb-command-editor-width: 680px;
     --adb-command-editor-input-height: 100px;
+    --adb-section-border: 1px;
+    --adb-section-icon: 16px;
 
     /* 开源工具接入 */
     --ext-page-width: 1480px;
@@ -209,9 +230,37 @@
     --dur-fast: 120ms;
     --dur-base: 150ms;
     --dur-theme: 260ms;
+    --dur-click-feedback: 180ms;
+    --click-feedback-start-scale: 0.12;
+    --click-feedback-opacity: 0.9;
+
+    /* 知识工作台 */
+    --kw-sidebar-width: 210px;
+    --kw-sidebar-compact: 170px;
+    --kw-sidebar-height: 80vh;
+    --kw-input-width: 110px;
+    --kw-textarea-height: 90px;
+    --kw-property-width: 160px;
+    --kw-multiselect-height: 100px;
+    --kw-editor-height: 420px;
+    --kw-history-height: 240px;
+    --kw-block-height: 90px;
+    --kw-embed-border: 3px;
+    --kw-tab-width: 200px;
+    --kw-table-cell: 100px;
+    --kw-board-column: 200px;
+    --kw-card-width: 220px;
+    --kw-day-height: 100px;
+    --kw-day-compact: 80px;
+    --kw-timeline-label: 160px;
+    --kw-timeline-bar-height: 30px;
+    --kw-canvas-height: 580px;
+    --kw-svg-stroke: 1.8px;
+    --kw-file-width: 200px;
 
     /* ── 层级 ────────────────────────────────────────────────────── */
     --z-dropdown: 30;
     --z-overlay: 40;
     --z-modal: 50;
+    --z-click-feedback: 60;
 }

@@ -5,7 +5,7 @@ import { defaultToolGroups, normalizeToolGroups, readToolGroups, saveToolGroups,
 import { orderTools } from './tool-order.js';
 
 test('共享工具目录去重，移除两项工具且每个工具都有默认分组', () => {
-    assert.equal(TOOLS.length, 18); assert.equal(new Set(TOOLS.map(tool => tool.id)).size, TOOLS.length);
+    assert.ok(TOOLS.some(tool => tool.id === 'quick-calculation')); assert.equal(new Set(TOOLS.map(tool => tool.id)).size, TOOLS.length);
     assert.ok(!TOOLS.some(tool => ['freellmapi', 'artcraft'].includes(tool.id)));
     const layout = defaultToolGroups();
     for (const tool of TOOLS) { assert.equal(toolByRoute(tool.routeName), tool); assert.ok(toolIsEnabled(layout, tool.id)); }

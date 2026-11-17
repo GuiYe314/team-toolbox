@@ -17,6 +17,10 @@
 //   供阅读页面包屑、子页面列表与删除确认使用。
 
 import { errorMap } from './errors.js';
+import { importCalculations, listCalculations, validateCalculationBackup } from './quick-calculation-store.js';
+import { exportSops, validateSopBackup, importSops } from './knowledge-sops-store.js';
+import { exportWorkbench, validateWorkbenchBackup, importWorkbench } from './knowledge-workbench-store.js';
+import { remapWikiNoteIds } from './knowledge-links.js';
 import {
     FTS_TABLE, buildMatchExpr, isFtsAvailable, indexDocument, removeDocument
 } from './search-index.js';
@@ -1334,6 +1338,9 @@ export const BACKUP_VERSION = 1;
  * @returns {{ version: number, app: string, exported_at: string, counts: object, categories: object[], documents: object[] }}
  */
 export function exportSnapshot({ connection: db }) {
+    const calculations = listCalculations(db);
+    const sops = exportSops(db);
+    const workbench = exportWorkbench(db);
     const categories = listCategories({ connection: db });
     const tags = listTags({ connection: db });
     const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
@@ -1365,9 +1372,17 @@ export function exportSnapshot({ connection: db }) {
         counts: {
             documents: docs.length,
             categories: categories.length,
-            tags: tags.length
+            tags: tags.length,
+            quick_calculations: calculations.length,
+            sop_templates: sops.templates.length,
+            sop_runs: sops.runs.length,
+            workbench_entries: workbench.entries.length,
+            note_revisions: workbench.revisions.length
         },
         categories: categories.map((c) => ({ name: c.name })),
+        quick_calculations: calculations.map(({ id: _id, createdAt: _created, ...item }) => item),
+        sops,
+        workbench,
         documents: docs.map((d) => ({
             ref: d.id,
             parent_ref: d.parent_id == null ? null : d.parent_id,
@@ -1397,12 +1412,20 @@ export function exportSnapshot({ connection: db }) {
  * @throws {{ code: 'invalid_input', message: string }}
  */
 export function importSnapshot({ connection: db, snapshot }) {
+    return db.transaction(() => importSnapshotData({ connection: db, snapshot }))();
+}
+function importSnapshotData({ connection: db, snapshot }) {
     if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
         throw errorMap(new Error('备份文件格式不正确'), '(store)', 'invalid_input');
     }
     if (!Array.isArray(snapshot.documents)) {
         throw errorMap(new Error('备份文件中缺少 documents 文档数组'), '(store)', 'invalid_input');
     }
+
+    // 在写入任何分类/文档前验证新增部分；缺省兼容旧版快照。
+    const calculations = validateCalculationBackup(snapshot.quick_calculations);
+    const sops = validateSopBackup(snapshot.sops);
+    const workbench = validateWorkbenchBackup(snapshot.workbench);
 
     const details = [];
     const pushDetail = (kind, message) => {
@@ -1450,6 +1473,7 @@ export function importSnapshot({ connection: db, snapshot }) {
 
     const stats = { imported: 0, skipped: 0, categories_created: categoriesCreated, details };
     const refToNewId = new Map();
+    const newDocuments = new Set();
     const findByTitleAndParent = db.prepare(
         'SELECT id FROM documents WHERE title = ? AND parent_id IS ?'
     );
@@ -1498,6 +1522,7 @@ export function importSnapshot({ connection: db, snapshot }) {
             try { removeDocument(db, created.id); } catch (e) { /* 索引表不存在时忽略 */ }
         }
         stats.imported += 1;
+        newDocuments.add(created.id);
         if (doc.ref !== null) refToNewId.set(doc.ref, created.id);
     };
 
@@ -1524,6 +1549,18 @@ export function importSnapshot({ connection: db, snapshot }) {
             pushDetail('reparented', `「${doc.title}」的父页面不在备份中，已导入为顶层页面`);
             importOne(doc, null);
         }
+        if (calculations.length) stats.quick_calculations = importCalculations(db, calculations);
+        if (sops.templates.length || sops.runs.length) stats.sops = importSops(db, sops);
+        for (const id of newDocuments) {
+            const row = db.prepare('SELECT title,content_md,is_deleted FROM documents WHERE id=?').get(id);
+            const md = remapWikiNoteIds(row.content_md, refToNewId);
+            if (md !== row.content_md) {
+                db.prepare('UPDATE documents SET content_md=? WHERE id=?').run(md, id);
+                if (!row.is_deleted) try { indexDocument(db, id, row.title, md); } catch { /* 原索引降级策略 */ }
+            }
+            db.prepare('DELETE FROM kb_note_revisions WHERE document_id=?').run(id);
+        }
+        if (workbench) stats.workbench = importWorkbench(db, workbench, refToNewId, newDocuments);
     });
 
     tx();

@@ -188,7 +188,7 @@ export default {
 .adb-device-serial { display: block; margin-top: var(--adb-small-gap); overflow-wrap: anywhere; }
 .adb-page .view-head, .adb-card, .adb-alert { margin-bottom: var(--gap-column); }
 .adb-page h1 { margin-top: var(--gap-column); }
-.adb-card { padding: var(--page-padding); border: 1px solid var(--panel-border); border-radius: var(--radius-md); background: var(--panel-background); }
+.adb-card { padding: var(--page-padding); border: 1px solid var(--panel-border); border-radius: var(--radius-md); background: var(--surface-material); box-shadow: var(--surface-shadow); }
 .adb-card h2 { margin: 0 0 var(--gap-column); font-size: var(--text-section-title); font-weight: var(--weight-semibold); }
 .adb-card p, .adb-card ol { margin: var(--gap-column) 0; line-height: var(--line-relaxed); }
 .adb-row { display: flex; align-items: flex-end; gap: var(--gap-column); flex-wrap: wrap; }

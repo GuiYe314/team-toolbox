@@ -1,6 +1,6 @@
 <template>
-    <section class="adb-screen">
-        <div class="adb-screen-head"><h2>手机屏幕</h2><span class="adb-screen-muted">{{ continuous ? '连续刷新中' : busy ? '读取中' : '已停止' }}</span></div>
+    <AndroidToolSection class="adb-screen" section-id="adb-screen" title="手机屏幕">
+        <template #status><span class="adb-screen-muted">{{ continuous ? '连续刷新中' : busy ? '读取中' : '已停止' }}</span></template>
         <div class="adb-screen-controls">
             <label for="adb-screen-device">屏幕设备<select id="adb-screen-device" v-model="serial" class="input adb-select" :disabled="disabled"><option value="" disabled>请选择已连接设备</option><option v-for="device in onlineDevices" :key="device.serial" :value="device.serial">{{ device.model || device.serial }} · {{ device.serial }}</option></select></label>
             <label for="adb-screen-interval">刷新间隔<select id="adb-screen-interval" v-model="interval" class="input adb-select"><option :value="1000">1 秒</option><option :value="2000">2 秒</option><option :value="5000">5 秒</option></select></label>
@@ -16,7 +16,7 @@
         <p v-if="url" id="adb-screen-info" class="adb-screen-muted">{{ width }} × {{ height }} · 最后读取 {{ capturedAt }}{{ !continuous && !busy ? ' · 显示最后画面' : '' }}</p>
         <div class="adb-screen-display"><img v-if="url" id="adb-screen-image" :src="url" alt="所选安卓设备的屏幕画面" :draggable="false" /><p v-else class="adb-screen-muted">选择设备后点击刷新，查看手机当前画面。</p></div>
         <p class="adb-screen-muted">每轮读取完成后等待所选间隔再刷新，速度取决于设备和网络。</p>
-    </section>
+    </AndroidToolSection>
     <Teleport to="body">
         <div v-if="enlarged && url" class="overlay" @click.self="close" @keydown="onKeydown">
             <section ref="dialog" class="dialog adb-screen-dialog" role="dialog" aria-modal="true" aria-labelledby="adb-screen-dialog-title">
@@ -28,8 +28,9 @@
 </template>
 <script>
 import { androidApi } from '../api/android-client.js';
+import AndroidToolSection from './AndroidToolSection.vue';
 export default {
-    name: 'AndroidScreenPreview', props: { devices: { type: Array, default: () => [] }, disabled: Boolean },
+    name: 'AndroidScreenPreview', components: { AndroidToolSection }, props: { devices: { type: Array, default: () => [] }, disabled: Boolean },
     data() { return { serial: '', interval: 2000, continuous: false, busy: false, url: '', width: 0, height: 0, capturedAt: '', error: '', enlarged: false }; },
     computed: { onlineDevices() { return this.devices.filter(device => device.state === 'device'); } },
     watch: {
@@ -85,7 +86,6 @@ export default {
 };
 </script>
 <style scoped>
-.adb-screen { padding: var(--page-padding); margin-bottom: var(--gap-column); min-width: 0; border: 1px solid var(--panel-border); border-radius: var(--radius-md); background: var(--panel-background); }
 .adb-screen-head, .adb-screen-controls, .adb-screen-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gap-column); margin-bottom: var(--gap-column); }
 .adb-screen-head { justify-content: space-between; }
 .adb-screen h2 { margin: 0; font-size: var(--text-section-title); }

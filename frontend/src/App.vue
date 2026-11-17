@@ -6,7 +6,7 @@
         :class="{
             // 非知识库区块与知识库区块现在都是两栏：主导航+（页面树）+ 主内容。
             // 页面树可折叠，因此只需 col-page-hidden 一个变体。
-            'col-single': !onKbSection || pageColHidden
+            'col-single': !onKbSection || $route.name === 'kb-workbench' || pageColHidden
         }"
     >
         <!-- 环境层：为玻璃提供可折射的背景内容 -->
@@ -115,7 +115,7 @@
         </nav>
 
         <!-- ═══ 栏 2：页面树（仅知识库区块）═══ -->
-        <aside v-if="onKbSection" class="sidebar glass-panel page-sidebar" :class="{ 'is-collapsed': pageColHidden }" aria-label="页面">
+        <aside v-if="onKbSection && $route.name !== 'kb-workbench'" class="sidebar glass-panel page-sidebar" :class="{ 'is-collapsed': pageColHidden }" aria-label="页面">
             <header class="side-head">
                 <h2 class="side-title">页面</h2>
                 <button v-hint class="icon-btn" type="button" title="新建页面" aria-label="新建页面" @click="createPage">
@@ -207,6 +207,7 @@
         />
 
     </div>
+    <ClickFeedback />
 </template>
 
 <script>
@@ -216,6 +217,7 @@ import ThemeToggle from './components/ThemeToggle.vue';
 import AssetQrDialog from './components/assets/AssetQrDialog.vue';
 import AppBrandIcon from './components/AppBrandIcon.vue';
 import ToolTabs from './components/ToolTabs.vue';
+import ClickFeedback from './components/ClickFeedback.vue';
 import { toolByRoute } from './utils/tool-catalog.js';
 import { copyText } from './utils/clipboard.js';
 
@@ -223,7 +225,7 @@ const EXPANDED_KEY = 'kb-tree-expanded';
 
 export default {
     name: 'App',
-    components: { PageTree, ThemeToggle, AssetQrDialog, AppBrandIcon, ToolTabs },
+    components: { PageTree, ThemeToggle, AssetQrDialog, AppBrandIcon, ToolTabs, ClickFeedback },
     data() {
         return {
             treeRows: [],

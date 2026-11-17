@@ -1,6 +1,7 @@
 <template>
-    <section class="adb-logcat">
-        <div class="adb-logcat-head"><h2>设备日志 <span>Logcat</span></h2><span class="adb-logcat-badge" :class="{ live: running }">{{ running ? '采集中' : '已停止' }}</span></div>
+    <AndroidToolSection class="adb-logcat" section-id="adb-logcat" title="设备日志 Logcat">
+        <template #title>设备日志 <span class="adb-logcat-subtitle">Logcat</span></template>
+        <template #status><span class="adb-logcat-badge" :class="{ live: running }">{{ running ? '采集中' : busy || applicationBusy ? '处理中' : '已停止' }}</span></template>
         <div class="adb-logcat-controls">
             <label for="adb-log-device">日志设备
                 <select id="adb-log-device" v-model="serial" class="input adb-select" :disabled="disabled || busy || applicationBusy">
@@ -27,14 +28,15 @@
                 <span class="adb-logcat-level">{{ entry.level }}</span><span><b v-if="entry.tag">{{ entry.tag }}: </b>{{ entry.message }}</span>
             </div>
         </div>
-    </section>
+    </AndroidToolSection>
 </template>
 <script>
 import { androidApi } from '../api/android-client.js';
 import AndroidAppSelector from './AndroidAppSelector.vue';
+import AndroidToolSection from './AndroidToolSection.vue';
 const rank = { V: 0, D: 1, I: 2, W: 3, E: 4, F: 5, A: 5, S: 5 };
 export default {
-    name: 'AndroidLogcat', components: { AndroidAppSelector }, props: { devices: { type: Array, default: () => [] }, disabled: Boolean }, emits: ['busy-change'],
+    name: 'AndroidLogcat', components: { AndroidAppSelector, AndroidToolSection }, props: { devices: { type: Array, default: () => [] }, disabled: Boolean }, emits: ['busy-change'],
     data() { return { serial: '', scope: 'device', packageName: '', applicationBusy: false, session: null, entries: [], cursor: 0, dropped: 0, level: 'V', levels: ['V', 'D', 'I', 'W', 'E', 'F'], keyword: '', autoScroll: true, running: false, busy: false, error: '', message: '' }; },
     computed: {
         onlineDevices() { return this.devices.filter(item => item.state === 'device'); },
@@ -96,11 +98,8 @@ export default {
 };
 </script>
 <style scoped>
-.adb-logcat { min-width: 0; padding: var(--page-padding); border: 1px solid var(--panel-border); border-radius: var(--radius-md); background: var(--panel-background); }
-.adb-logcat-head, .adb-logcat-controls, .adb-logcat-toolbar { display: flex; align-items: center; gap: var(--gap-column); flex-wrap: wrap; }
-.adb-logcat-head { justify-content: space-between; margin-bottom: var(--gap-column); }
-.adb-logcat h2 { margin: 0; font-size: var(--text-section-title); }
-.adb-logcat h2 span { font-size: var(--text-body); color: var(--text-secondary); font-weight: var(--weight-regular); }
+.adb-logcat-controls, .adb-logcat-toolbar { display: flex; align-items: center; gap: var(--gap-column); flex-wrap: wrap; }
+.adb-logcat-subtitle { font-size: var(--text-body); color: var(--text-secondary); font-weight: var(--weight-regular); }
 .adb-logcat-controls { align-items: flex-end; margin-bottom: var(--gap-column); }
 .adb-logcat-controls label { flex: 1; min-width: 0; color: var(--text-secondary); font-size: var(--text-body); }
 .adb-logcat-controls .input { display: block; width: 100%; box-sizing: border-box; margin-top: var(--adb-small-gap); }

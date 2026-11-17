@@ -72,6 +72,17 @@ function Say([string]$msg, [string]$color = "Gray") {
     Write-Host $msg -ForegroundColor $color
 }
 
+function Get-ReleaseFileSha256([string]$Path) {
+    $stream = [System.IO.File]::OpenRead($Path)
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return [System.BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $algorithm.Dispose()
+        $stream.Dispose()
+    }
+}
+
 # ── 取得内置 Node 运行时 ─────────────────────────────────────────────────
 #
 # 返回 Node 发行版的**目录**（含 node.exe 与 npm）。
@@ -520,7 +531,7 @@ $assets = @()
 if (Test-Path $setupPath) { $assets += $setupPath }
 $assets += $zipPath
 foreach ($a in $assets) {
-    $h = (Get-FileHash -Path $a -Algorithm SHA256).Hash.ToLower()
+    $h = Get-ReleaseFileSha256 $a
     $sz = (Get-Item $a).Length
     $lines += "$h  $(Split-Path -Leaf $a)  $sz bytes"
     Say ("      {0}  {1}" -f (Split-Path -Leaf $a), $h.Substring(0,16)) "Green"
@@ -536,7 +547,7 @@ foreach ($a in $assets) {
 # 「Unexpected token」，而错误现场看起来像「清单文件损坏」，
 # 极难联想到是编码问题。同理服务端读取时也会先剥掉 BOM 兜底。
 $updateManifest = Join-Path $releaseDir "manifest.json"
-$zipHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
+$zipHash = Get-ReleaseFileSha256 $zipPath
 $zipSize = (Get-Item $zipPath).Length
 $updatePayload = [ordered]@{
     schema   = 1

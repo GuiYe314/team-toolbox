@@ -1,6 +1,6 @@
 <template>
-    <section class="adb-commands">
-        <div class="adb-command-heading"><h2>常用 ADB 命令</h2><div class="adb-command-actions"><button ref="addButton" id="adb-command-add" class="btn btn-sm" :disabled="busy || managing || loading || homeLoading" @click="openEditor(false)">添加命令</button><button ref="editButton" id="adb-command-edit" class="btn btn-sm" :disabled="busy || managing || homeLoading || !selected?.custom" @click="openEditor(true)">编辑</button><button id="adb-command-delete" class="btn btn-sm" :disabled="busy || managing || homeLoading || !selected?.custom" @click="pendingDelete = true; pending = false">删除</button></div></div>
+    <AndroidToolSection class="adb-commands" section-id="adb-commands" title="常用 ADB 命令" :activity="busy ? '执行中' : managing ? '保存中' : loading || homeLoading ? '读取中' : ''">
+        <div class="adb-command-heading"><div class="adb-command-actions"><button ref="addButton" id="adb-command-add" class="btn btn-sm" :disabled="busy || managing || loading || homeLoading" @click="openEditor(false)">添加命令</button><button ref="editButton" id="adb-command-edit" class="btn btn-sm" :disabled="busy || managing || homeLoading || !selected?.custom" @click="openEditor(true)">编辑</button><button id="adb-command-delete" class="btn btn-sm" :disabled="busy || managing || homeLoading || !selected?.custom" @click="pendingDelete = true; pending = false">删除</button></div></div>
         <p v-if="error" class="adb-command-error" role="alert">{{ error }}</p>
         <button v-if="!loading" id="adb-command-reload" class="btn btn-sm" :disabled="busy || managing || homeLoading" @click="load">重新读取命令</button>
         <p v-if="loading" role="status">正在读取常用命令…</p>
@@ -41,16 +41,17 @@
             <button class="btn btn-sm" @click="result = null">清空结果</button>
         </div>
         <AndroidCommandEditor v-if="editorOpen" :record="editing" @close="closeEditor" @saved="saved" @busy-change="managementChanged" />
-    </section>
+    </AndroidToolSection>
 </template>
 
 <script>
 import { androidApi } from '../api/android-client.js';
 import AndroidCommandEditor from './AndroidCommandEditor.vue';
 import AndroidHomeSelector from './AndroidHomeSelector.vue';
+import AndroidToolSection from './AndroidToolSection.vue';
 export default {
     name: 'AndroidCommands',
-    components: { AndroidCommandEditor, AndroidHomeSelector },
+    components: { AndroidCommandEditor, AndroidHomeSelector, AndroidToolSection },
     props: { devices: { type: Array, default: () => [] }, disabled: Boolean },
     emits: ['busy-change'],
     data() { return { commands: [], commandId: 'device-info', serial: '', loading: false, busy: false, managing: false, homeLoading: false, homeChoice: null, pending: false, pendingDelete: false, editorOpen: false, editing: null, result: null, error: '' }; },
@@ -108,11 +109,8 @@ export default {
 </script>
 
 <style scoped>
-.adb-commands { padding: var(--page-padding); margin-bottom: var(--gap-column); border: 1px solid var(--panel-border); border-radius: var(--radius-md); background: var(--panel-background); }
-.adb-commands h2 { margin: 0 0 var(--gap-column); font-size: var(--text-section-title); }
 .adb-command-heading, .adb-command-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--adb-small-gap); }
 .adb-command-heading { justify-content: space-between; margin-bottom: var(--gap-column); }
-.adb-command-heading h2 { margin: 0; }
 #adb-command-reload { margin-bottom: var(--gap-column); }
 .adb-command-row { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--gap-column); }
 .adb-command-row label { flex: 1; min-width: min(var(--adb-command-column), 100%); color: var(--text-secondary); }

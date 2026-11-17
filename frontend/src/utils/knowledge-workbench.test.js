@@ -1,0 +1,10 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { splitMarkdownBlocks, propertyValue, visibleDatabaseNotes, groupNotes, displayValue, localDay } from './knowledge-workbench.js';
+const db={id:'A',data:{fields:[{key:'state',type:'status'},{key:'amount',type:'number'},{key:'links',type:'relation',target:'B'},{key:'sum',type:'rollup',relation:'links',field:'amount',aggregate:'sum'}]}};
+const target={id:'B',data:{fields:[{key:'amount',type:'number'}]}};
+const notes=[{id:1,title:'二',meta:{databaseId:'A',values:{state:'完成',amount:2,links:[3,99]}}},{id:2,title:'一',meta:{databaseId:'A',values:{state:'待办',amount:10}}},{id:3,title:'关联',meta:{databaseId:'B',values:{amount:3}}}];
+test('块编辑保留围栏中的空行及折叠/提示块边界',()=>{const md='# 标题\n\n```js\na\n\nb\n```\n\n:::toggle 展开\n内容\n\n第二段\n:::';assert.equal(splitMarkdownBlocks(md).length,3);assert.equal(splitMarkdownBlocks(md).join('\n\n'),md);assert.deepEqual(splitMarkdownBlocks(''),['']);});
+test('资料库数字排序、组合筛选与分组共用数据',()=>{assert.deepEqual(visibleDatabaseNotes(db,{sort:'amount',direction:'asc',filters:[]},notes,[db,target]).map(n=>n.id),[1,2]);assert.equal(visibleDatabaseNotes(db,{filters:[{field:'state',op:'equals',value:'完成'}]},notes,[db,target]).length,1);assert.equal(groupNotes(notes.slice(0,2),'state',db,notes,[db,target]).length,2);});
+test('关联汇总只读取有效目标资料库数字，缺失引用明确显示',()=>{assert.equal(propertyValue(notes[0],db.data.fields[3],db,notes,[db,target]),3);assert.equal(displayValue([3,99],{type:'relation'},notes),'关联、已失效笔记 #99');const count={...db.data.fields[3],aggregate:'count'};assert.equal(propertyValue(notes[0],count,db,notes,[db,target]),1);});
+test('每日日期按浏览器本地日期生成，不使用UTC截断',()=>{const value=new Date(2026,10,17,0,1);assert.equal(localDay(value),'2026-11-17');});
