@@ -3,32 +3,35 @@
         <p class="ext-hint">关闭分组会隐藏工具入口，已打开的标签仍可使用。删除分组后，工具移入“未分组”。</p>
         <div class="tool-group-editor-list">
             <div v-for="(group, index) in draft.groups" :key="group.id" class="tool-group-editor" :data-edit-group="group.id">
-                <label class="tool-group-name-field"><span class="ext-label">分组名称 · {{ count(group.id) }} 个工具</span><input v-model="group.name" :aria-label="`第${index + 1}个分组名称`" maxlength="24" :readonly="group.id === UNGROUPED_ID" /></label>
-                <label class="tool-group-enable"><input v-model="group.enabled" type="checkbox" role="switch" :aria-label="`启用${group.name}分组`" /><span>{{ group.enabled ? '已启用' : '已关闭' }}</span></label>
+                <label class="tool-group-name-field"><span class="ext-label">分组名称 · {{ count(group.id) }} 个工具</span><InputText v-model="group.name" :aria-label="`第${index + 1}个分组名称`" maxlength="24" :readonly="group.id === UNGROUPED_ID" /></label>
+                <label class="tool-group-enable"><ToggleSwitch v-model="group.enabled" :aria-label="`启用${group.name}分组`" /><span>{{ group.enabled ? '已启用' : '已关闭' }}</span></label>
                 <div class="tool-group-editor-actions">
-                    <button class="btn btn-sm" type="button" :disabled="index === 0" :aria-label="`上移${group.name}分组`" @click="moveGroup(index, -1)">上移</button>
-                    <button class="btn btn-sm" type="button" :disabled="index === draft.groups.length - 1" :aria-label="`下移${group.name}分组`" @click="moveGroup(index, 1)">下移</button>
-                    <button class="btn btn-sm" type="button" :disabled="group.id === UNGROUPED_ID" :aria-label="`删除${group.name}分组`" @click="removeGroup(group.id)">删除</button>
+                    <Button class="btn btn-sm" type="button" :disabled="index === 0" :aria-label="`上移${group.name}分组`" @click="moveGroup(index, -1)">上移</Button>
+                    <Button class="btn btn-sm" type="button" :disabled="index === draft.groups.length - 1" :aria-label="`下移${group.name}分组`" @click="moveGroup(index, 1)">下移</Button>
+                    <Button class="btn btn-sm" type="button" :disabled="group.id === UNGROUPED_ID" :aria-label="`删除${group.name}分组`" @click="removeGroup(group.id)">删除</Button>
                 </div>
             </div>
         </div>
         <form class="tool-group-add" @submit.prevent="addGroup">
-            <label class="tool-group-name-field"><span class="ext-label">新分组名称</span><input id="new-tool-group" v-model="newName" maxlength="24" placeholder="例如：项目常用" /></label>
-            <button class="btn" type="submit" :disabled="draft.groups.length >= MAX_GROUPS">添加分组</button>
+            <label class="tool-group-name-field"><span class="ext-label">新分组名称</span><InputText id="new-tool-group" v-model="newName" maxlength="24" placeholder="例如：项目常用" /></label>
+            <Button class="btn" type="submit" :disabled="draft.groups.length >= MAX_GROUPS">添加分组</Button>
         </form>
         <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
         <div class="tool-group-dialog-footer">
-            <button class="btn btn-sm" type="button" @click="draft = defaultToolGroups(); error = ''">恢复默认分组</button>
+            <Button class="btn btn-sm" type="button" @click="draft = defaultToolGroups(); error = ''">恢复默认分组</Button>
             <span class="ext-hint">在此浏览器保存 · 最多{{ MAX_GROUPS }}组</span>
-            <button class="btn" type="button" @click="$emit('close')">取消</button>
-            <button id="save-tool-groups" class="btn btn-primary" type="button" @click="save">保存分组</button>
+            <Button class="btn" type="button" @click="$emit('close')">取消</Button>
+            <Button id="save-tool-groups" class="btn btn-primary" type="button" @click="save">保存分组</Button>
         </div>
     </IntegrationDialog>
 </template>
 
 <script setup>
 import { ref } from 'vue';
-import IntegrationDialog from './IntegrationDialog.vue';
+import IntegrationDialog from './ui/UiDialog.vue';
+import InputText from 'primevue/inputtext';
+import ToggleSwitch from 'primevue/toggleswitch';
+import Button from 'primevue/button';
 import { defaultToolGroups, normalizeToolGroups, deleteToolGroup, groupNameError, MAX_GROUPS, UNGROUPED_ID } from '../utils/tool-groups.js';
 const props = defineProps({ layout: { type: Object, required: true } }), emit = defineEmits(['close', 'save']);
 const draft = ref(normalizeToolGroups(props.layout)), newName = ref(''), error = ref('');

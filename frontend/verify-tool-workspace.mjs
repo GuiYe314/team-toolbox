@@ -57,7 +57,7 @@ try {
     await browser.click(`[aria-label="上移项目工具分组"]`); await browser.click('#save-tool-groups');
     await browser.wait("!document.querySelector('.ext-overlay')");
     check('创建、改名及移动分组保存成功', await browser.evaluate(`document.querySelector('${group(custom)}').textContent.includes('项目工具')&&JSON.parse(localStorage.getItem('${groupKey}')).groups.at(-2).id===${JSON.stringify(custom)}`));
-    await browser.select(card('ratio-lock') + ' select', custom); await delay(80);
+    await browser.select(card('ratio-lock') + ' .ui-choice', custom); await delay(80);
     check('卡片选择可移入新分组', await browser.evaluate(`!!document.querySelector('${group(custom)} [data-tool-id="ratio-lock"]')`));
     await reload(); check('刷新保留自定义分组与归属', await browser.evaluate(`!!document.querySelector('${group(custom)} [data-tool-id="ratio-lock"]')`));
     await manageGroups(); await browser.fill(`[data-edit-group="${custom}"] input`, '不会保存'); await clickText('.ext-dialog button', '取消');

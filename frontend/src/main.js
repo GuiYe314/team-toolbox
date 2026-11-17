@@ -1,4 +1,7 @@
 import { createApp } from 'vue';
+import PrimeVue from 'primevue/config';
+import { primeVueOptions } from './ui/primevue.js';
+import { uiMotionPlugin } from './ui/motion.js';
 import App from './App.vue';
 import router from './router/index.js';
 import { initTheme } from './styles/theme.js';
@@ -29,6 +32,7 @@ import './styles/workshops.css';
 import './styles/quick-calculation.css';
 import './styles/knowledge-sops.css';
 import './styles/knowledge-workbench.css';
+import './styles/primevue.css';
 
 // 全局指令：v-hint（延迟 1 秒的悬停提示）
 import hintDirective from './directives/hint.js';
@@ -39,6 +43,8 @@ initAppIcon();
 initToolWorkspace();
 
 const app = createApp(App);
+app.use(PrimeVue, primeVueOptions());
+app.use(uiMotionPlugin);
 app.use(router);
 app.use(hintDirective);
 // 等首个路由确定后挂载，手机上传页不会短暂挂载桌面侧栏或请求知识库。

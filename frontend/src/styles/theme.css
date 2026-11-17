@@ -8,6 +8,11 @@
 :root,
 [data-theme="light"] {
     color-scheme: light;
+    --ui-option-hover: #edf3fc;
+    --ui-option-selected: #dceafd;
+    --ui-option-selected-text: #144b8f;
+    --ui-switch-off: #c4cfde;
+    --ui-switch-thumb: #ffffff;
 
     /* 背景：冷白基调 + 两处极淡色晕，为玻璃提供折射内容 */
     --background: #eef1f6;
@@ -149,6 +154,11 @@
 
 [data-theme="dark"] {
     color-scheme: dark;
+    --ui-option-hover: #273e58;
+    --ui-option-selected: #264c78;
+    --ui-option-selected-text: #f2f7ff;
+    --ui-switch-off: #3b4b60;
+    --ui-switch-thumb: #f2f7ff;
 
     /* 深蓝灰基调，非纯黑 */
     --background: #090f18;

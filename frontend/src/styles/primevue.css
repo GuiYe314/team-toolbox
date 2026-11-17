@@ -1,0 +1,39 @@
+/* PrimeVue unstyled：颜色复用 theme，尺度复用 tokens。菜单始终使用清晰实底。 */
+.ui-choice, .ui-choice-overlay, .ui-choice-overlay *, .ui-switch { box-sizing: border-box; }
+.ui-choice { display: inline-flex; align-items: center; position: relative; min-width: 0; width: 100%; padding: 0; min-height: var(--ui-control-height); border: var(--tools-border) solid var(--adb-select-border); border-radius: var(--radius-sm); background: var(--adb-select-background); color: var(--adb-select-text); font: inherit; cursor: pointer; text-align: start; transition: border-color var(--dur-base) var(--ease-out); }
+.tool-group-select.ui-choice { width: min(var(--tools-select-width), 100%); font-size: var(--text-secondary); }
+.ui-choice:hover { border-color: var(--accent-border); }
+.ui-choice:focus-within { border-color: var(--accent); outline: var(--tools-focus) solid var(--focus-ring); outline-offset: var(--tools-border); }
+.ui-choice[data-p-disabled=true], .ui-choice[data-p*="disabled"] { cursor: default; color: var(--adb-select-disabled); }
+.ui-choice [data-pc-section=label], .ui-choice [data-pc-section=labelcontainer] { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-choice [data-pc-section=label] { display: block; padding: var(--tools-space-sm); outline: none; color: inherit; }
+.ui-choice [data-pc-section=dropdown] { flex: none; display: grid; place-items: center; width: var(--ui-trigger-width); align-self: stretch; color: var(--text-secondary); }
+.ui-choice [data-pc-section=hiddeninputcontainer] { position: absolute; overflow: hidden; width: var(--clipboard-size); height: var(--clipboard-size); clip-path: inset(50%); }
+.ui-choice-overlay { position: absolute; max-width: calc(100vw - var(--tools-space-md) * 2); border: var(--tools-border) solid var(--adb-select-border); border-radius: var(--radius-sm); background: var(--adb-select-menu); color: var(--adb-select-text); box-shadow: var(--shadow-overlay); padding: var(--tools-space-xs); font: var(--text-body) var(--font-sans); }
+.ui-choice-overlay [data-pc-section=listcontainer] { overflow-y: auto; overscroll-behavior: contain; max-height: min(var(--ui-menu-height), 50dvh); }
+.ui-choice-overlay [data-pc-section=list] { list-style: none; padding: 0; margin: 0; }
+.ui-choice-overlay [role=option] { display: flex; align-items: center; gap: var(--tools-space-sm); min-height: var(--ui-control-height); padding: var(--tools-space-xs) var(--tools-space-sm); border: var(--tools-border) solid transparent; border-radius: var(--radius-sm); cursor: pointer; color: var(--adb-select-text); background: var(--adb-select-menu); }
+.ui-choice-overlay [role=option][data-p-focused=true], .ui-choice-overlay [role=option]:hover { background: var(--ui-option-hover); border-color: var(--accent-border); }
+.ui-choice-overlay [role=option][aria-selected=true] { color: var(--ui-option-selected-text); background: var(--ui-option-selected); font-weight: var(--weight-semibold); }
+.ui-choice-overlay [role=option][aria-disabled=true] { color: var(--adb-select-disabled); cursor: default; }
+.ui-choice-option-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ui-choice-check { flex: none; }
+.ui-choice-overlay [data-pc-section=header] { padding: var(--tools-space-xs); margin-bottom: var(--tools-space-xs); }
+.ui-choice-overlay [data-pc-name=iconfield] { position: relative; }
+.ui-choice-overlay [data-pc-name=inputicon] { position: absolute; top: 50%; right: var(--tools-space-sm); transform: translateY(-50%); display: flex; color: var(--text-secondary); pointer-events: none; }
+.ui-choice-overlay [data-pc-section=filterinput], .ui-choice-overlay input[data-pc-name=inputtext] { box-sizing: border-box; width: 100%; padding-inline-end: var(--ui-trigger-width); min-height: var(--ui-control-height); }
+.ui-choice-overlay [data-pc-section=emptymessage] { cursor: default; color: var(--text-secondary); }
+.ui-choice-overlay [data-pc-name=checkbox] { display: none; }
+/* PrimeVue 的隐藏辅助节点在 unstyled 模式仍需保留可访问性并脱离布局。 */
+.ui-choice-overlay [data-p-hidden-accessible=true]:not([role=option]) { position: absolute; width: var(--clipboard-size); height: var(--clipboard-size); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ui-switch { display: inline-block; position: relative; width: var(--ui-switch-width); height: var(--ui-switch-height); flex: none; }
+.ui-switch [data-pc-section=input] { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: pointer; }
+.ui-switch [data-pc-section=slider] { display: flex; align-items: center; width: 100%; height: 100%; padding: var(--ui-switch-inset); border-radius: var(--radius-pill); background: var(--ui-switch-off); border: var(--tools-border) solid var(--adb-select-border); transition: background var(--dur-base) var(--ease-out); }
+.ui-switch [data-pc-section=handle] { width: var(--ui-switch-handle); height: var(--ui-switch-handle); border-radius: var(--radius-pill); background: var(--ui-switch-thumb); box-shadow: var(--control-shadow); transition: transform var(--dur-base) var(--ease-out); }
+.ui-switch[data-p-checked=true] [data-pc-section=slider] { background: var(--accent); border-color: var(--accent); }
+.ui-switch[data-p-checked=true] [data-pc-section=handle] { transform: translateX(var(--ui-switch-travel)); }
+.ui-switch:has(input:focus-visible) { border-radius: var(--radius-pill); outline: var(--tools-focus) solid var(--focus-ring); outline-offset: var(--tools-focus); }
+.ui-switch[data-p-disabled=true] { opacity: var(--ui-disabled-opacity); }
+.ui-dialog { gap: 0; border-radius: var(--radius-lg); box-sizing: border-box; }
+.ui-dialog-mask { box-sizing: border-box; }
+.tool-tab-indicator { position: absolute; left: 0; bottom: 0; height: var(--ui-indicator-height); border-radius: var(--radius-pill); background: var(--accent); pointer-events: none; }

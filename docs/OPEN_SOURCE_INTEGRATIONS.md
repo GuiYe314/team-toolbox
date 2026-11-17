@@ -10,6 +10,8 @@ TASK-050 调整：网页只保留 Yoinks 视频下载，FreeLLMAPI 和 ArtCraft 
 
 | 组件 | 接入方式与许可 |
 |---|---|
+| [PrimeVue](https://github.com/primefaces/primevue) | 固定4.5.5，MIT；Vue组件按需导入，unstyled复用现有主题，关闭重复ripple，无PrimeIcons或在线主题 |
+| [Motion for Vue](https://github.com/motiondivision/motion-vue) | 固定motion-v 2.12.0，MIT；使用其animateMini提供可取消的本地短时入场与选中指示条，尊重减少动态偏好 |
 | [Sharp](https://github.com/lovell/sharp) | 复用已有后端依赖处理位图，Apache-2.0 |
 | [Tesseract.js](https://github.com/naptha/tesseract.js) | 浏览器 Worker、本地 WASM 与中英文模型，Apache-2.0；模型分发包及底层依赖遵循各自许可 |
 | [pdf-lib](https://github.com/Hopding/pdf-lib) | 浏览器内创建及组合 PDF，MIT |

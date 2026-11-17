@@ -1,6 +1,7 @@
 <template>
     <div class="tool-workspace-header">
-        <div class="tool-tabs" role="tablist" aria-label="工具标签">
+        <div ref="tabList" class="tool-tabs" role="tablist" aria-label="工具标签">
+            <span ref="indicator" class="tool-tab-indicator" aria-hidden="true"></span>
             <div v-for="tab in tabs" :key="tab.id" class="tool-tab" role="presentation" :class="{ 'is-active': activeId === tab.id }" :data-tab-id="tab.id">
                 <button :id="`tool-tab-${tab.id}`" class="tool-tab-select" type="button" role="tab" :aria-selected="activeId === tab.id" aria-controls="tool-workspace-panel" :tabindex="activeId === tab.id ? 0 : -1" @click="selectTab(tab)" @keydown="tabKey($event, tab)">
                     <svg v-if="tab.id === 'toolbox'" class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V5h6v3M3 13h18"/></svg>
@@ -24,9 +25,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { TOOLS, toolByRoute } from '../utils/tool-catalog.js';
 import { closeToolTab } from '../utils/tool-tabs.js';
 import { toolTabs, addToolTab, setToolTabs, persistToolTabs } from '../stores/tool-tabs.js';
+import { useTabIndicator } from '../ui/use-tab-indicator.js';
 const route = useRoute(), router = useRouter(), closing = ref(false), navigationError = ref('');
 const activeId = computed(() => toolByRoute(route.name)?.id || 'toolbox');
 const tabs = computed(() => [{ id: 'toolbox', name: '工具箱', routeName: 'tools' }, ...toolTabs.ids.map(id => TOOLS.find(tool => tool.id === id)).filter(Boolean)]);
+const { tabList, indicator } = useTabIndicator(activeId, tabs);
 async function revealActive(focus = false) {
     await nextTick();
     const button = document.getElementById(`tool-tab-${activeId.value}`);

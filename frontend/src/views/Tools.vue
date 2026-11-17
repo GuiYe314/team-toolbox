@@ -16,14 +16,14 @@
                         <svg class="icon icon-sm" :class="{ 'is-folded': group.collapsed || !group.enabled }" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                         <span>{{ group.name }}</span><span class="tool-group-count">{{ group.tools.length }}</span>
                     </button>
-                    <label class="tool-group-enable"><input type="checkbox" role="switch" :checked="group.enabled" :aria-label="`启用${group.name}分组`" @change="setToolGroupFlag(group.id, 'enabled', $event.target.checked)" /><span>{{ group.enabled ? '已启用' : '已关闭' }}</span></label>
+                    <label class="tool-group-enable"><ToggleSwitch :model-value="group.enabled" :aria-label="`启用${group.name}分组`" @update:model-value="setToolGroupFlag(group.id, 'enabled', $event)" /><span>{{ group.enabled ? '已启用' : '已关闭' }}</span></label>
                 </header>
                 <div v-if="group.enabled && !group.collapsed" :id="`tools-in-${group.id}`" class="tools-grid">
-                    <div v-for="tool in group.tools" :key="tool.id" class="tool-card" :class="{ planned: tool.status !== '可用', 'is-dragging': draggingId === tool.id, 'is-drop-target': dropTargetId === tool.id, 'drop-after': dropTargetId === tool.id && dropPosition === 'after' }" :data-tool-id="tool.id" draggable="true" @dragstart="startDrag(tool, $event)" @dragover.stop="dragOver(tool, $event)" @dragleave="leaveTarget(tool, $event)" @drop.stop="dropTool(tool, $event)" @dragend="finishDrag">
+                    <div v-for="tool in group.tools" :key="tool.id" v-enter-motion="{ key: tool.id, disabled: !!draggingId }" class="tool-card" :class="{ planned: tool.status !== '可用', 'is-dragging': draggingId === tool.id, 'is-drop-target': dropTargetId === tool.id, 'drop-after': dropTargetId === tool.id && dropPosition === 'after' }" :data-tool-id="tool.id" draggable="true" @dragstart="startDrag(tool, $event)" @dragover.stop="dragOver(tool, $event)" @dragleave="leaveTarget(tool, $event)" @drop.stop="dropTool(tool, $event)" @dragend="finishDrag">
                         <div class="tool-card-header"><ToolIcon :tool-id="tool.id" /><div class="tool-card-meta"><span class="tool-status" :class="{ ready: tool.status === '可用' }">{{ tool.status }}</span><span class="tool-drag-handle" title="拖动排序或移动分组" aria-label="拖动排序或移动分组"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="6" r="1"/><circle cx="16" cy="6" r="1"/><circle cx="8" cy="12" r="1"/><circle cx="16" cy="12" r="1"/><circle cx="8" cy="18" r="1"/><circle cx="16" cy="18" r="1"/></svg></span></div></div>
                         <h3 class="tool-name">{{ tool.name }}</h3><p class="tool-desc">{{ tool.desc }}</p>
                         <div class="tool-card-actions"><button class="btn btn-sm" type="button" @click="$router.push({ name: tool.routeName })">{{ tool.status === '可用' ? '打开工具' : '查看详情' }}</button>
-                            <select class="tool-group-select" :aria-label="`${tool.name}所属分组`" :value="group.id" @change="setToolGroup(tool.id, $event.target.value)"><option v-for="option in state.layout.groups" :key="option.id" :value="option.id">{{ option.name }}{{ option.enabled ? '' : '（已关闭）' }}</option></select>
+                            <UiChoice class="tool-group-select" :aria-label="`${tool.name}所属分组`" :model-value="group.id" :options="groupOptions" @update:model-value="setToolGroup(tool.id, $event)" />
                         </div>
                     </div>
                     <p v-if="!group.tools.length" class="tool-group-empty">暂无工具，可从其他分组拖入，或用卡片上的分组选择移动。</p>
@@ -38,12 +38,15 @@
 <script>
 import ToolIcon from '../components/ToolIcon.vue';
 import ToolGroupManager from '../components/ToolGroupManager.vue';
+import UiChoice from '../components/ui/UiChoice.vue';
+import ToggleSwitch from 'primevue/toggleswitch';
 import { groupForTool, UNGROUPED_ID } from '../utils/tool-groups.js';
 import { toolWorkspace, saveToolPreferences, applyToolGroups, setToolGroup, setToolGroupFlag, moveWorkspaceTool, resetToolOrder } from '../stores/tool-workspace.js';
 export default {
-    name: 'Tools', components: { ToolIcon, ToolGroupManager },
+    name: 'Tools', components: { ToolIcon, ToolGroupManager, UiChoice, ToggleSwitch },
     data: () => ({ state: toolWorkspace, showGroups: false, draggingId: '', dropTargetId: '', dropPosition: 'before', dropGroupId: '' }),
     computed: {
+        groupOptions() { return this.state.layout.groups.map(group => ({ value: group.id, label: group.name + (group.enabled ? '' : '（已关闭）') })); },
         tools() { return this.state.tools; },
         groups() { return this.state.layout.groups.map(group => ({ ...group, tools: this.tools.filter(tool => groupForTool(this.state.layout, tool.id) === group.id) })).filter(group => group.id !== UNGROUPED_ID || group.tools.length || this.draggingId); },
     },
@@ -52,7 +55,7 @@ export default {
         saveGroups(layout) { applyToolGroups(layout); this.showGroups = false; },
         resetOrder() { resetToolOrder(); this.finishDrag(); },
         startDrag(tool, event) {
-            if (event.target.closest('button,select,input,a')) { event.preventDefault(); return; }
+            if (event.target.closest('button,select,input,a,.ui-choice,.ui-switch')) { event.preventDefault(); return; }
             this.draggingId = tool.id; this.dropTargetId = ''; this.dropGroupId = '';
             if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', tool.id); }
         },

@@ -34,6 +34,8 @@
 
 ## 前端约定
 
+PrimeVue/Motion（TASK-068）：PrimeVue固定MIT的4.x、unstyled与本地主题适配，公共选择/多选/弹窗放components/ui，中文与pass-through在ui/primevue.js；保持属性原值类型及确认取消后的回显。禁止引入在线主题、PrimeIcons或重复ripple。Motion只用短时tween，集中在ui/motion.js管理并在后台/减少动态/拖拽/卸载停止；不使用退出等待、KeepAlive或第三方画布逐项动效。修改后运行verify-primevue-motion及受影响的计算/知识/分组/排序/玻璃/点击/安卓回归，使用隔离库和浏览器。
+
 本项目前端为 Vue 3 + Vite。以下为硬约束，违反即为缺陷，不是风格偏好。
 
 1. **浮层必须 Teleport 到 body**：任何 `position: fixed` 的浮层（弹窗、下拉菜单、浮层提示）必须用 `<Teleport to="body">` 挂到 body 下。原因是 `.glass-panel` 上的 `backdrop-filter` 会创建包含块，使后代 fixed 改为相对该容器而非视口定位（详见 [styles/glass.css](frontend/src/styles/glass.css) 顶部说明）。验收见 `frontend/verify-overlay-position.mjs`。

@@ -1,5 +1,18 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## TASK-068 PrimeVue 与 Motion（2026-11-17）
+
+用户选择 PrimeVue 与 Motion for Vue，并授权改完上传、正式发布。本轮在完整工具箱 main 完成 F-UI-009 开发及包内验收，现有 output 设计材料保留；完整工具箱版本定为0.12.0，独立设备调试版沿用原发行。源码、标签及四资产准备上传，公开发布结果在完成后补记。
+
+- PrimeVue4.5.5使用unstyled、中文及本地样式，工具分组/计算表单/笔记属性实际使用选择、多选、输入、按钮与开关，分组管理使用body弹窗；取消资料库切换回显原值、保留草稿。motion-v2.12.0用animateMini统一管理约150ms页面/卡片入场和标签指示条；拖动、后台、减少动态与卸载取消。15个新增npm依赖的原许可汇入licenses，未引入在线主题或数据库变化。
+- 开发验证：后端复制源码和临时库完整829/829（build/task068-backend.log）、前端59/59（task068-frontend.log），生产构建成功。新增PrimeVue/Motion浏览器37/37，计算39/39、工作台57/57、SOP42/42、备份20/20、玻璃34/34、排序32/32、分组49/49、离线安卓208/208；日志为build/task068-*.log，全部隔离资料/浏览器/设备。
+- 初次浏览器验收发现Motion常规animate保留内联样式，改为同库animateMini并显式取消/还原后通过。刷新测试补充页面上下文标记，避免读到旧DOM；水波纹在并行检查中有一次标签短时效果断言失败，原日志保留，独立重跑42/42（task068-click-feedback-retry.log）；正式包再复查。人工查看primevue-light-1280及dark-1700截图，弹窗、开关及正文可读。
+- 最终包补齐搜索框中文可访问名称、中文空结果与实际关联多选验收，新增浏览器扩展为40/40。包内Node22及模块：计算39/39、工作台57/57、SOP42/42、备份20/20；最终页面玻璃34/34、水波纹42/42、排序32/32、分组49/49，运行时14/14。证据build/v0120-*.log；全部使用临时SQLite、附件、浏览器，未访问真实手机。
+- 正式构建在Inno输出文件锁定（32）处中止；保留v0120-package.log，用同一发行ISS和stage重编译成功（v0120-installer-retry.log）。之后以build/finalize-v0120-package.mjs生成SHA256和manifest并实际通过包内运行时自检（v0120-package-finalize.log），未跳过失败。ZIP CRC/路径/773个源码资源与许可摘要一致、初始data为空、无环境文件/测试/快捷方式，证据v0120-package-audit.json。
+- 最终包真实CMD/Local/Lan33/33与通用网页53/53（v0120-local-lan.log）；独立AppId同载荷安装/卸载及真实v0.11.0副本更新29/29（v0120-install-upgrade.log）。测试安装器仅改变AppId/输出三行，逐字节比对安装载荷，原HKCU/HKLM身份不变；升级完成校验/备份/apply/重启，保留文档、资源原件、data和更新源，全部测试服务已关闭。未覆盖真实安装。
+- 发行文件：ZIP207719106字节，SHA256 fa3995a2cc217a7a8ca1e25ede87059a3b85a3c71127c25a4b07e9a1f8e3ac73；安装器148658358字节，bc670f82383252a343387d5ceb87e4d5a05219698ce902f161d88df7eb551bec；校验清单358字节，75dccd887c63e3722a004b7420c74e4b0db9e6f7b2520909fd3547cfb093adb6；manifest451字节，28b76f9006b5b010ee41be0973b89e29fcf58eb1c30c554db8757642262bae5e。
+- 33个源码/测试/许可/文档文件已审查并通过git diff --cached --check，fetch确认main无远端新提交；output设计材料、运行数据、凭据与二进制不入源码。下一步推送main和v0.12.0、上传四资产并核对公开更新清单。Codex（GPT-6），未调用WorkBuddy；积分未提供，无法确认。
+
 ## v0.11.0 正式发布（2026-11-17）
 
 **TASK-059～067已开发、验收、上传并正式发布。** 源码推送main，发行提交`6be84abdaa7bd1aa59e9e5e06b09d1e611a69823`；注释标签`v0.11.0`解引用到同一提交。公开Release为[team-toolbox v0.11.0](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.11.0)，GitHub latest已指向本版，draft/prerelease均为false。独立设备调试版沿用原发行。

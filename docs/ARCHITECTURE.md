@@ -1,5 +1,11 @@
 # 架构说明（ARCHITECTURE）
 
+## PrimeVue 与 Motion（TASK-068）
+
+PrimeVue 4.x 使用 unstyled 模式，组件按需导入，中文配置与公共 pass-through 集中管理；控件样式只引用既有 tokens/theme，浮层统一 appendTo body，禁用其 ripple 以复用全局点击反馈。不引入 PrimeIcons、Tailwind 或外部主题请求。选择组件保持 string/number/array 原类型，数据仍经原业务API保存。
+
+Motion for Vue 的短促 tween 由可释放的组合函数与指令统一管理，时长和位移读取 tokens；路由只做入场，没有退出占位或延迟卸载。工具卡片拖动前结束入场，选中指示条不拦截指针；后台、减少动态和组件卸载停止并恢复最终样式。第三方编辑器/画布不参与逐项动效。
+
 ## 知识工作台、SOP与快速计算（TASK-062～067）
 
 数据库连续迁移009（计算方案）、010（SOP模板和执行）、011（工作台）。正文仍在 `documents`；`kb_entries` 统一保存有类型及乐观版本的资料库、模板、画布、同步块、工作区、评论和动作；`kb_note_meta` 保存每篇笔记的资料库与属性；`kb_note_revisions` 通过 SQL 更新触发器覆盖原编辑器和工作台的标题/正文历史；`kb_daily_notes` 对日期建立唯一约束。历史每篇20份、全局50MiB，配置实体总16MiB；SOP每次执行复制不可变模板快照，计算以 BigInt 有理数计算，仅显示阶段舍入。

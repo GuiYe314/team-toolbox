@@ -5,6 +5,18 @@
    ========================================================================== */
 
 :root {
+    --ui-control-height: 38px;
+    --ui-trigger-width: 32px;
+    --ui-menu-height: 280px;
+    --ui-switch-width: 38px;
+    --ui-switch-height: 22px;
+    --ui-switch-inset: 2px;
+    --ui-switch-handle: 16px;
+    --ui-switch-travel: 16px;
+    --ui-disabled-opacity: 0.65;
+    --ui-indicator-height: 2px;
+    --ui-enter-distance: 5px;
+    --ui-enter-opacity: 0.75;
     --sop-list-width: 300px;
     --sop-list-height: 600px;
     --sop-compact-height: 260px;
@@ -263,4 +275,6 @@
     --z-overlay: 40;
     --z-modal: 50;
     --z-click-feedback: 60;
+    --z-ui-overlay: 55;
+    --z-ui-tooltip: 58;
 }

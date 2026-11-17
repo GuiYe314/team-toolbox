@@ -157,7 +157,7 @@
         </aside>
 
         <!-- ═══ 栏 3：主内容 ═══ -->
-        <main class="main-content glass-panel glass-sheen" role="main" ref="mainContentRef">
+        <main v-enter-motion="$route.name" class="main-content glass-panel glass-sheen" role="main" ref="mainContentRef">
             <template v-if="onToolsSection">
                 <ToolTabs />
                 <div id="tool-workspace-panel" class="tool-workspace-view" role="tabpanel" :aria-labelledby="`tool-tab-${activeToolId}`">

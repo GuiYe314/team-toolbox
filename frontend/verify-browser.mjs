@@ -42,7 +42,13 @@ export async function testBrowser(temporary) {
         const wait = async expression => { for (let i = 0; i < 100; i++) { if (await evaluate(expression)) return; await delay(70); } throw new Error('界面等待超时：' + expression); };
         const click = async selector => { await wait(`document.querySelector(${JSON.stringify(selector)}) && !document.querySelector(${JSON.stringify(selector)}).disabled`); return evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`); };
         const fill = (selector, value, event = 'input') => evaluate(`{const el=document.querySelector(${JSON.stringify(selector)});el.value=${JSON.stringify(value)};el.dispatchEvent(new Event(${JSON.stringify(event)},{bubbles:true}));}`);
-        const select = (selector, value) => fill(selector, value, 'change');
+        const select = async (selector, value) => {
+            const native = await evaluate(`document.querySelector(${JSON.stringify(selector)})?.tagName==='SELECT'`);
+            if (native) return fill(selector, value, 'change');
+            await click(selector); await wait("!!document.querySelector('.ui-choice-overlay')");
+            await evaluate(`{const option=[...document.querySelectorAll('.ui-choice-overlay [data-option-value]')].find(el=>el.dataset.optionValue===${JSON.stringify(String(value))})?.closest('[role=option]');if(!option)throw Error('找不到选择项');option.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));option.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));option.click();}`);
+            await delay(30);
+        };
         const choose = async (selector, file) => { const doc = await send('DOM.getDocument'); const element = await send('DOM.querySelector', { nodeId: doc.root.nodeId, selector }); await send('DOM.setFileInputFiles', { nodeId: element.nodeId, files: [file] }); };
         return { send, evaluate, wait, click, fill, select, choose, close, errors, requests };
     } catch (error) { await close(); throw error; }
