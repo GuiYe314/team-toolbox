@@ -1,8 +1,18 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## v0.12.0 正式发布（2026-11-17）
+
+**TASK-068已开发、验收、上传并正式发布。** 完整工具箱[team-toolbox v0.12.0](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.12.0)为最新稳定版，draft/prerelease均为false。源码提交`7807a2a42ed2c481c03b90d4480f1622f2bf5533`推送main，注释标签v0.12.0解引用到同一提交；独立设备调试版沿用原发行。
+
+- 四资产均为uploaded，GitHub服务端大小及SHA256逐项等于本地下方事实记录，发行说明等于docs/releases/v0.12.0.md。草稿及公开结果分别保存build/v0120-release-draft.json、v0120-release-published.json，验证日志v0120-remote-draft.log及v0120-remote-published.log。
+- 公开releases/latest/download/manifest.json经工具箱实际更新HTTP客户端匿名读取通过，451字节、latest为0.12.0、逐字节等于本地；摘要28b76f9006b5b010ee41be0973b89e29fcf58eb1c30c554db8757642262bae5e。证据v0120-public-manifest.log及v0120-public-manifest-updater.json；未对真实安装执行更新。
+- 后端829/829、前端59/59，最终包新增UI40/40及计算/工作台/SOP/备份/玻璃/水波纹/排序/分组回归通过；运行时14/14、真实CMD及Local/Lan33/33、通用页面53/53、同载荷独立身份安装/卸载和真实v0.11.0副本更新29/29。包审计773个源码资源/许可文件一致，全部使用隔离资料和浏览器，安卓208项使用离线执行器。
+- Git首次推送遇HTTP408；只读核对确认远端仍为旧提交，再以单次HTTP/1.1、OpenSSL及传输缓冲重试成功，保留证书校验，未强制推送或改全局Git配置。output设计材料、真实数据、凭据及发布二进制不入源码；所有测试服务与测试安装身份已清理，原安装保持原样。
+- 本轮功能、文档、打包及公开更新源验证已收口。Codex（GPT-6）完成，未调用WorkBuddy；积分未提供，无法确认。
+
 ## TASK-068 PrimeVue 与 Motion（2026-11-17）
 
-用户选择 PrimeVue 与 Motion for Vue，并授权改完上传、正式发布。本轮在完整工具箱 main 完成 F-UI-009 开发及包内验收，现有 output 设计材料保留；完整工具箱版本定为0.12.0，独立设备调试版沿用原发行。源码、标签及四资产准备上传，公开发布结果在完成后补记。
+用户选择 PrimeVue 与 Motion for Vue，并授权改完上传、正式发布。本轮在完整工具箱 main 完成 F-UI-009 开发及包内验收，现有 output 设计材料保留；完整工具箱版本为0.12.0，独立设备调试版沿用原发行。源码、标签及四资产公开结果见上方正式发布记录。
 
 - PrimeVue4.5.5使用unstyled、中文及本地样式，工具分组/计算表单/笔记属性实际使用选择、多选、输入、按钮与开关，分组管理使用body弹窗；取消资料库切换回显原值、保留草稿。motion-v2.12.0用animateMini统一管理约150ms页面/卡片入场和标签指示条；拖动、后台、减少动态与卸载取消。15个新增npm依赖的原许可汇入licenses，未引入在线主题或数据库变化。
 - 开发验证：后端复制源码和临时库完整829/829（build/task068-backend.log）、前端59/59（task068-frontend.log），生产构建成功。新增PrimeVue/Motion浏览器37/37，计算39/39、工作台57/57、SOP42/42、备份20/20、玻璃34/34、排序32/32、分组49/49、离线安卓208/208；日志为build/task068-*.log，全部隔离资料/浏览器/设备。
@@ -11,7 +21,7 @@
 - 正式构建在Inno输出文件锁定（32）处中止；保留v0120-package.log，用同一发行ISS和stage重编译成功（v0120-installer-retry.log）。之后以build/finalize-v0120-package.mjs生成SHA256和manifest并实际通过包内运行时自检（v0120-package-finalize.log），未跳过失败。ZIP CRC/路径/773个源码资源与许可摘要一致、初始data为空、无环境文件/测试/快捷方式，证据v0120-package-audit.json。
 - 最终包真实CMD/Local/Lan33/33与通用网页53/53（v0120-local-lan.log）；独立AppId同载荷安装/卸载及真实v0.11.0副本更新29/29（v0120-install-upgrade.log）。测试安装器仅改变AppId/输出三行，逐字节比对安装载荷，原HKCU/HKLM身份不变；升级完成校验/备份/apply/重启，保留文档、资源原件、data和更新源，全部测试服务已关闭。未覆盖真实安装。
 - 发行文件：ZIP207719106字节，SHA256 fa3995a2cc217a7a8ca1e25ede87059a3b85a3c71127c25a4b07e9a1f8e3ac73；安装器148658358字节，bc670f82383252a343387d5ceb87e4d5a05219698ce902f161d88df7eb551bec；校验清单358字节，75dccd887c63e3722a004b7420c74e4b0db9e6f7b2520909fd3547cfb093adb6；manifest451字节，28b76f9006b5b010ee41be0973b89e29fcf58eb1c30c554db8757642262bae5e。
-- 33个源码/测试/许可/文档文件已审查并通过git diff --cached --check，fetch确认main无远端新提交；output设计材料、运行数据、凭据与二进制不入源码。下一步推送main和v0.12.0、上传四资产并核对公开更新清单。Codex（GPT-6），未调用WorkBuddy；积分未提供，无法确认。
+- 33个源码/测试/许可/文档文件已审查并通过git diff --cached --check，fetch确认main无远端新提交；output设计材料、运行数据、凭据与二进制不入源码。main、v0.12.0、四资产和公开更新源已按上方正式发布记录收口。Codex（GPT-6），未调用WorkBuddy；积分未提供，无法确认。
 
 ## v0.11.0 正式发布（2026-11-17）
 
