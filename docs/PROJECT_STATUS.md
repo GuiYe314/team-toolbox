@@ -1,18 +1,28 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
+## v0.11.0 正式发布（2026-11-17）
+
+**TASK-059～067已开发、验收、上传并正式发布。** 源码推送main，发行提交`6be84abdaa7bd1aa59e9e5e06b09d1e611a69823`；注释标签`v0.11.0`解引用到同一提交。公开Release为[team-toolbox v0.11.0](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.11.0)，GitHub latest已指向本版，draft/prerelease均为false。独立设备调试版沿用原发行。
+
+- 四资产为Windows x64安装器、便携ZIP、SHA256文本和自动更新manifest.json；GitHub状态均为uploaded，大小及服务端SHA256与本地逐项一致，说明正文与发行源码一致。证据`build/v0110-release-draft.json`、`v0110-release-published.json`、`v0110-remote-published.log`；最终大小/摘要见[封版事实表](acceptance/V0_11_0_RELEASE_2026-11-17.md)。
+- 公开`releases/latest/download/manifest.json`经工具箱实际更新HTTP客户端匿名读取通过，690字节，逐字节等于本地；SHA256为`b4ab6522f041230c6af522c8a2ca643c10165c44031302ed7bf5dc8e46f84e76`，latest为0.11.0。证据`build/v0110-public-manifest.log`、`v0110-public-manifest-updater.json`，未对真实安装执行更新。
+- 最终完整后端829/829、前端单元59/59；包内Node22知识工作台57/57、SOP42/42、计算39/39、完整备份20/20、运行时14/14；最终Local/Lan33/33、通用网页53/53、同载荷独立安装身份及真实v0.10.0副本升级29/29。主题/点击/分组/排序/原工具及本次安卓回归详见下方证据，未访问真实团队库或手机。
+- 提交前审查91个源码/测试/文档文件并通过`git diff --cached --check`，运行数据、密钥、发布二进制和原有output设计材料未进入源码；Git首次推送与标签上传遇TLS中断，保持证书校验并在单次调用使用OpenSSL/HTTP1.1后正常重试成功，未强制推送或修改全局配置。
+- 本轮功能与发布收口，现有安装及HKCU/HKLM身份保持原样。剪藏外站和手机硬件兼容仍以契约限制为准；没有新增账号、权限或实时共同编辑。Codex（GPT-6）完成，未调用WorkBuddy；积分未提供，无法确认。
+
 ## TASK-062～067 快速计算、SOP和知识工作台（2026-11-17）
 
 - 工作目录为`工具/team-toolbox`，功能契约见FUNCTIONAL_SPEC及KNOWLEDGE_WORKBENCH；用户授权开发剩余Obsidian/Notion借鉴功能并上传打包。原有TASK-059～061改动保留，本轮未改真实团队数据或独立设备调试版。
 - TASK-062（F-CALC-001）：上下范围精确十进制计算、数量/精度、复制及服务端方案保存/载入/删除，迁移009与备份兼容。TASK-063（F-KB-012）：模板、独立执行快照、勾选/备注/续做/完成/历史、版本锁与幂等，迁移010。
 - TASK-064（F-KB-013）：双向链接/反链/未链接提及、嵌入、大纲、块编辑/排序/斜杠、提示/折叠/同步块与全局/局部图谱。TASK-065（F-KB-014）：类型化属性、关联/汇总及五种资料库视图、保存筛选排序分组/看板拖放。TASK-066（F-KB-015）：模板/每日笔记、标签分屏、书签/工作区、知识画布。TASK-067（F-KB-016/017）：评论/历史、受限公开网页剪藏、Markdown迁移、备份及结构化按钮/单轮事件动作，迁移011。
-- 针对性后端最终复查`node --test backend/src/quick-calculation.test.js backend/src/knowledge-sops.test.js backend/src/knowledge-workbench.test.js`：**60/60**（`build/task067-focused-reviewed.log`）。覆盖跨库正文/历史/模板默认值/动作引用重映射、导入依赖失败回滚、评论回收站边界、无属性变化不触发动作及汇总字段校验。
+- 开发阶段针对性后端复查`node --test backend/src/quick-calculation.test.js backend/src/knowledge-sops.test.js backend/src/knowledge-workbench.test.js`：**60/60**（`build/task067-focused-reviewed.log`）。覆盖跨库正文/历史/模板默认值/动作引用重映射、导入依赖失败回滚、评论回收站边界、无属性变化不触发动作及汇总字段校验；之后新增属性大小测试一并纳入最终829项完整回归。
 - 复制源码到临时项目运行完整后端`node build/task063-run-backend.mjs`，Node24.22.1、47个文件、真实本地FFmpeg显式开启：最终**829/829**、0失败/跳过（`build/v0110-backend-final.log`；此前828/828记录保留）。前端全单元**59/59**（`build/task067-frontend-final.log`），最终生产构建及正式打包脚本成功（`build/v0110-package.log`，既有大分块提示）。
 - 最终ZIP在`build/release-acceptance/0.11.0-final-20261117-r2`隔离解压，770个源码/资源文件摘要、CRC、空data与更新清单通过。包内Node22实际API/SQLite浏览器：工作台**57/57**、快速计算**39/39**、SOP**42/42**、原编辑器/回收站/附件及新扩展真实ZIP导出恢复**20/20**；运行时14/14、玻璃34/34、水波纹42/42、分组49/49、排序32/32、原八工具35/35。证据为`build/v0110-*-browser.log`及`v0110-package-audit.json`，事实表见[封版验收记录](acceptance/V0_11_0_RELEASE_2026-11-17.md)。
 - 最终包真实CMD及私网Local/Lan **33/33**、通用界面**53/53**（`v0110-local-lan.log`、`v0110-general-browser-final.log`），新知识/SOP/计算接口及专用头/跨站拒绝正常。中间界面52/53因旧断言写死12px，改为核对全局圆角变量，未改变产品布局；原日志保留。
 - 验证发现并修复：工作区保存误传事件；原生菜单背景过渡导致短暂对比度不足；新增迁移使旧SOP测试预期落后；备份中显式ID/默认关联/按钮引用未重映射、依赖错误需整个导入回滚；直接ID不能读回收站评论；资料库/模板/画布切换保留草稿。最初测试失败日志保留，未跳过断言；全量备份脚本先修正204空响应解析后重试。
 - 最后边界复查补充“属性16KiB包含资料库引用”：先复现保存超限、备份恢复拒绝的问题，修复后重新完整测试与构建四资产。新增测试最初误用创建返回值中的标题，修正查询后829项通过；初始失败和重建前证据保留在`build/v0110-before-metadata-fix/`等日志中。正式构建同时验证了缺少Get-FileHash时的.NET SHA256路径。
 - 最终安装/升级**29/29**（`v0110-install-upgrade.log`）：电脑存在真实HKCU旧版，最初检查在写入前拒绝同身份测试；改用相同定义与发行stage的独立AppId，仅改身份/输出共三行，5051个安装文件逐字节一致。卸载保留data、清理测试身份，原HKCU/HKLM不变；最终ZIP从真实v0.10.0隔离副本完成下载/摘要/暂存/备份/apply/自动重启，文档、资源原件、更新源及新迁移/API保留。未直接安装发行EXE覆盖用户版本。
-- TASK-059～067开发、文档及对应隔离验收收齐；下一步审查暂存内容后提交、上传四资产并发布v0.11.0，当前尚未提交或发布。剪藏为合成外站验证，真机扫码/投屏沿用此前未验证限制，没有账号或实时协作。原有output设计材料不提交、不打包。Codex（GPT-6）完成，未调用WorkBuddy；积分未提供，无法确认。
+- TASK-059～067开发、文档及对应隔离验收收齐；提交、标签、四资产与公开更新源验证已按上方正式发布记录收口。剪藏为合成外站验证，真机扫码/投屏沿用此前未验证限制，没有账号或实时协作。原有output设计材料不提交、不打包。Codex（GPT-6）完成，未调用WorkBuddy；积分未提供，无法确认。
 
 ## TASK-061 点击水波纹与知识库整理指引（2026-11-17）
 
