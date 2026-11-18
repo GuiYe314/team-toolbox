@@ -31,7 +31,7 @@ export function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', t);
     // 同步浏览器 UI（如表单控件、滚动条）配色
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', t === 'dark' ? '#090f18' : '#eef1f6');
+    if (meta) meta.setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--background').trim());
 }
 
 /** 切换并返回新主题。 */

@@ -1,0 +1,16 @@
+.remote-page { display: grid; align-content: start; gap: var(--ext-gap-lg); color: var(--text-primary); }
+.remote-page .input { box-sizing: border-box; width: 100%; min-width: 0; }
+.remote-connect .share-field { min-width: 0; }
+.remote-connect { display: grid; grid-template-columns: var(--remote-protocol-width) minmax(0, 2fr) var(--remote-port-width) minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; }
+.remote-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ext-gap-lg); }
+.remote-pane { align-content: start; }
+.remote-list { min-height: var(--remote-list-min); max-height: var(--remote-list-max); overflow: auto; align-content: start; }
+.remote-path, .remote-actions { display: flex; align-items: center; gap: var(--ext-gap-sm); flex-wrap: wrap; }
+.remote-path .input { flex: 1; min-width: 0; }
+.remote-select { display: flex; gap: var(--ext-gap-sm); align-items: center; width: 100%; min-width: 0; cursor: pointer; }
+.remote-selected { background: var(--accent-soft); border-color: var(--accent-border); }
+.remote-select input { accent-color: var(--accent); flex: none; }
+.remote-job { display: grid; gap: var(--ext-gap-sm); padding: var(--ext-gap-md); background: var(--surface-solid); border-radius: var(--radius-md); }
+.remote-job progress { width: 100%; accent-color: var(--accent); }
+.remote-confirm-files { max-height: var(--remote-confirm-height); overflow: auto; overflow-wrap: anywhere; }
+@media (max-width: 1400px) { .remote-connect { grid-template-columns: var(--remote-protocol-width) minmax(0, 2fr) var(--remote-port-width); } }

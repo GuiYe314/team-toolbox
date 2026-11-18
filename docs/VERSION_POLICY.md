@@ -54,6 +54,8 @@ v0.1 采用 `0.x` 编号而非 `1.0.0`，原因：系统**未内置认证与权�
 
 ## 版本说明
 
+v0.13.0纳入TASK-069～071的网页文件夹共享、FTP／FTPS／SFTP客户端及黑灰纯色暗色主题，属于功能增量，无数据库结构迁移。仍提供Windows x64安装器、便携ZIP、SHA256和自动更新manifest；独立设备调试版沿用原发行。范围和使用限制见[发布说明](releases/v0.13.0.md)，进度与验证只写PROJECT_STATUS。
+
 v0.12.0是界面功能增量，纳入TASK-068的PrimeVue控件与Motion for Vue，无数据库或API迁移。仍提供Windows x64安装器、便携ZIP、SHA256与自动更新manifest；独立设备调试版沿用原发行。范围见[发布说明](releases/v0.12.0.md)，进度与验证只写PROJECT_STATUS。
 
 v0.11.0的知识工作台、SOP与快速计算见[发布说明](releases/v0.11.0.md)，属于v0.10.0之后的功能增量，纳入TASK-059～067。SQLite追加009～011迁移，升级前须保留全量备份；独立设备调试版不随本版改号，仍提供四份发行资产。验证及发行状态只写PROJECT_STATUS。

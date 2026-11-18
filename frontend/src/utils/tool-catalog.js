@@ -11,6 +11,8 @@ export const TOOLS = Object.freeze([
     { id: 'port-viewer', name: '端口查看', desc: '查看电脑 TCP / UDP 端口和占用进程，搜索端口冲突', routeName: 'tool-ports', status: '可用', group: 'network' },
     { id: 'network-speed', name: '实时网速', desc: '实时查看电脑网卡的上传、下载速度与流量趋势', routeName: 'tool-network-speed', status: '可用', group: 'network' },
     { id: 'peer-transfer', name: '手机与电脑双向互传', desc: '扫码建立浏览器连接，双向发送文件与文字', routeName: 'tool-peer-transfer', status: '可用', group: 'network' },
+    { id: 'file-share', name: '局域网文件共享', desc: '共享电脑文件夹，扫码浏览目录、上传和下载文件', routeName: 'tool-file-share', status: '可用', group: 'network' },
+    { id: 'remote-files', name: 'FTP 文件客户端', desc: 'FTP、FTPS、SFTP 连接，双栏文件管理与上传下载队列', routeName: 'tool-remote-files', status: '可用', group: 'network' },
     { id: 'unity-logs', name: 'Unity 设备日志', desc: '搜索局域网设备，读取与下载 Unity 历史日志', routeName: 'tool-unity-logs', status: '可用', group: 'devices' },
     { id: 'android-wireless', name: '安卓无线调试', desc: '搜索无线设备，六位码配对、连接与设备管理', routeName: 'tool-android-wireless', status: '可用', group: 'devices' },
     { id: 'android-mirror', name: '安卓流畅投屏', desc: 'scrcpy 连续画面、触控、键盘操作和设备控制', routeName: 'tool-android-mirror', status: '可用', group: 'devices' },

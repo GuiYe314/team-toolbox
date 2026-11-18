@@ -10,6 +10,8 @@ TASK-050 调整：网页只保留 Yoinks 视频下载，FreeLLMAPI 和 ArtCraft 
 
 | 组件 | 接入方式与许可 |
 |---|---|
+| [basic-ftp](https://github.com/patrickjuchli/basic-ftp) | 固定6.2.6，MIT；后端FTP/显式FTPS、被动数据连接与证书验证 |
+| [ssh2](https://github.com/mscdex/ssh2) | 固定1.17.0，MIT；密码认证SFTP与SHA256主机指纹，仅用文件协议，不执行远端Shell；可选原生优化可缺省 |
 | [PrimeVue](https://github.com/primefaces/primevue) | 固定4.5.5，MIT；Vue组件按需导入，unstyled复用现有主题，关闭重复ripple，无PrimeIcons或在线主题 |
 | [Motion for Vue](https://github.com/motiondivision/motion-vue) | 固定motion-v 2.12.0，MIT；使用其animateMini提供可取消的本地短时入场与选中指示条，尊重减少动态偏好 |
 | [Sharp](https://github.com/lovell/sharp) | 复用已有后端依赖处理位图，Apache-2.0 |

@@ -1,5 +1,21 @@
 # 架构说明（ARCHITECTURE）
 
+## 黑灰纯色暗色主题（2026-11-18 / TASK-071）
+
+`theme.css`集中控制`--background-material`及各层表面：浅色保留环境光，暗色以#161616页面、#202020框架和中性灰控件构成不透明纯色，不使用彩色光晕或材质渐变。`layout.css`引用背景材质变量，`theme.js`读取同一CSS背景更新浏览器theme-color；不新增设置、依赖或数据迁移。圆角、边缘、焦点和辅助偏好延续原有机制。
+
+## FTP／FTPS／SFTP（2026-11-18 / TASK-070）
+
+远端客户端独立于网页共享目录，不把远端文件导入资源库。`remote-files-protocol.js`包装固定basic-ftp与ssh2，校验主机、端口、路径和协议；FTP仅标准结构化命令/被动传输，FTPS证书验证、SFTP主机SHA256指纹确认。`remote-files.js`只在内存管理有界会话、心跳、串行操作锁和传输状态，`remote-files-api.js`在全局JSON前注册专用JSON/二进制/单次下载端点。密码不落配置或日志，连接和清理均有时限，不执行远端Shell。
+
+`RemoteFiles.vue`采用连接栏、浏览器本地待传文件与远端目录双栏、结果提示及传输队列。取消和退出关闭本轮连接、尝试删除本轮随机远端暂存文件；网络已断导致无法确认清理时明确提示，不冒称回滚。SFTP覆盖优先使用OpenSSH posix-rename扩展，未提供扩展的服务器可尝试其标准重命名；不支持时拒绝覆盖并保留原件，禁止先删除原件再上传。跨客户端的目录与重命名不具备事务保证，用户应避免同一目标并发修改；不提供递归删除、保存密码或自动重连。仅借鉴FileZilla界面信息结构，直接MIT依赖及传递依赖的BSD/Unlicense等原许可随包分发。
+
+## 局域网文件共享（2026-11-18 / TASK-069）
+
+`file-share.js`管理内存共享及流式上传/下载，`file-share-paths.js`校验目录和逐级文件身份，`file-share-api.js`提供独立受限正文解析与同源API，注册在全局JSON解析前。共享目录由用户明确输入并确认，只读默认；沿用受控内网工具管理权限，不新增账号系统。访问票据仅fragment/专用头，原生下载另发短期单次票据，正文强制附件及nosniff。停止/到期/服务退出取消活动任务并等待清理；离开管理页保留共享，页面自身传输和读取则取消。
+
+`FileShare.vue`管理多个目录、权限、期限和二维码，`SharedFiles.vue`是独立响应式手机入口，二者复用`SharedFileBrowser.vue`与`file-share-client.js`。文件直接读写服务器选定目录，同名不覆盖；不入资源库、SQLite、备份或浏览器存储。拒绝路径越级、链接与特殊文件，固定并复核根目录身份；共享时不支持其他本机程序并发替换目录结构。数量/大小/并发/超时均有界，日志只含动作与错误码。没有新外部依赖或数据库迁移。
+
 ## PrimeVue 与 Motion（TASK-068）
 
 PrimeVue 4.x 使用 unstyled 模式，组件按需导入，中文配置与公共 pass-through 集中管理；控件样式只引用既有 tokens/theme，浮层统一 appendTo body，禁用其 ripple 以复用全局点击反馈。不引入 PrimeIcons、Tailwind 或外部主题请求。选择组件保持 string/number/array 原类型，数据仍经原业务API保存。

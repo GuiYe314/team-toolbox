@@ -33,6 +33,8 @@ import './styles/quick-calculation.css';
 import './styles/knowledge-sops.css';
 import './styles/knowledge-workbench.css';
 import './styles/primevue.css';
+import './styles/file-share.css';
+import './styles/remote-files.css';
 
 // 全局指令：v-hint（延迟 1 秒的悬停提示）
 import hintDirective from './directives/hint.js';

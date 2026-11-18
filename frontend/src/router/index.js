@@ -1,6 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
 const routes = [
+    { path: '/tools/remote-files', name: 'tool-remote-files', component: () => import('../views/RemoteFiles.vue') },
+    { path: '/tools/file-share', name: 'tool-file-share', component: () => import('../views/FileShare.vue') },
+    { path: '/file-share', name: 'shared-files', component: () => import('../views/SharedFiles.vue'), meta: { mobileUpload: true } },
     { path: '/tools/quick-calculation', name: 'tool-quick-calculation', component: () => import('../views/QuickCalculation.vue') },
     { path: '/transfer', name: 'peer-transfer-mobile', component: () => import('../views/PeerTransfer.vue'), meta: { mobileUpload: true } },
     { path: '/tools/image-batch', name: 'tool-image-batch', component: () => import('../views/MediaWorkshop.vue'), props: { kind: 'image' } },

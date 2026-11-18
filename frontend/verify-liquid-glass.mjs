@@ -48,6 +48,12 @@ try {
         await browser.wait(`document.documentElement.dataset.theme==='${theme}'`);
         await delay(300);
         check(`${theme} 主题通过原有入口切换并保存`, await browser.evaluate(`localStorage.getItem('tt-theme')==='${theme}'`));
+        if (theme === 'dark') {
+            await navigate('/tools', '.page-tools');
+            const surfaces = await browser.evaluate("[document.body,document.querySelector('.app-backdrop'),...document.querySelectorAll('.main-sidebar,.main-content,.tool-card,.tool-group')].map(el=>{const s=getComputedStyle(el);return {selector:el.className||el.tagName,color:s.backgroundColor,image:s.backgroundImage};})");
+            check(`暗色页面与框架/卡片使用不透明中性黑灰纯色，没有背景渐变 ${JSON.stringify(surfaces)}`, surfaces.every(s => { const c = colorChannels(s.color); return s.image === 'none' && c[0] === c[1] && c[1] === c[2] && c[0] >= 16 && c[0] <= 64 && (c.length === 3 || c[3] === 1); }));
+            check('暗色浏览器主题栏与页面CSS背景一致', await browser.evaluate("document.querySelector('meta[name=\"theme-color\"]').content===getComputedStyle(document.documentElement).getPropertyValue('--background').trim()"));
+        } else check('浅色保留原有环境光背景', await browser.evaluate("getComputedStyle(document.querySelector('.app-backdrop')).backgroundImage.includes('radial-gradient')"));
         for (const width of [1700, 1280]) {
             await browser.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
             await navigate('/tools', '.page-tools');

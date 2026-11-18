@@ -20,17 +20,13 @@ body {
     overflow: hidden;
 }
 
-/* 静态环境光与弧形反射，为通透玻璃提供层次；不加载图片或运行逐帧动画。 */
+/* 背景材质由主题决定：浅色环境光，暗色黑灰纯色。 */
 .app-backdrop {
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    background:
-        radial-gradient(ellipse at 66% 118%, transparent 46%, var(--background-ribbon) 49%, transparent 56%),
-        radial-gradient(ellipse at -8% 18%, var(--background-tint-a), transparent 56%),
-        radial-gradient(ellipse at 94% 108%, var(--background-tint-b), transparent 60%),
-        radial-gradient(ellipse at 76% -25%, var(--background-tint-c), transparent 56%);
+    background: var(--background-material);
     transition: opacity var(--dur-theme) var(--ease-out);
 }
 

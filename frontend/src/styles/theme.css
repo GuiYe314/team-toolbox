@@ -1,8 +1,6 @@
 /* ==========================================================================
    Theme — Light / Dark
-   背景采用柔和的色彩层（浅色偏冷白、深色偏深蓝灰），不做纯黑，
-   这样玻璃层的高光与模糊才有可感知的层次。
-   深色下大面积背景用两层极淡径向渐变模拟环境光，避免死板的纯色。
+   浅色采用冷白环境光；暗色采用黑灰纯色，以明度和细边框区分层级。
    ========================================================================== */
 
 :root,
@@ -20,6 +18,11 @@
     --background-tint-b: rgba(185, 165, 234, 0.40);
     --background-tint-c: rgba(146, 220, 222, 0.40);
     --background-ribbon: rgba(255, 255, 255, 0.64);
+    --background-material:
+        radial-gradient(ellipse at 66% 118%, transparent 46%, var(--background-ribbon) 49%, transparent 56%),
+        radial-gradient(ellipse at -8% 18%, var(--background-tint-a), transparent 56%),
+        radial-gradient(ellipse at 94% 108%, var(--background-tint-b), transparent 60%),
+        radial-gradient(ellipse at 76% -25%, var(--background-tint-c), transparent 56%);
 
     /* 玻璃 */
     --glass-background: rgba(255, 255, 255, 0.38);
@@ -154,67 +157,68 @@
 
 [data-theme="dark"] {
     color-scheme: dark;
-    --ui-option-hover: #273e58;
-    --ui-option-selected: #264c78;
-    --ui-option-selected-text: #f2f7ff;
-    --ui-switch-off: #3b4b60;
-    --ui-switch-thumb: #f2f7ff;
+    --ui-option-hover: #363636;
+    --ui-option-selected: #424242;
+    --ui-option-selected-text: #f2f2f2;
+    --ui-switch-off: #494949;
+    --ui-switch-thumb: #f2f2f2;
 
-    /* 深蓝灰基调，非纯黑 */
-    --background: #090f18;
-    --background-tint-a: rgba(63, 113, 169, 0.52);
-    --background-tint-b: rgba(100, 74, 153, 0.34);
-    --background-tint-c: rgba(30, 119, 133, 0.30);
-    --background-ribbon: rgba(119, 170, 226, 0.13);
+    /* 黑灰纯色，不叠加彩色环境光或背景渐变。 */
+    --background: #161616;
+    --background-material: var(--background);
+    --background-tint-a: transparent;
+    --background-tint-b: transparent;
+    --background-tint-c: transparent;
+    --background-ribbon: transparent;
 
-    --glass-background: rgba(21, 32, 49, 0.52);
-    --glass-background-strong: rgba(26, 39, 58, 0.96);
-    --glass-background-opaque: #142237;
-    --glass-border: rgba(211, 231, 255, 0.19);
-    --glass-highlight: rgba(217, 235, 255, 0.14);
+    --glass-background: #202020;
+    --glass-background-strong: #2a2a2a;
+    --glass-background-opaque: #202020;
+    --glass-border: rgba(255, 255, 255, 0.14);
+    --glass-highlight: rgba(255, 255, 255, 0.10);
     --glass-blur: var(--blur-lg);
-    --glass-material: linear-gradient(145deg, rgba(211, 233, 255, 0.09), transparent 40%, rgba(149, 185, 235, 0.03)), var(--glass-background);
-    --glass-elevated-material: linear-gradient(145deg, rgba(215, 232, 255, 0.08), transparent 60%), var(--glass-background-strong);
-    --glass-rim: linear-gradient(135deg, rgba(231, 244, 255, 0.48), rgba(231, 244, 255, 0.04) 35%, rgba(231, 244, 255, 0.02) 65%, rgba(190, 219, 255, 0.20));
-    --surface-material: linear-gradient(145deg, rgba(225, 240, 255, 0.06), transparent 68%), var(--panel-background);
-    --surface-material-hover: linear-gradient(145deg, rgba(225, 240, 255, 0.09), transparent 68%), var(--panel-background-hover);
-    --control-material: linear-gradient(180deg, rgba(229, 240, 255, 0.075), transparent), var(--panel-background);
-    --control-highlight: linear-gradient(180deg, rgba(255, 255, 255, 0.09), transparent);
-    --selected-material: linear-gradient(145deg, rgba(202, 226, 255, 0.15), rgba(202, 226, 255, 0.025)), var(--selected-background);
-    --toolbar-background: rgba(16, 28, 44, 0.12);
-    --group-background: rgba(14, 25, 42, 0.12);
-    --field-background: rgba(13, 26, 44, 0.52);
-    --surface-shadow: inset 0 var(--glass-line) 0 rgba(221, 239, 255, 0.10), var(--surface-elevation) rgba(2, 8, 18, 0.11);
-    --control-shadow: inset 0 var(--glass-line) 0 rgba(221, 239, 255, 0.13), var(--control-elevation) rgba(2, 8, 18, 0.12);
-    --control-pressed-shadow: inset 0 var(--glass-line) var(--control-press-offset) rgba(2, 8, 18, 0.28);
+    --glass-material: var(--glass-background);
+    --glass-elevated-material: var(--glass-background-strong);
+    --glass-rim: rgba(255, 255, 255, 0.12);
+    --surface-material: var(--panel-background);
+    --surface-material-hover: var(--panel-background-hover);
+    --control-material: var(--panel-background);
+    --control-highlight: transparent;
+    --selected-material: var(--selected-background);
+    --toolbar-background: #202020;
+    --group-background: #242424;
+    --field-background: #1b1b1b;
+    --surface-shadow: inset 0 var(--glass-line) 0 rgba(255, 255, 255, 0.06), var(--surface-elevation) rgba(0, 0, 0, 0.11);
+    --control-shadow: inset 0 var(--glass-line) 0 rgba(255, 255, 255, 0.08), var(--control-elevation) rgba(0, 0, 0, 0.12);
+    --control-pressed-shadow: inset 0 var(--glass-line) var(--control-press-offset) rgba(0, 0, 0, 0.28);
     --click-feedback-fill: rgba(154, 198, 255, 0.10);
     --click-feedback-rim: rgba(174, 211, 255, 0.25);
     --click-feedback-primary-fill: rgba(255, 255, 255, 0.12);
     --click-feedback-primary-rim: rgba(255, 255, 255, 0.28);
 
-    --panel-background: rgba(207, 226, 255, 0.055);
-    --panel-background-hover: rgba(207, 226, 255, 0.10);
-    --panel-border: rgba(210, 231, 255, 0.16);
+    --panel-background: #282828;
+    --panel-background-hover: #323232;
+    --panel-border: rgba(255, 255, 255, 0.16);
 
-    --text-primary: #e7ecf5;
-    --adb-select-background: #202e44;
-    --net-select-background: #202e44;
+    --text-primary: #ededed;
+    --adb-select-background: #282828;
+    --net-select-background: #282828;
     --net-select-text: var(--text-primary);
-    --adb-select-menu: #18263b;
-    --adb-select-text: #f0f4fc;
-    --adb-select-border: #6e85aa;
-    --adb-select-selected: #354e79;
-    --adb-select-disabled: #b4c0d4;
-    --adb-log-background: #101a2b;
-    --text-secondary: #b4c2d7;
-    --text-tertiary: #9bacc6;
-    --text-inverse: #0b1119;
+    --adb-select-menu: #242424;
+    --adb-select-text: #f0f0f0;
+    --adb-select-border: #858585;
+    --adb-select-selected: #424242;
+    --adb-select-disabled: #bdbdbd;
+    --adb-log-background: #181818;
+    --text-secondary: #bdbdbd;
+    --text-tertiary: #a4a4a4;
+    --text-inverse: #161616;
 
     --accent: #9bbfff;
     --accent-hover: #b7d1ff;
     --accent-soft: rgba(148, 186, 255, 0.14);
     --accent-border: rgba(162, 200, 255, 0.36);
-    --accent-contrast: #0b1119;
+    --accent-contrast: #161616;
 
     --danger: #ff8787;
     --danger-soft: rgba(255, 135, 135, 0.14);
@@ -224,28 +228,28 @@
     --warning-soft: rgba(255, 192, 120, 0.14);
 
     --hover-background: rgba(255, 255, 255, 0.07);
-    --selected-background: rgba(148, 186, 255, 0.13);
-    --selected-border: rgba(179, 215, 255, 0.30);
+    --selected-background: #383838;
+    --selected-border: rgba(255, 255, 255, 0.30);
     --focus-ring: rgba(155, 191, 255, 0.56);
 
-    --shadow: var(--glass-elevation) rgba(1, 7, 17, 0.26);
-    --shadow-overlay: var(--glass-dialog-elevation) rgba(1, 6, 16, 0.52);
-    --shadow-inset: inset 0 var(--glass-line) 0 rgba(220, 238, 255, 0.16), inset 0 calc(0px - var(--glass-line)) 0 rgba(207, 227, 255, 0.04);
-    --overlay-backdrop: rgba(4, 8, 15, 0.58);
+    --shadow: var(--glass-elevation) rgba(0, 0, 0, 0.26);
+    --shadow-overlay: var(--glass-dialog-elevation) rgba(0, 0, 0, 0.52);
+    --shadow-inset: inset 0 var(--glass-line) 0 rgba(255, 255, 255, 0.10), inset 0 calc(0px - var(--glass-line)) 0 rgba(255, 255, 255, 0.04);
+    --overlay-backdrop: rgba(0, 0, 0, 0.58);
 
-    --surface-solid: rgba(18, 25, 37, 0.88);
-    --surface-sunken: rgba(0, 0, 0, 0.24);
+    --surface-solid: #242424;
+    --surface-sunken: #1b1b1b;
 
     /* 二维码专用色：不透明。深色下前景用近白，否则深底深码扫不出来 */
-    --qr-foreground: #e7ecf5;
-    --qr-background: #101827;
+    --qr-foreground: #ededed;
+    --qr-background: #202020;
 
     /* 地球光照视图：深色主题下避免纯黑与低对比 */
-    --solar-stage-background: rgba(11, 26, 47, 0.72);
-    --solar-stage-border: rgba(125, 149, 248, 0.20);
-    --solar-info-background: rgba(18, 25, 37, 0.58);
-    --solar-stat-background: rgba(0, 0, 0, 0.20);
-    --solar-note-background: rgba(125, 149, 248, 0.10);
+    --solar-stage-background: #181818;
+    --solar-stage-border: rgba(255, 255, 255, 0.20);
+    --solar-info-background: #242424;
+    --solar-stat-background: #202020;
+    --solar-note-background: #282828;
     --solar-globe-shadow: rgba(0, 0, 0, 0.36);
     --solar-globe-outline: #6e85aa;
     --solar-ocean-light: #2c6aa0;

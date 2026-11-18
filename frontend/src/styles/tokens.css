@@ -224,6 +224,12 @@
     --ports-pid-cell: 65px;
 
     --workshop-editor-height: 420px;
+    --share-sidebar-width: 310px;
+    --share-sidebar-compact: 280px;
+    --share-access-width: 230px;
+    --share-qr-size: 180px;
+    --share-mobile-width: 1000px;
+    --share-icon-size: 20px;
     --workshop-preview-height: 300px;
     --workshop-board-height: 720px;
     --workshop-mirror-height: 720px;
@@ -271,6 +277,11 @@
     --kw-file-width: 200px;
 
     /* ── 层级 ────────────────────────────────────────────────────── */
+    --remote-protocol-width: 180px;
+    --remote-port-width: 90px;
+    --remote-list-min: 220px;
+    --remote-list-max: 420px;
+    --remote-confirm-height: 180px;
     --z-dropdown: 30;
     --z-overlay: 40;
     --z-modal: 50;

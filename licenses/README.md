@@ -2,6 +2,8 @@
 
 本目录保留新增工具直接使用的库许可原文，版本以锁文件为准：
 
+- FTP客户端：basic-ftp、ssh2及新增传递依赖的许可原文汇总于`remote-files-LICENSES.txt`，包含MIT、BSD-3-Clause、Unlicense及可选原生优化包许可。发布脚本复制整个licenses目录；FileZilla仅作布局参考，不包含其程序源码。
+
 - Sharp、Tesseract.js、Tesseract.js Core、scrcpy：Apache-2.0。
 - pdf-lib、Excalidraw、Monaco Editor、React、React DOM、@noble/hashes：MIT。
 - Excalidraw 的字体从 `@excalidraw/excalidraw@0.18.1/dist/prod/fonts` 原样复制，来源为 <https://github.com/excalidraw/excalidraw/tree/v0.18.1/packages/excalidraw/fonts>，保留字体文件内的版权及许可信息，不修改字体。

@@ -10,6 +10,8 @@
         <svg v-else-if="resolved === 'video-process'" class="icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3zM7 5v14M17 5v14"/></svg>
         <svg v-else-if="resolved === 'whiteboard'" class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21l4-4 4 4M6 8h4v5H6zM15 8h3v5h-3M10 10h5"/></svg>
         <svg v-else-if="resolved === 'peer-transfer'" class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="11" height="9" rx="1"/><rect x="16" y="11" width="6" height="10" rx="1"/><path d="M4 17h8l-3-3M12 17l-3 3M20 6h-4l2-2M16 6l2 2"/></svg>
+        <svg v-else-if="resolved === 'file-share'" class="icon" viewBox="0 0 24 24"><path d="M3 7V4h7l2 3h9v13H3zM7 12l3-3 3 3M10 9v8M14 14l3 3 3-3M17 10v7"/></svg>
+        <svg v-else-if="resolved === 'remote-files'" class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="7" height="17" rx="2"/><rect x="15" y="3" width="7" height="17" rx="2"/><path d="M9 8h6l-2-2M15 15H9l2 2M5 7h1M18 7h1"/></svg>
         <svg v-else-if="resolved === 'android-mirror'" class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="16" height="12" rx="2"/><rect x="15" y="9" width="7" height="12" rx="1"/><path d="M5 19h7M9 15v4M18 18h1"/></svg>
         <svg v-else-if="resolved === 'braces'" class="icon" viewBox="0 0 24 24">
             <path d="M8 4.5c-2 0-2.6 1-2.6 2.6v2.2c0 1.4-.6 2.2-2 2.2v1c1.4 0 2 .8 2 2.2v2.2C5.4 18.5 6 19.5 8 19.5" />
@@ -65,7 +67,7 @@
 const MAP = {
     'quick-calculation': 'quick-calculation',
     'image-batch': 'image-batch', 'image-ocr': 'image-ocr', 'pdf-tools': 'pdf-tools', 'video-process': 'video-process', 'whiteboard': 'whiteboard', 'peer-transfer': 'peer-transfer', 'android-mirror': 'android-mirror', 'developer-tools': 'braces',
-    'phone-album': 'phone-album',
+    'phone-album': 'phone-album', 'file-share': 'file-share', 'remote-files': 'remote-files',
     'port-viewer': 'port-viewer',
     'network-speed': 'network-speed',
     yoinks: 'yoinks',
