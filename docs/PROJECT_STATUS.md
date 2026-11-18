@@ -1,8 +1,17 @@
 # 项目状态（PROJECT_STATUS）— 唯一状态源
 
-## v0.13.0 封版准备（2026-11-18）
+## v0.13.0 正式发布（2026-11-18）
 
-用户授权上传并正式发布完整工具箱，范围为TASK-069～071；独立设备调试版沿用原发行，原有output设计材料保留。源码及四资产封版验收完成，待推送并发布；未对真实安装执行更新。
+**TASK-069～071已验收、上传并正式发布。** 完整工具箱[team-toolbox v0.13.0](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.13.0)为最新稳定版，draft／prerelease均为false。源码提交`b83a9d430884e6c38d8663960863ef0ec5138ec0`及注释标签v0.13.0已原子推送main，标签解引用到同一提交；独立设备调试版沿用原发行。
+
+- 安装器、便携ZIP、SHA256和manifest四资产均为uploaded，GitHub服务端大小及SHA256逐项等于下方事实表，发行说明等于`docs/releases/v0.13.0.md`。草稿和公开结果保存`build/v0130-release-draft.json`、`v0130-release-published.json`，核对日志为`v0130-remote-draft.log`、`v0130-remote-published.log`。
+- 公开`releases/latest/download/manifest.json`经工具箱实际更新HTTP客户端匿名读取通过，670字节、latest为0.13.0、逐字节等于本地，SHA256为`dd1f0a5d39c8b47842e115cedf36fe636ccd8318495a4948c351298f995d186c`；证据`v0130-public-manifest.log`及`v0130-public-manifest-updater.json`。未对真实安装执行更新。
+- 49个源码/测试/许可/文档文件已审查，上传前fetch确认main无其他新提交；源码和文档的缓存差异检查通过，许可汇总原文的结尾分隔空行保留，仅该文件放宽blank-at-eof检查。原有output设计材料、真实数据、凭据及发布二进制未进入源码，所有隔离测试服务及测试安装身份已回收，原安装注册保持原样。
+- 本轮功能、打包、上传及公开更新源验证收口。Codex（GPT-6）完成，未调用WorkBuddy；积分未提供，无法确认。
+
+## v0.13.0 封版验收（2026-11-18）
+
+范围为TASK-069～071；独立设备调试版沿用原发行，原有output设计材料保留。源码及四资产封版验收完成，远端发布见上方记录；未对真实安装执行更新。
 
 - 生产构建、Inno正式编译及包内Node22.22.2／ABI127原生模块自检通过，日志`build/v0130-package.log`。最终ZIP独立解压到`build/release-acceptance/0.13.0-final-20261118`；CRC、路径、787个源码/资源/许可文件摘要、空data、无环境文件/测试/快捷方式及manifest大小/摘要通过（`v0130-package-audit.log`、`v0130-package-audit.json`）。
 - 复制源码、临时数据库，使用最终ZIP的Node22及生产依赖完整后端 **875/875**、零跳过（`v0130-backend-package.log`）；前端单元 **63/63**（`v0130-frontend.log`）。首轮Node24并行构建阶段有一项60毫秒APK读取测试超时，保留`v0130-backend.log`；构建结束后原用例全部通过，没有改动或跳过测试。
