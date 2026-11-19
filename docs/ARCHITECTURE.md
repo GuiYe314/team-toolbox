@@ -1,5 +1,13 @@
 # 架构说明（ARCHITECTURE）
 
+## 视频压制与模板（2026-11-19 / TASK-073）
+
+VideoWorkshop.vue独立视频参数、模板弹窗与批量队列，图片维持MediaWorkshop。video-options.js集中FFmpeg白名单与固定参数生成；字幕仅受限上传的UTF-8 SRT/ASS，写随机目录固定名，固定subtitles滤镜、禁字体/图形附件，子进程cwd为临时目录。video-presets.js保存服务器非敏感机器配置，内置只读、用户记录版本锁与原子替换，损坏不覆盖；video-presets-api.js单独8KiB JSON和媒体专用头，在全局JSON之前注册。配置随data在升级保留，不纳入团队内容备份；文件和裁剪时间不持久化，无依赖/SQLite迁移。
+
+## 视频解析方案收敛（2026-11-19 / TASK-072）
+
+`video-resolvers.js`仅注册四项通用内置方案，删除p91播放接口、域名匹配及bad-news专用条目；`video-page.js`不再转换特定站点的下载入口。列表和执行共用注册表，已移除的ID返回unknown_resolver，不发起解析网络请求；通用网页媒体与Referer处理继续复用。前端从API读取列表，帮助与文档同步，无依赖、配置或数据库迁移。
+
 ## 黑灰纯色暗色主题（2026-11-18 / TASK-071）
 
 `theme.css`集中控制`--background-material`及各层表面：浅色保留环境光，暗色以#161616页面、#202020框架和中性灰控件构成不透明纯色，不使用彩色光晕或材质渐变。`layout.css`引用背景材质变量，`theme.js`读取同一CSS背景更新浏览器theme-color；不新增设置、依赖或数据迁移。圆角、边缘、焦点和辅助偏好延续原有机制。

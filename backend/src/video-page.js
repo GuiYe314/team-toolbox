@@ -3,7 +3,7 @@ import { problem } from './integration-common.js';
 /**
  * 通用网页媒体提取。
  *
- * 有些站点（例如 bad.news）没有 yt-dlp 提取器，但页面 HTML 里直接写着视频地址：
+ * 有些站点没有 yt-dlp 提取器，但页面 HTML 里直接写着视频地址：
  *   <video data-source="https://…/x.mp4" data-type="mp4">
  *   <video data-source="https://…/x.m3u8" data-type="m3u8">
  * 这里不引入 DOM 解析依赖，只用标签 + 属性正则，兼容属性顺序不定、地址被 HTML 转义
@@ -90,7 +90,7 @@ export function extractMedia(html, pageUrl, { topicId = '' } = {}) {
         seen.add(value);
         found.push({ url: value, kind: embed ? 'embed' : hls ? 'hls' : 'file', label: String(label || '').slice(0, 80), id: String(id || ''), height: heightHint(label) || heightHint(value) });
     };
-    // 1) video / audio / source 标签：覆盖 data-source + data-type（bad.news 用这种写法）、src、data-* 各种变体。
+    // 1) video / audio / source 标签：覆盖 data-source + data-type、src、data-* 各种变体。
     for (const tag of text.match(/<(?:video|audio|source)\b[^>]*>/gi) || []) {
         const attributes = attributesOf(tag);
         const type = attributes['data-type'] || attributes.type || '';
@@ -174,7 +174,7 @@ export function parseHlsMaster(text, baseUrl) {
 
 /**
  * 页面声明的 Referer 策略。
- * 有些站点（例如 bad.news）在页面里写 no-referrer，而它们的 CDN 收到站内 Referer 会直接 403，
+ * 有些站点在页面里写 no-referrer，而它们的 CDN 收到站内 Referer 会直接 403，
  * 所以这里按页面自己的策略决定要不要给下载器加 --referer。
  */
 export function referrerMode(html) {
@@ -251,17 +251,4 @@ export async function fetchText(url, { fetchImpl = globalThis.fetch, signal, hea
 export function pageTitle(html) {
     const match = /<title[^>]*>([\s\S]{1,300}?)<\/title>/i.exec(String(html ?? ''));
     return match ? decodeHtml(match[1]).replace(/\s+/g, ' ').trim().slice(0, 200) : '';
-}
-
-/**
- * bad.news 的「下载」按钮走的是 /ajax/download 之类需要登录的入口，
- * 统一换回公开的话题页 /t/<id> 再抓取。
- */
-export function normalizePageUrl(value) {
-    let url;
-    try { url = new URL(value); } catch { return value; }
-    if (!/(^|\.)bad\.news$/i.test(url.hostname)) return url.href;
-    const id = url.searchParams.get('tid') || url.searchParams.get('id') || (url.pathname.match(/\/t\/(\d+)/) || [])[1] || '';
-    if (/\/ajax\//i.test(url.pathname) && /^\d{3,}$/.test(id)) return `${url.origin}/t/${id}`;
-    return url.href;
 }

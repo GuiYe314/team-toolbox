@@ -194,6 +194,7 @@ export function createYoinksService({ config, runner = runIntegrationProcess, de
         // 调用方可能不带取消信号；解析链内部统一用真实 AbortSignal，避免 AbortSignal.any 收到 undefined。
         const combined = signal || new AbortController().signal;
         try {
+            if (forcedResolverId && !(await listResolvers()).some(item => item.id === forcedResolverId)) throw problem('unknown_resolver', '指定的解析方案不存在，请刷新列表后重新选择');
             const value = await checkTools(await tools(), combined);
             const proxy = await proxyResolver({ configured: value.configuredProxy });
             const http = await fetchFactory(proxy.url, { globalFetch: fetchImpl });

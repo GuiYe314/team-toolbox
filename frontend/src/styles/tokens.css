@@ -278,6 +278,8 @@
 
     /* ── 层级 ────────────────────────────────────────────────────── */
     --remote-protocol-width: 180px;
+    --video-template-min-width: 260px;
+    --video-queue-max-height: 560px;
     --remote-port-width: 90px;
     --remote-list-min: 220px;
     --remote-list-max: 420px;

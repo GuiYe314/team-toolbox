@@ -1,16 +1,18 @@
 import { spawn } from 'node:child_process';
-import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { mkdtemp, rm, stat, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, extname, basename } from 'node:path';
 import { pipeline } from 'node:stream/promises';
+import { Transform } from 'node:stream';
+import { MediaToolError } from './media-tool-error.js';
+import { videoOptions, videoArguments } from './video-options.js';
+export { MediaToolError } from './media-tool-error.js';
+export { videoOptions, videoArguments } from './video-options.js';
 import Busboy from 'busboy';
 import sharp from 'sharp';
 import { createIntegrationConfig, detectExecutable } from './integration-common.js';
 
-export class MediaToolError extends Error {
-    constructor(message, status = 400) { super(message); this.status = status; }
-}
 export const MEDIA_LIMITS = Object.freeze({ image: 32 * 1024 ** 2, video: 1024 ** 3, output: 256 * 1024 ** 2, pixels: 32 * 1024 ** 2, timeout: 10 * 60_000 });
 const fail = message => { throw new MediaToolError(message); };
 function number(value, min, max, fallback) {
@@ -29,54 +31,72 @@ export function imageOptions(value = {}) {
     if (typeof watermark !== 'string' || watermark.length > 80 || /[\u0000-\u001f]/.test(watermark)) fail('水印请输入最多80个可见字符');
     return { format, fit, rotate, quality: Math.round(number(value.quality, 1, 100, 82)), width: Math.round(number(value.width, 1, 8192, 0)), height: Math.round(number(value.height, 1, 8192, 0)), watermark };
 }
-export function videoOptions(value = {}) {
-    fields(value, ['mode', 'start', 'duration', 'width', 'crf']);
-    const mode = value.mode || 'compress';
-    if (!['compress', 'trim', 'mp4', 'mp3', 'gif'].includes(mode)) fail('视频处理方式无效');
-    return { mode, start: number(value.start, 0, 86400, 0), duration: number(value.duration, 0.1, 7200, undefined), width: Math.round(number(value.width, 160, 3840, mode === 'gif' ? 480 : 1280)), crf: Math.round(number(value.crf, 18, 38, 26)) };
-}
-export function videoArguments(input, output, options) {
-    const o = videoOptions(options);
-    const args = ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe', '-max_alloc', '268435456'];
-    if (o.start) args.push('-ss', String(o.start));
-    args.push('-format_whitelist', 'mov,matroska,webm,avi,mpegts,mpeg,mpegvideo', '-i', input);
-    if (o.duration) args.push('-t', String(o.duration));
-    if (o.mode === 'mp3') args.push('-map', '0:a:0', '-vn', '-c:a', 'libmp3lame', '-b:a', '192k');
-    else if (o.mode === 'gif') args.push('-t', String(Math.min(o.duration || 10, 30)), '-an', '-vf', `fps=10,scale=${o.width}:-1:flags=lanczos`, '-loop', '0');
-    else args.push('-map', '0:v:0', '-map', '0:a:0?', '-vf', `scale=w='min(${o.width},iw)':h=-2`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(o.crf), '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart');
-    args.push('-threads', '2', '-fs', String(MEDIA_LIMITS.output), output);
-    return args;
-}
-
-// 单文件流式接收。原始文件名只用于下载显示，实际路径永远随机。
-export async function receiveToolFile(req, { maxBytes, signal }) {
+// 原始文件名仅用于下载显示，实际输入及字幕名固定在本轮私有目录。
+export async function receiveToolFile(req, { maxBytes, signal, allowSubtitle = false }) {
     const directory = await mkdtemp(join(tmpdir(), 'tt-media-'));
+    const tasks = [];
+    let parser;
     try {
-        let name = '', received = 0, options = {}, fileCount = 0, invalid = '', fileTask;
-        const input = join(directory, 'input');
-        const parser = Busboy({ headers: req.headers, limits: { files: 1, fields: 1, parts: 3, fileSize: maxBytes, fieldSize: 16_384 } });
+        let name = '', received = 0, options = {}, invalid = '', subtitle = '', fieldSeen = false;
+        const seen = new Set(), input = join(directory, 'input');
+        parser = Busboy({ headers: req.headers, limits: { files: allowSubtitle ? 2 : 1, fields: 1, parts: allowSubtitle ? 4 : 3, fileSize: maxBytes, fieldSize: 16_384 } });
         parser.on('field', (key, value, info) => {
-            if (key !== 'options' || info.valueTruncated) { invalid = '处理选项无效或过长'; return; }
+            if (key !== 'options' || fieldSeen || info.valueTruncated) { invalid = '处理选项无效或重复'; return; }
+            fieldSeen = true;
             try { options = JSON.parse(value); } catch { invalid = '处理选项不是有效 JSON'; }
         });
         parser.on('file', (key, stream, info) => {
-            fileCount++;
-            if (key !== 'file') invalid = '请选择文件';
-            name = basename(info.filename || 'file').replace(/[\r\n\u0000]/g, '').slice(0, 180);
-            stream.on('data', chunk => { received += chunk.length; });
+            if (seen.has(key) || !['file', ...(allowSubtitle ? ['subtitle'] : [])].includes(key)) { invalid = '上传文件字段无效或重复'; stream.resume(); return; }
+            seen.add(key);
+            let target = input, bytes = 0;
+            if (key === 'file') name = basename(info.filename || 'file').replace(/[\r\n\u0000]/g, '').slice(0, 180);
+            else {
+                const ext = extname(info.filename || '').toLowerCase();
+                if (!['.srt', '.ass'].includes(ext)) { invalid = '字幕只支持UTF-8的SRT/ASS文件'; stream.resume(); return; }
+                subtitle = `subtitle${ext}`; target = join(directory, subtitle);
+            }
+            const meter = new Transform({ transform(chunk, _encoding, done) {
+                bytes += chunk.length;
+                if (key === 'file') received += chunk.length;
+                if (key === 'subtitle' && bytes > 2 * 1024 ** 2) return done(new MediaToolError('字幕超过2MiB限制', 413));
+                done(null, chunk);
+            } });
             stream.once('limit', () => { invalid = '文件超过大小限制'; });
-            fileTask = pipeline(stream, createWriteStream(input, { flags: 'wx', mode: 0o600 }), { signal });
-            fileTask.catch(() => {});
+            const task = pipeline(stream, meter, createWriteStream(target, { flags: 'wx', mode: 0o600 }), { signal });
+            tasks.push(task); task.catch(error => { invalid ||= error instanceof MediaToolError ? error.message : '上传失败'; parser.destroy(error); });
         });
-        parser.on('filesLimit', () => { invalid = '每次请求仅接受一个文件'; });
+        parser.on('filesLimit', () => { invalid = '上传文件数量过多'; });
         parser.on('fieldsLimit', () => { invalid = '选项数量过多'; });
         parser.on('partsLimit', () => { invalid = '上传内容过多'; });
         await pipeline(req, parser, { signal });
-        await fileTask;
+        await Promise.all(tasks);
         if (invalid) fail(invalid);
-        if (fileCount !== 1 || !received) fail('请选择非空文件');
-        return { directory, input, name, options, size: received };
-    } catch (error) { await rm(directory, { recursive: true, force: true }); throw error; }
+        if (!seen.has('file') || !received) fail('请选择非空文件');
+        if (subtitle) await validateSubtitle(join(directory, subtitle), subtitle);
+        if (allowSubtitle) {
+            const checked = videoOptions(options);
+            if (checked.subtitleMode === 'burn' && !subtitle) fail('模板需要字幕：请选择本次使用的SRT/ASS文件');
+            if (checked.subtitleMode !== 'burn' && subtitle) fail('请选择烧录字幕，或移除字幕文件');
+        }
+        return { directory, input, name, options, size: received, subtitle };
+    } catch (error) {
+        parser?.destroy();
+        await Promise.allSettled(tasks);
+        await rm(directory, { recursive: true, force: true }); throw error;
+    }
+}
+
+export async function validateSubtitle(path, name) {
+    const bytes = await readFile(path);
+    if (!bytes.length || bytes.length > 2 * 1024 ** 2) fail('字幕为空或超过2MiB限制');
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { fail('字幕必须是UTF-8编码，请转换编码后重试'); }
+    if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text)) fail('字幕含无效控制字符');
+    const lines = text.split(/\r?\n/);
+    if (lines.length > 30000 || lines.some(line => line.length > 8192)) fail('字幕行数或单行长度超过限制');
+    if (name.endsWith('.srt')) {
+        if (!/\d{2}:\d{2}:\d{2}[,.]\d{3}\s+-->\s+\d{2}:\d{2}:\d{2}[,.]\d{3}/.test(text)) fail('SRT字幕缺少有效时间轴');
+    } else if (!/^\[Script Info\]/im.test(text) || !/^\[Events\]/im.test(text) || !/^Dialogue:/im.test(text) || /^\[(Fonts|Graphics)\]/im.test(text)) fail('ASS字幕格式无效，或含不支持的字体/图形附件');
 }
 
 function xml(value) { return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[character])); }
@@ -121,7 +141,7 @@ export async function processVideo(file, signal, { executable, spawnProcess = sp
     const output = join(file.directory, `output.${ext}`);
     await new Promise((resolve, reject) => {
         if (signal?.aborted) return reject(new MediaToolError('处理已停止', 499));
-        const child = spawnProcess(executable, videoArguments(file.input, output, o), { windowsHide: true, shell: false, stdio: ['ignore', 'ignore', 'pipe'] });
+        const child = spawnProcess(executable, videoArguments(file.input, output, o, file.subtitle), { cwd: file.directory, windowsHide: true, shell: false, stdio: ['ignore', 'ignore', 'pipe'] });
         let errorBytes = 0, failure;
         const stop = reason => { failure ||= reason; child.kill(); };
         const abort = () => stop(new MediaToolError('处理已停止', 499));

@@ -47,6 +47,14 @@ async function videoFixture(t, overrides = {}) {
 function sse(text = '你好') {
     return `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { total_tokens: 12 } })}\n\ndata: [DONE]\n\n`;
 }
+
+test('视频服务只列四项通用方案，旧站点ID在组件/网络调用前拒绝', async t => {
+    let fetched = 0;
+    const { service, calls } = await videoFixture(t, { fetchImpl: async () => { fetched++; throw Error('offline only'); } });
+    assert.deepEqual((await service.resolvers()).resolvers.map(item => item.id), ['direct-media', 'ytdlp', 'page-media', 'ytdlp-generic']);
+    for (const resolverId of ['p91', 'bad-news']) await assert.rejects(service.analyze({ url: 'https://example.com/video', resolverId }), error => error.code === 'unknown_resolver');
+    assert.equal(calls.length, 0); assert.equal(fetched, 0); assert.equal((await service.listTasks()).tasks.length, 0);
+});
 async function freeFixture(t, options = {}) {
     const f = await fixture(t), calls = [];
     const service = createFreeLlmService({ config: f.config, fetchImpl: async (url, request) => {
@@ -121,11 +129,11 @@ test('Yoinks 探测使用固定参数，网页只收到可选 ID 与精简元数
     assert.equal(probe.args[probe.args.indexOf('--js-runtimes') + 1], `node:${process.execPath}`);
     await assert.rejects(service.analyze({ url: 'https://example.com/video', args: ['--exec'] }), fail('invalid_input'));
 });
-test('bad.news 页面解析：HLS 主清单展开清晰度，下载带上 Referer 与所选清晰度', async t => {
+test('通用网页解析：HLS 主清单展开清晰度，下载带上 Referer 与所选清晰度', async t => {
     const page = '<html><head><title>话题 6588976</title></head><body><video data-source="https://cdn.example.com/hls/master.m3u8" data-type="m3u8"></video></body></html>';
     const f = await videoFixture(t, { fetchImpl: async () => ({ ok: true, status: 200, headers: { get: () => null }, text: async () => page }) });
-    const info = await f.service.analyze({ url: 'https://bad.news/t/6588976' });
-    assert.equal(info.resolvedBy.id, 'bad-news');
+    const info = await f.service.analyze({ url: 'https://example.com/t/6588976', resolverId: 'page-media' });
+    assert.equal(info.resolvedBy.id, 'page-media');
     assert.deepEqual(info.choices.map(x => x.id), ['video-1080', 'video-720', 'audio-mp3']);
     const probe = f.calls.find(x => x.args.includes('--dump-single-json'));
     assert.ok(probe.args.includes('--referer'));
@@ -136,11 +144,11 @@ test('bad.news 页面解析：HLS 主清单展开清晰度，下载带上 Refere
     assert.deepEqual(download.args.slice(-2), ['--', 'https://cdn.example.com/hls/master.m3u8']);
     assert.ok(download.args.includes('--referer'));
 });
-test('bad.news 页面只给 MP4 时下载原始文件，仍带防盗链 Referer', async t => {
+test('通用网页只给 MP4 时下载原始文件，仍带防盗链 Referer', async t => {
     const page = '<video data-source="https://cdn.example.com/v/6588976.mp4" data-type="mp4"></video>';
     const f = await videoFixture(t, { fetchImpl: async () => ({ ok: true, status: 200, headers: { get: () => null }, text: async () => page }) });
-    const info = await f.service.analyze({ url: 'https://bad.news/t/6588976' });
-    assert.equal(info.resolvedBy.id, 'bad-news');
+    const info = await f.service.analyze({ url: 'https://example.com/t/6588976', resolverId: 'page-media' });
+    assert.equal(info.resolvedBy.id, 'page-media');
     assert.deepEqual(info.choices.map(x => x.id), ['file-1', 'audio-mp3']);
     const result = await f.service.download({ probeId: info.id, choiceId: 'file-1' });
     assert.equal(result.size, 128);
@@ -148,42 +156,6 @@ test('bad.news 页面只给 MP4 时下载原始文件，仍带防盗链 Referer'
     assert.deepEqual(download.args.slice(-2), ['--', 'https://cdn.example.com/v/6588976.mp4']);
     assert.ok(download.args.includes('--referer'));
     await f.service.removeResult(result.id);
-});
-test('91porna 页面用 video_key 换 HLS 地址：清单给时长，下载直连该清单', async t => {
-    const playlist = '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-KEY:METHOD=AES-128,URI="https://cdn.example.com/k/crypt.key",IV=0x1\n'
-        + '#EXT-X-TARGETDURATION:6\n#EXTINF:5.806,\nseg0.ts\n#EXTINF:4.838,\nseg1.ts\n';
-    const page = '<html><head><title>示例标题 - 91视频|色情视频|成人视频|91porn</title></head><body></body></html>';
-    const seen = [];
-    const f = await videoFixture(t, { fetchImpl: async (url, request = {}) => {
-        seen.push({ url: String(url), method: request.method || 'GET', headers: request.headers || {} });
-        if (String(url).includes('/api/videos/409559/playback')) {
-            return { ok: true, status: 200, json: async () => ({ status: 1, data: { streams: { hevc: '', main: 'https://cdn.example.com/v/409559.m3u8?auth_key=1' } } }), text: async () => '' };
-        }
-        if (String(url).includes('.m3u8')) return { ok: true, status: 200, json: async () => ({}), text: async () => playlist };
-        return { ok: true, status: 200, json: async () => ({}), text: async () => page };
-    } });
-    const info = await f.service.analyze({ url: 'https://91porna.com/comic/index/detail?video_key=409559' });
-    assert.equal(info.resolvedBy.id, 'p91');
-    assert.equal(info.title, '示例标题');
-    assert.equal(info.duration, 11);
-    assert.deepEqual(info.choices.map(x => x.id), ['hls-auto', 'audio-mp3']);
-    const api = seen.find(x => x.url.endsWith('/api/videos/409559/playback'));
-    assert.equal(api.method, 'POST');
-    assert.equal(api.headers.referer, 'https://91porna.com/comic/index/detail?video_key=409559');
-    const result = await f.service.download({ probeId: info.id, choiceId: 'hls-auto' });
-    assert.ok(result.size > 0);
-    const download = f.calls.find(x => x.args.includes('--no-simulate'));
-    assert.deepEqual(download.args.slice(-2), ['--', 'https://cdn.example.com/v/409559.m3u8?auth_key=1']);
-    await f.service.removeResult(result.id);
-});
-test('91porna 没有播放地址或缺 video_key 时明确报错，不假装成功', async t => {
-    const f = await videoFixture(t, { fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ status: 1, data: { streams: {} } }), text: async () => '' }) });
-    const detail = message => error => {
-        assert.ok(error.attempts?.[0]?.message.includes(message), `期望包含「${message}」，实际为「${error.attempts?.[0]?.message}」`);
-        return true;
-    };
-    await assert.rejects(f.service.analyze({ url: 'https://91porna.com/comic/index/detail?video_key=409559', resolverId: 'p91' }), detail('没有可用播放地址'));
-    await assert.rejects(f.service.analyze({ url: 'https://91porna.com/comic/index/detail', resolverId: 'p91' }), detail('video_key'));
 });
 test('没有 ffmpeg 时只提供含音轨视频，不冒充可提取 MP3', async t => {
     const { service, paths } = await videoFixture(t, { detector: async kind => kind === 'ytDlp' ? paths.ytDlp : '' });

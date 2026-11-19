@@ -37,9 +37,17 @@ function ok(url = PAGE, extra = {}) {
 test('列出内置解析方案且按优先级排序', async () => {
     const list = await listResolvers();
     const ids = list.map(item => item.id);
-    assert.ok(ids.includes('direct-media') && ids.includes('ytdlp') && ids.includes('ytdlp-generic'));
+    assert.deepEqual(ids, ['direct-media', 'ytdlp', 'page-media', 'ytdlp-generic']);
     assert.ok(list.every(item => item.builtin === true));
     assert.deepEqual([...list].sort((a, b) => a.priority - b.priority).map(item => item.id), ids);
+});
+
+test('已移除的站点方案拒绝旧ID，且不请求网页或运行解析器', async () => {
+    let calls = 0;
+    for (const id of ['p91', 'bad-news']) {
+        await assert.rejects(resolveVideo(PAGE, context({ forcedResolverId: id, fetchImpl: async () => { calls++; throw Error('no network'); }, runner: async () => { calls++; throw Error('no runner'); } })), error => error.code === 'unknown_resolver');
+    }
+    assert.equal(calls, 0);
 });
 
 test('前一个方案失败后自动降级到下一个方案，并返回尝试明细', async t => {
@@ -56,7 +64,7 @@ test('前一个方案失败后自动降级到下一个方案，并返回尝试�
 test('所有方案都失败时抛出带 attempts 的错误，且不泄露上游原始错误', async t => {
     const undo = registerResolver(resolver('test-fail-c', 1, async () => { throw new Error('secret-stderr-token'); }));
     t.after(() => undo());
-    await assert.rejects(resolveVideo(PAGE, context()), error => {
+    await assert.rejects(resolveVideo(PAGE, context({ fetchImpl: async () => { throw Error('offline'); } })), error => {
         assert.equal(error.code, 'all_resolvers_failed');
         assert.ok(Array.isArray(error.attempts) && error.attempts.length >= 3);
         assert.ok(error.attempts.some(item => item.status === 'skipped'));

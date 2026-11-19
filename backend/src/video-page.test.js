@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { problem } from './integration-common.js';
 import { resolveVideo } from './video-resolvers.js';
-import { extractMedia, fileChoices, heightHint, hlsChoices, normalizePageUrl, parseHlsMaster, pageTitle, refererArgs } from './video-page.js';
+import { extractMedia, fileChoices, heightHint, hlsChoices, parseHlsMaster, pageTitle, refererArgs } from './video-page.js';
 
-const PAGE = 'https://bad.news/t/6588976';
+const PAGE = 'https://example.com/t/6588976';
 
 function context(overrides = {}) {
     return {
@@ -21,14 +21,14 @@ function context(overrides = {}) {
         },
         childSignal: ms => AbortSignal.timeout(ms),
         now: () => 0,
-        forcedResolverId: '',
+        forcedResolverId: 'page-media',
         ...overrides
     };
 }
 
 const response = (body, status = 200) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => null }, text: async () => body });
 
-test('识别 bad.news 的 data-source + data-type，并还原转义地址', () => {
+test('识别通用页面的 data-source + data-type，并还原转义地址', () => {
     const html = `<div><video class="player" data-type="m3u8" data-source="https:\\/\\/cdn.example.com\\/v\\/index.m3u8?token=1&amp;e=2" poster="/p.jpg"></video></div>`;
     const media = extractMedia(html, PAGE);
     assert.equal(media.length, 1);
@@ -62,7 +62,7 @@ test('帖子页只在正文播放器里给出清晰度列表时，解析出多�
     const result = await resolveVideo(PAGE, context({
         fetchImpl: async url => response(String(url).endsWith('.m3u8') ? master : html)
     }));
-    assert.equal(result.resolver.id, 'bad-news');
+    assert.equal(result.resolver.id, 'page-media');
     assert.equal(result.info.mediaUrl, 'https://cdn.example.com/topic/master.m3u8');
     assert.deepEqual(result.info.choices.map(item => item.id), ['hls-1080', 'hls-720', 'audio-mp3']);
 });
@@ -75,7 +75,7 @@ test('识别 video / source / og:video / 协议相对地址，并带上清晰度
     const media = extractMedia(html, PAGE);
     assert.deepEqual(media.map(item => item.kind), ['file', 'file', 'file']);
     assert.deepEqual(media.map(item => item.height), [720, 480, 1080]);
-    assert.equal(media[0].url, 'https://bad.news/media/clip_720p.mp4');
+    assert.equal(media[0].url, 'https://example.com/media/clip_720p.mp4');
     assert.equal(media[2].url, 'https://cdn.example.com/share/1080p.mp4');
 });
 
@@ -128,13 +128,7 @@ test('清晰度提示与页面标题只做保守猜测', () => {
     assert.equal(pageTitle('<html><head><title> 中文 &amp; 标题 </title></head></html>'), '中文 & 标题');
 });
 
-test('bad.news 的 ajax 下载入口换回公开话题页', () => {
-    assert.equal(normalizePageUrl('https://bad.news/ajax/download?tid=6588976'), 'https://bad.news/t/6588976');
-    assert.equal(normalizePageUrl('https://bad.news/t/6588976'), 'https://bad.news/t/6588976');
-    assert.equal(normalizePageUrl('https://example.com/ajax/download?tid=6588976'), 'https://example.com/ajax/download?tid=6588976');
-});
-
-test('bad.news 页面：主清单可用 yt-dlp 读格式时直接给出该页面的清晰度', async () => {
+test('通用网页：主清单可用 yt-dlp 读格式时直接给出该页面的清晰度', async () => {
     const html = '<html><head><title>话题 6588976</title></head><body><video data-source="https://cdn.example.com/hls/master.m3u8" data-type="m3u8"></video></body></html>';
     const calls = [];
     const result = await resolveVideo(PAGE, context({
@@ -145,7 +139,7 @@ test('bad.news 页面：主清单可用 yt-dlp 读格式时直接给出该页面
             return { code: 1, stdout: '', stderr: '' };
         }
     }));
-    assert.equal(result.resolver.id, 'bad-news');
+    assert.equal(result.resolver.id, 'page-media');
     // 页面标题比通用提取器给出的 ID 更有意义，优先用页面标题。
     assert.equal(result.info.title, '话题 6588976');
     assert.equal(result.info.mediaUrl, 'https://cdn.example.com/hls/master.m3u8');
@@ -153,30 +147,30 @@ test('bad.news 页面：主清单可用 yt-dlp 读格式时直接给出该页面
     assert.ok(calls.some(call => call.includes('--referer')));
 });
 
-test('bad.news 页面：yt-dlp 读不了清单时自己解析变体，仍能选清晰度', async () => {
+test('通用网页：yt-dlp 读不了清单时自己解析变体，仍能选清晰度', async () => {
     const html = '<html><head><title>话题</title></head><body><video data-source="https://cdn.example.com/hls/master.m3u8" data-type="m3u8"></video></body></html>';
     const playlist = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=1280x720\n720.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=2400000,RESOLUTION=1920x1080\n1080.m3u8';
     const result = await resolveVideo(PAGE, context({
         fetchImpl: async url => response(url.endsWith('.m3u8') ? playlist : html)
     }));
-    assert.equal(result.resolver.id, 'bad-news');
+    assert.equal(result.resolver.id, 'page-media');
     assert.deepEqual(result.info.choices.map(item => item.id).slice(0, 2), ['hls-1080', 'hls-720']);
     assert.match(result.info.choices[0].label, /1080p/);
-    assert.equal(result.attempts.find(item => item.id === 'bad-news').status, 'ok');
+    assert.equal(result.attempts.find(item => item.id === 'page-media').status, 'ok');
 });
 
-test('bad.news 页面只有 mp4 时给原始清晰度并附上防盗链 Referer', async () => {
+test('通用网页只有 mp4 时给原始清晰度并附上防盗链 Referer', async () => {
     const html = '<video data-source="https://cdn.example.com/v/6588976.mp4" data-type="mp4"></video>';
     const result = await resolveVideo(PAGE, context({ fetchImpl: async () => response(html) }));
-    assert.equal(result.resolver.id, 'bad-news');
+    assert.equal(result.resolver.id, 'page-media');
     assert.equal(result.info.mediaUrl, 'https://cdn.example.com/v/6588976.mp4');
     assert.deepEqual(result.info.choices.map(item => item.id), ['file-1', 'audio-mp3']);
     assert.deepEqual(result.info.choices[0].args, ['--referer', PAGE]);
 });
 
-test('页面没有媒体地址时 bad-news 失败并说明原因', async () => {
+test('页面没有媒体地址时 网页媒体提取失败并说明原因', async () => {
     const html = '<html><body>登录后可见</body></html>';
-    await assert.rejects(resolveVideo('https://bad.news/t/1', context({ fetchImpl: async () => response(html), forcedResolverId: 'bad-news' })), error => {
+    await assert.rejects(resolveVideo('https://example.com/t/1', context({ fetchImpl: async () => response(html), forcedResolverId: 'page-media' })), error => {
         assert.equal(error.code, 'all_resolvers_failed');
         assert.match(error.attempts[0].message, /没有找到视频地址/);
         return true;
@@ -186,22 +180,22 @@ test('页面没有媒体地址时 bad-news 失败并说明原因', async () => {
 test('页面声明 no-referrer 时不给下载器加 Referer', async () => {
     const html = '<html><head><meta name="referrer" content="no-referrer"><title>话题</title></head><body><video data-source="https://cdn.other.com/v/6588976.mp4" data-type="mp4"></video></body></html>';
     const result = await resolveVideo(PAGE, context({ fetchImpl: async () => response(html) }));
-    assert.equal(result.resolver.id, 'bad-news');
-    // bad.news 这类站点的 CDN 收到站内 Referer 会 403，必须按页面策略不带。
+    assert.equal(result.resolver.id, 'page-media');
+    // 声明此策略的站点 CDN 收到站内 Referer 会 403，必须按页面策略不带。
     assert.deepEqual(result.info.choices[0].args, []);
 });
 
 test('页面声明 same-origin 且媒体跨站时不带 Referer，同站仍带', () => {
     const html = '<meta name="referrer" content="same-origin">';
-    assert.deepEqual(refererArgs('https://cdn.other.com/a.mp4', 'https://bad.news/t/1', html), []);
-    assert.deepEqual(refererArgs('https://v.bad.news/a.mp4', 'https://bad.news/t/1', html), ['--referer', 'https://bad.news/t/1']);
+    assert.deepEqual(refererArgs('https://cdn.other.com/a.mp4', 'https://example.com/t/1', html), []);
+    assert.deepEqual(refererArgs('https://v.example.com/a.mp4', 'https://example.com/t/1', html), ['--referer', 'https://example.com/t/1']);
     // 没声明策略时保持原行为，兼容需要防盗链 Referer 的站点。
-    assert.deepEqual(refererArgs('https://cdn.other.com/a.mp4', 'https://bad.news/t/1', ''), ['--referer', 'https://bad.news/t/1']);
+    assert.deepEqual(refererArgs('https://cdn.other.com/a.mp4', 'https://example.com/t/1', ''), ['--referer', 'https://example.com/t/1']);
 });
 
-test('非 bad.news 的普通网页由「网页媒体提取」兜底并列出文件', async () => {
+test('普通网页由「网页媒体提取」兜底并列出文件', async () => {
     const html = '<video src="https://cdn.example.com/clip.mp4"></video>';
-    const result = await resolveVideo('https://example.com/post/1', context({ fetchImpl: async () => response(html) }));
+    const result = await resolveVideo('https://example.com/post/1', context({ forcedResolverId: '', fetchImpl: async () => response(html) }));
     assert.equal(result.resolver.id, 'page-media');
     assert.equal(result.info.mediaUrl, 'https://cdn.example.com/clip.mp4');
     const skipped = result.attempts.filter(item => item.status === 'skipped').map(item => item.id);

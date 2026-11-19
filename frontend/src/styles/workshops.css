@@ -30,4 +30,11 @@
 .transfer-qr { width: var(--adb-qr-size); max-width: 100%; border-radius: var(--radius-md); }
 .mirror-stage { display: grid; place-items: center; min-height: var(--adb-screen-empty-height); background: var(--surface-sunken); border-radius: var(--radius-md); overflow: hidden; }
 .mirror-stage canvas { display: block; max-width: 100%; max-height: var(--workshop-mirror-height); touch-action: none; object-fit: contain; outline-color: var(--focus-ring); }
+.video-workshop { display: grid; gap: var(--ext-gap-lg); }
+.video-template-row { display: flex; flex-wrap: wrap; gap: var(--ext-gap-sm); align-items: end; }
+.video-template-row > label { min-width: var(--video-template-min-width); }
+.video-main-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+.video-wide { grid-column: 1 / -1; }
+.video-summary { margin: 0; padding: var(--ext-gap-md); border-radius: var(--radius-md); color: var(--text-primary); background: var(--surface-sunken); line-height: 1.7; overflow-wrap: anywhere; }
+.video-queue { max-height: var(--video-queue-max-height); overflow: auto; }
 @media (max-width: 1400px) { .workshop-grid { grid-template-columns: minmax(0, 1fr); } }

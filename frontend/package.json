@@ -1,6 +1,6 @@
 {
   "name": "team-toolbox-frontend",
-  "version": "0.10.0",
+  "version": "0.14.0",
   "private": true,
   "description": "team-toolbox frontend (Vite + Vue 3)",
   "type": "module",
@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test src/utils/solar-position.test.js src/utils/network-speed.test.js src/utils/port-viewer.test.js src/utils/tool-order.test.js src/utils/app-icon.test.js src/utils/phone-album.test.js src/utils/live-photo.test.js src/utils/tool-groups.test.js src/utils/tool-tabs.test.js src/utils/workshops.test.js src/utils/knowledge-workbench.test.js src/utils/file-share.test.js src/utils/remote-files.test.js",
+    "test": "node --test src/utils/solar-position.test.js src/utils/network-speed.test.js src/utils/port-viewer.test.js src/utils/tool-order.test.js src/utils/app-icon.test.js src/utils/phone-album.test.js src/utils/live-photo.test.js src/utils/tool-groups.test.js src/utils/tool-tabs.test.js src/utils/workshops.test.js src/utils/knowledge-workbench.test.js src/utils/file-share.test.js src/utils/remote-files.test.js src/utils/video-workshop.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

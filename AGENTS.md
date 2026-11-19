@@ -64,6 +64,7 @@ PrimeVue/Motion（TASK-068）：PrimeVue固定MIT的4.x、unstyled与本地主�
 |---|---|---|
 | `verify-click-feedback.mjs` | 按钮/导航/标签的原生指针和键盘反馈、禁用/输入/拖动排除、数量和生命周期清理、弹窗与辅助偏好；临时服务及浏览器 | 1、2、4、14 |
 | `verify-liquid-glass.mjs` | 液态玻璃明暗主题/持久化、1280/1700布局、原生菜单对比度、卡片无嵌套模糊、分组/帮助浮层、键盘焦点及减少动态/透明度；隔离静态服务与临时浏览器 | 1、2、6、7、13 |
+| `verify-video-workshop.mjs` | 视频压制参数/Unity预设、模板保存/重启/改名/冲突/删除、真实批量编码/字幕/失败重试/取消/后台/离页和明暗布局；临时文件与隔离浏览器 | 1、2、7、9 |
 | `verify-integrations.mjs` | Yoinks 组件/视频分析/预览/下载队列/取消清理/离页后台、旧集成地址回工具箱，主题/1280 布局/Teleport/焦点；临时设置、媒体与离线执行器 | 1、2、7 |
 | `verify-overlay-position.mjs` | 浮层定位、遮罩铺满视口、弹窗居中 | 1、8 |
 | `verify-full-backup.mjs` | 全量备份：菜单明示范围、包结构完整、非法包被拒 | 9 |
@@ -147,6 +148,8 @@ PrimeVue/Motion（TASK-068）：PrimeVue固定MIT的4.x、unstyled与本地主�
 - 保留 TLS 校验、清单 1 MiB 上限、完整响应时限、ZIP 大小限制、流式 SHA256 与失败清理；任何浏览器验收都不得执行真实 apply。改动后运行完整后端测试（含 `update-http.test.js`）、前端构建和 `node frontend/verify-update-isolated.mjs`；真实源只读取清单，真实安装与回滚另行隔离验收。
 
 ## 开源工具接入边界（F-EXT-001～003 / TASK-034）
+
+- TASK-072移除p91及bad-news站点专用方案和URL改写，不得重新加入内置注册表、帮助或使用示例。通用网页提取、Referer策略和MP4/HLS回归使用example.com合成内容，旧ID须拒绝且无解析请求；自定义扩展保持原边界。
 
 - TASK-050 移除 FreeLLMAPI 与 ArtCraft 网页入口和页面，旧网页地址重定向工具箱；下列相关后端接口及机器配置仅保留兼容，不能重新加入工具目录或文档使用教程。浏览器验收继续完整覆盖 Yoinks，不要求启动真实模型网关或原生应用。
 - Yoinks 及旧 FreeLLMAPI、ArtCraft 后端接口共用 `integration-api.js`，通过 `tool-access.js` 按 Local/Lan 模式校验真实来源、服务器 Host 与浏览器同源上下文；写请求要求 JSON 和 `X-Toolbox-Integration: 1`，禁止任意代理、自由进程参数或网页自动安装器。TASK-041允许显式维护/发布命令准备固定下载组件，不得扩展成浏览器传URL的安装接口。
@@ -264,6 +267,12 @@ PrimeVue/Motion（TASK-068）：PrimeVue固定MIT的4.x、unstyled与本地主�
 - 工具标签由 `ToolTabs.vue` 与独立 store 管理，sessionStorage 仅保存当前浏览器标签页的已打开工具ID；不保存 URL、票据、输入或采集状态。默认工具箱不可关闭，切换/关闭使用普通路由卸载，禁止 KeepAlive 隐藏仍在运行的 ADB、日志、屏幕或上传页。下载后台队列按原行为继续。
 - 存储禁用/损坏必须可降级，保存失败保持当前界面并可重试；管理弹窗复用 body Teleport、Escape、键盘焦点陷阱及恢复。颜色走 theme，尺寸走 tokens；多标签横向滚动不能挤压正文或遮住当前关闭按钮。
 - 修改后执行前端计算测试/构建、`node frontend/verify-tool-workspace.mjs` 与 `node frontend/verify-tool-order.mjs`，并回归受影响工具。全部使用临时服务、浏览器及合成数据，不读取真实团队库或连接手机。
+
+## 视频压制模板边界（F-MEDIA-003 / TASK-073）
+
+- 视频用独立VideoWorkshop，video-options.js只接受结构化白名单；不可增加自由FFmpeg参数/路径/滤镜。外置字幕只接UTF-8 SRT/ASS、2MiB与有界行数/长度，固定临时文件名和本轮cwd，拒绝字体/图形附件；清理等待所有流/进程退出。
+- 模板是服务器data/video-presets.json机器配置，不用localStorage；原子写、50条、40字名称、乐观revision、内置只读、删除确认、损坏拒绝覆盖。排除裁剪时间、视频/字幕原文和路径，不入团队内容备份，升级保留data。API专用头/真实来源/Host/同源与8KiB在全局解析前；不改SQLite。
+- 修改执行完整临时源码后端、前端单元/构建、verify-video-workshop、verify-workshops及分组/排序/LAN/PrimeVue回归；真实FFmpeg与合成素材验证不代表Unity各平台实测。
 
 ## 本地文件、投屏与开发工具（TASK-051～058）
 

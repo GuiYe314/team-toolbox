@@ -22,7 +22,10 @@ const drawing=createCanvas(1000,240),context=drawing.getContext('2d');context.fi
 for(const [path,count] of [[pdf1,2],[pdf2,1]]){const doc=await PDFDocument.create();for(let i=0;i<count;i++)doc.addPage([200,300]);await writeFile(path,await doc.save());}
 await runIntegrationProcess(ffmpeg,['-hide_banner','-loglevel','error','-y','-f','lavfi','-i','color=c=blue:s=160x120:r=10:d=0.5','-f','lavfi','-i','sine=frequency=440:duration=0.5','-shortest','-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac',video]);
 let savedBoard,latestRoom;
-const app=express();app.use(express.json({limit:'1mb'}));
+const app=express();
+const {registerVideoPresetsApi}=await source('video-presets-api.js'),{createVideoPresets}=await source('video-presets.js');
+registerVideoPresetsApi(app,{service:createVideoPresets({file:join(temporary,'presets.json')})});
+app.use(express.json({limit:'1mb'}));
 const media=registerMediaToolsApi(app,{log:()=>{},videoProcessor:(file,signal)=>processVideo(file,signal,{executable:ffmpeg})});
 const rooms=createTransferRooms(),transfer=registerTransferApi(app,{service:{...rooms,create(){latestRoom=rooms.create();return latestRoom;}}});
 app.get('/api/documents/tree',(_req,res)=>res.json({items:[]}));app.get('/api/documents',(_req,res)=>res.json({items:[]}));
@@ -51,7 +54,7 @@ try{
     await navigate('/tools/pdf','#pdf-files');await chooseMany('#pdf-files',[pdf1,pdf2]);await browser.click('#pdf-start');await browser.wait("!!document.querySelector('#pdf-download')");
     const pdfBase64=await browser.evaluate("(async()=>{const bytes=new Uint8Array(await(await fetch(document.querySelector('#pdf-download').href)).arrayBuffer());return btoa(String.fromCharCode(...bytes));})()");check('浏览器实际合并PDF为三页',(await PDFDocument.load(Buffer.from(pdfBase64,'base64'))).getPageCount()===3);
     await browser.fill('#pdf-pages','99');await browser.click('#pdf-start');await browser.wait("!!document.querySelector('[role=alert]')");check('非法页码明确报错且不保留旧下载结果',await browser.evaluate("!document.querySelector('#pdf-download')&&document.querySelector('[role=alert]').textContent.includes('页码')"));
-    await navigate('/tools/video-process','#media-files');await browser.choose('#media-files',video);await browser.select('select','mp3');await browser.click('#media-start');await waitLong("!!document.querySelector('.workshop-item a[download]')");check('浏览器真实FFmpeg提取音频并生成MP3下载',await browser.evaluate("document.querySelector('.workshop-item a').download.endsWith('.mp3')"));
+    await navigate('/tools/video-process','#media-files');await browser.choose('#media-files',video);await browser.select('#video-mode','mp3');await browser.click('#media-start');await waitLong("!!document.querySelector('.workshop-item a[download]')");check('浏览器真实FFmpeg提取音频并生成MP3下载',await browser.evaluate("document.querySelector('.workshop-item a').download.endsWith('.mp3')"));
     await navigate('/tools/developer-tools','#dev-input');await browser.fill('#dev-input','{"b":2,"a":1}');await browser.click('#dev-run');check('JSON页面实际美化并支持复制下载',await browser.evaluate("document.querySelector('#dev-output').value.includes('\\n  \"b\"')"));
     await clickText('.workshop-tabs button','Base64');await browser.fill('#dev-input','工具箱 中文');await browser.click('#dev-run');check('Base64支持中文',await browser.evaluate("document.querySelector('#dev-output').value==='5bel5YW3566xIOS4reaWhw=='"));
     await clickText('.workshop-tabs button','SHA-256');await browser.fill('#dev-input','abc');await browser.click('#dev-run');await browser.wait("document.querySelector('#dev-output').value.length===64");check('真实SHA-256计算匹配已知摘要',await browser.evaluate("document.querySelector('#dev-output').value==='ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'"));

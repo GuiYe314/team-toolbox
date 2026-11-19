@@ -43,8 +43,6 @@
 | id | 名称 | priority | 什么时候尝试 |
 |---|---|---|---|
 | `direct-media` | 直链媒体 | 10 | URL 路径以 `.mp4/.webm/.mkv/.mov/.mp3/.m4a/...` 或 `.m3u8` 结尾；做一次 HEAD 校验，跳过网页解析；m3u8 会展开成多个清晰度 |
-| `p91` | 91porna 页面 | 12 | 主机是 `91porna.com` 及 `91porna<数字>.*` 镜像；HTML 里没有直链，按 `video_key` 调站内播放接口换 HLS 地址 |
-| `bad-news` | bad.news 页面 | 15 | 主机是 `bad.news` 或其子域；读取话题页 HTML 里的 `data-source` 媒体地址，支持 MP4 与 HLS |
 | 自定义 HTTP 方案 | 配置里命名 | 配置里给，默认 20 | 配置存在且 `domains` 匹配（未填则所有链接） |
 | `ytdlp` | yt-dlp 通用解析 | 50 | 任何链接（主力兜底），列清晰度与 MP3 |
 | `page-media` | 网页媒体提取 | 65 | `ytdlp` 失败后，直接抓网页 HTML 找内嵌 `video/source/og:video/iframe` 媒体地址 |
@@ -56,52 +54,21 @@ priority 数字越小越先尝试。类型不匹配的方案会被标为「跳�
 
 三种来源，都会在前端「清晰度 / 格式」下拉里展开：
 
-1. **yt-dlp 列出格式**（`ytdlp`、以及 `bad-news` / `page-media` 拿到 m3u8 后）：按高度去重后给 `1080p / 720p …`，`60fps` 会标成 `1080p60`，选了就用 `-f bv*[height<=N]+ba/b[height<=N]` 合并成 MP4。
+1. **yt-dlp 列出格式**（`ytdlp`、以及 `page-media` 拿到 m3u8 后）：按高度去重后给 `1080p / 720p …`，`60fps` 会标成 `1080p60`，选了就用 `-f bv*[height<=N]+ba/b[height<=N]` 合并成 MP4。
 2. **HLS 主清单**（yt-dlp 读不了清单时自己解析）：读 `#EXT-X-STREAM-INF` 的 `RESOLUTION / BANDWIDTH`，给出 `1080p · 5.2 Mbps · HLS` 这样的选项，下载时仍然读同一份主清单，音轨分组能被 yt-dlp 自动合并。
 3. **网页里只给单个 MP4**：显示「原始清晰度 · 直接下载」，ffmpeg 就绪时再加一项「仅音频 · MP3」。站点本身只提供一种画质时不会凭空造出更多档位，界面会明确写「该来源只提供一个清晰度」。
 
-`bad-news` / `page-media` 解析出的地址下载时是否带 `--referer <页面地址>`，按页面自己的 Referer 策略决定：
+`page-media` 解析出的地址下载时是否带 `--referer <页面地址>`，按页面自己的 Referer 策略决定：
 
-- 页面写了 `<meta name="referrer" content="no-referrer">`（bad.news 就是这种）：一律不带 Referer。这类站点的 CDN 收到 `Referer: 站内页面` 会直接 403。
+- 页面写了 `<meta name="referrer" content="no-referrer">`：一律不带 Referer。这类站点的 CDN 收到 `Referer: 站内页面` 会直接 403。
 - 页面写了 `same-origin` / `origin`：只在媒体与页面同站时带。
 - 页面没有声明：保持原行为，带上页面地址，兼容需要防盗链 Referer 的站点。
 
-## bad.news 这类站点的处理方式
+## 通用网页媒体提取
 
-bad.news 没有 yt-dlp 提取器，页面把视频地址写在标签属性里：
+`page-media`可读取HTML中的`video/source`标签及`data-source`、`og:video`或播放器嵌入地址。页面没有可用媒体或需要登录、脚本动态加载时会明确失败，再尝试下一种通用方案；不调用站点专用播放接口，也不改写下载入口。
 
-```html
-<video data-source="https://…/index.m3u8" data-type="m3u8"></video>
-<video data-source="https://…/clip.mp4" data-type="mp4"></video>
-```
-
-`bad-news` 方案做三件事：把 `/ajax/download?tid=…` 之类的下载入口换回公开话题页 `/t/<id>`（避免登录要求）；抓 HTML 后用标签 + 属性正则取 `data-source`（兼容 `data-type` 写在前面、地址被 `&amp;` 或 `\/` 转义）；拿到 m3u8 就先让 yt-dlp 读格式，读不出来再自己解析主清单。
-
-帖子页下方通常还挂着推荐视频，页面里会有多个 `data-source`。`bad-news` 会先按帖子号匹配 `data-id`（`/t/6588976` → `data-id="6588976"`），只取正文那一条；匹配不到才退回全部候选，避免规则太严导致解析不了。
-
-同类站点如果页面结构相似，不需要改代码：`page-media`（priority 65）会对任何 `ytdlp` 解析不了的链接做同样的网页媒体提取，作为通用兜底。
-
-## 91porna 这类站点的处理方式
-
-这类站点的 HTML 里**没有** `<video src>`，也没有可提取的 m3u8：播放器由内联脚本 + `xgplayer` 组装，地址要拿 `video_key` 去换。链路是：
-
-```
-详情页 ?video_key=409559
-  → POST {origin}/api/videos/409559/playback   （body 为 {}，带 Referer / Origin）
-  → { status: 1, data: { manifest_method: "GET", streams: { main: "…m3u8?auth_key=…", hevc: "" } } }
-  → 读 streams.main 清单
-```
-
-`p91` 方案做四件事：
-
-1. 从 query 里取 `video_key`（也认 `key` / `id`，`/comic/index/embed?id=` 这种嵌入页同样能用）；取不到就报「缺 video_key」，让降级链继续。
-2. POST 播放接口换地址；`streams.main` 为空时退回 `streams.hevc`，两个都空就明确报「没有可用播放地址」。
-3. 读一次清单：有 `#EXT-X-STREAM-INF` 就展开多清晰度，只有 `#EXTINF` 就用 `#EXTINF` 之和算时长（省掉一次 yt-dlp 探测），给「原始清晰度 · HLS」，ffmpeg 就绪时再给「仅音频 · MP3」。
-4. 每个选项都带上 `url`，下载与「先看看」预览都直连这份清单，不再经过网页。
-
-两个实测结论：清单通常是 **AES-128 加密**（`#EXT-X-KEY:METHOD=AES-128`）的单码率流，yt-dlp 会自己取 `crypt.key` 解密再合并成 MP4，不需要额外参数；分片和密钥都**不需要** `x-cdn-auth` 头，页面 `cdn-config` 里那个值只有个别 CDN 开关才用得上。
-
-`auth_key` 里带过期时间（约 2 小时），所以解析结果要在 5 分钟票据内用掉；超时后重新解析即可。
+页面有多个视频时可按原链接中的帖子编号匹配正文媒体；MP4保留原始清晰度，HLS先读取主清单列出变体，失败再交由yt-dlp探测。下载和预览复用解析出的媒体地址及页面Referer策略。
 
 ## 方式一：不改代码，配置自定义解析服务
 

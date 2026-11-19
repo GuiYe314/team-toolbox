@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { appRoot, IntegrationError, problem } from './integration-common.js';
-import { PAGE_HEADERS, extractMedia, fetchText, fileChoices, hlsChoices, normalizePageUrl, pageTitle, parseHlsMaster, refererArgs } from './video-page.js';
+import { PAGE_HEADERS, extractMedia, fetchText, fileChoices, hlsChoices, pageTitle, parseHlsMaster, refererArgs } from './video-page.js';
 
 /**
  * 统一视频链接解析层。
@@ -98,7 +98,7 @@ function describePage(html) {
 /** 页面里读到的媒体地址 → 可下载格式；HLS 先让 yt-dlp 列格式，失败再自己解析主清单。 */
 async function pageMediaInfo(url, ctx, { timeoutMs = 15000 } = {}) {
     const http = ctx.fetchImpl || globalThis.fetch;
-    const page = normalizePageUrl(url);
+    const page = url;
     const html = await fetchText(page, { fetchImpl: http, signal: ctx.childSignal(timeoutMs), headers: { ...PAGE_HEADERS, referer: page } });
     const media = extractMedia(html, page, { topicId: topicIdOf(page) });
     if (!media.length) {
@@ -148,83 +148,6 @@ async function pageMediaInfo(url, ctx, { timeoutMs = 15000 } = {}) {
     return { ...info, title: info.title || title };
 }
 
-// 91porna 系列的镜像域名都用「品牌 + 数字」的形式，统一按主机名匹配。
-const P91_HOST = /(^|\.)91porna\d*\.(com|cc|top|net|me|xyz|app)$/i;
-
-function p91KeyOf(url) {
-    try {
-        const { searchParams } = new URL(url);
-        for (const name of ['video_key', 'key', 'id']) {
-            const value = (searchParams.get(name) || '').trim();
-            if (/^\d{1,12}$/.test(value)) return value;
-        }
-    } catch { /* 非法链接由上层统一报错 */ }
-    return '';
-}
-
-/** 媒体清单里的 #EXTINF 累加就是时长，省掉一次 yt-dlp 探测。 */
-function playlistDuration(text) {
-    let total = 0;
-    for (const match of String(text || '').matchAll(/#EXTINF:\s*([0-9.]+)/g)) total += Number(match[1]) || 0;
-    return total > 0 ? Math.round(total) : null;
-}
-
-/** 站点标题末尾带「 - 91视频|…」的站点后缀，去掉后再当文件名。 */
-function p91Title(raw, key) {
-    const title = String(raw || '').replace(/\s*[-–—|｜]\s*91.*$/i, '').trim();
-    return title || `91porna ${key}`;
-}
-
-/**
- * 91porna 的播放地址不在 HTML 里：页面脚本用 video_key 向
- * `POST /api/videos/<key>/playback` 换一份 HLS 主清单地址，返回的流多为
- * AES-128 加密的单码率清单（yt-dlp 能直接解密合并）。
- */
-async function p91PlaybackInfo(url, ctx) {
-    const key = p91KeyOf(url);
-    if (!key) throw problem('resolver_failed', '这不像 91porna 的视频详情页：链接里没有 video_key', 400);
-    const http = ctx.fetchImpl || globalThis.fetch;
-    const page = normalizePageUrl(url), origin = new URL(page).origin;
-    let response;
-    try {
-        response = await http(`${origin}/api/videos/${key}/playback`, {
-            method: 'POST', redirect: 'follow',
-            headers: { ...PAGE_HEADERS, 'content-type': 'application/json', accept: 'application/json', origin, referer: page },
-            body: '{}', signal: ctx.childSignal(20000)
-        });
-    } catch {
-        if (ctx.signal?.aborted) throw problem('cancelled', '操作已取消', 499);
-        throw problem('resolver_failed', '取播放地址时网络请求失败', 502);
-    }
-    if (!response.ok) throw problem('resolver_failed', `取播放地址返回 HTTP ${response.status}`, 502);
-    let payload;
-    try { payload = await response.json(); } catch { throw problem('resolver_failed', '播放接口返回的不是有效 JSON', 502); }
-    const streams = payload?.data?.streams || {};
-    const raw = streams.main || streams.hevc || '';
-    if (!raw) throw problem('resolver_failed', '这个视频暂时没有可用播放地址（可能已下架或需要登录）', 502);
-    const mediaUrl = ctx.validateUrl(raw);
-    // 清单用来判断有没有多清晰度并算时长；读不到也不影响下载，yt-dlp 仍能拉。
-    let playlist = '';
-    try {
-        playlist = await fetchText(mediaUrl, { fetchImpl: http, signal: ctx.childSignal(12000), headers: PAGE_HEADERS, maxChars: 512 * 1024 });
-    } catch {
-        if (ctx.signal?.aborted) throw problem('cancelled', '操作已取消', 499);
-    }
-    let html = '';
-    try {
-        html = await fetchText(page, { fetchImpl: http, signal: ctx.childSignal(12000), headers: { ...PAGE_HEADERS, referer: page }, maxChars: 200000 });
-    } catch { /* 标题取不到不影响解析结果 */ }
-    const ffmpegReady = !!ctx.tools.ffmpegPath;
-    const { variants } = parseHlsMaster(playlist, mediaUrl);
-    const choices = variants.length
-        ? hlsChoices(variants, { pageUrl: page, hasFfmpeg: ffmpegReady }).map(choice => ({ ...choice, url: mediaUrl }))
-        : [{ id: 'hls-auto', label: `原始清晰度 · HLS${ffmpegReady ? ' · 合并为 MP4' : ''}`, url: mediaUrl,
-            args: ffmpegReady ? ['--merge-output-format', 'mp4'] : [] }];
-    if (ffmpegReady) choices.push({ id: 'audio-mp3', label: '仅音频 · MP3', url: mediaUrl,
-        args: ['-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0'] });
-    return { title: p91Title(pageTitle(html), key), uploader: '', duration: playlistDuration(playlist), mediaUrl, choices, ffmpegReady };
-}
-
 /** 内置方案。priority 越小越先尝试。 */
 export const builtinResolvers = [
     {
@@ -263,22 +186,6 @@ export const builtinResolvers = [
             return { title: fileNameOf(url), uploader: '', duration: null, mediaUrl: url,
                 choices: [{ id: 'direct-file', label: '原始文件 · 直接下载', args: [] }], ffmpegReady };
         }
-    },
-    {
-        id: 'p91',
-        name: '91porna 页面',
-        description: '按 video_key 调用站内播放接口换取 HLS 地址，支持合并 MP4 与 MP3',
-        priority: 12,
-        match: url => P91_HOST.test(hostOf(url)),
-        async resolve(url, ctx) { return p91PlaybackInfo(url, ctx); }
-    },
-    {
-        id: 'bad-news',
-        name: 'bad.news 页面',
-        description: '读取 bad.news 话题页里的 data-source 媒体地址，支持 MP4 与 HLS 多清晰度',
-        priority: 15,
-        match: url => /(^|\.)bad\.news$/i.test(hostOf(url)),
-        async resolve(url, ctx) { return pageMediaInfo(url, ctx, { timeoutMs: 20000 }); }
     },
     {
         id: 'ytdlp',

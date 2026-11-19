@@ -8,10 +8,11 @@ export function formatSize(size = 0) {
     const unit = Math.min(3, Math.floor(Math.log(size) / Math.log(1024)));
     return `${(size / 1024 ** unit).toFixed(unit ? 1 : 0)} ${['B', 'KiB', 'MiB', 'GiB'][unit]}`;
 }
-export function uploadMedia(file, kind, options, signal, onProgress) {
+export function uploadMedia(file, kind, options, signal, onProgress, subtitle) {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest(), form = new FormData();
         form.append('options', JSON.stringify(options)); form.append('file', file);
+        if (subtitle) form.append('subtitle', subtitle);
         const abort = () => xhr.abort();
         const done = () => signal?.removeEventListener('abort', abort);
         xhr.open('POST', `/api/media-tools/${kind}`); xhr.responseType = 'blob'; xhr.timeout = 660_000;

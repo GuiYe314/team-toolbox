@@ -1,3 +1,4 @@
+import { TOOLS } from './src/utils/tool-catalog.js';
 // 视频下载隔离浏览器验收：临时设置/组件/媒体，不访问真实网站、设备或团队数据库。
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -117,9 +118,16 @@ try {
         : "Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{window.__copied=text}},configurable:true});" });
     await navigate('/');
     check('首页保留视频下载且移除两项工具', await evaluate("[...document.querySelectorAll('.page-home .tool-card')].some(el=>el.textContent.includes('视频下载'))&&!document.querySelector('.page-home').textContent.includes('FreeLLMAPI')&&!document.querySelector('.page-home').textContent.includes('ArtCraft')"));
-    await navigate('/tools'); check('工具箱十项卡片包含视频下载', await evaluate("document.querySelectorAll('.tool-card').length===10&&!!document.querySelector('[data-tool-id=yoinks]')"));
+    await navigate('/tools'); check('工具箱全部卡片包含视频下载', await evaluate("document.querySelectorAll('.tool-card').length===" + TOOLS.length + "&&!!document.querySelector('[data-tool-id=yoinks]')"));
     await tool('Yoinks'); await wait("location.pathname==='/tools/yoinks'");
     check('未配置组件时提示真实未就绪', await evaluate("document.querySelector('.ext-badge').textContent.includes('未就绪') && document.querySelector('[data-test=video-analyze]').disabled"));
+    await wait("document.querySelector('[data-test=video-resolver]')?.options.length===5");
+    check('指定方案下拉仅四项通用解析及自动，不再显示两个专用站点', await evaluate("JSON.stringify([...document.querySelector('[data-test=video-resolver]').options].map(item=>item.value))===JSON.stringify(['','direct-media','ytdlp','page-media','ytdlp-generic'])&&!/91porna|bad\\.news/.test(document.querySelector('[data-test=video-resolvers]').textContent)"));
+    await evaluate("[...document.querySelectorAll('.ext-page button')].find(el=>el.textContent.trim()==='帮助').click()");
+    await wait("!!document.querySelector('.ext-overlay')");
+    check('帮助说明同步四种方案且无已移除的站点教程', await evaluate("document.querySelector('.ext-dialog').textContent.includes('四个方案')&&!/91porna|bad\\.news/.test(document.querySelector('.ext-dialog').textContent)"));
+    await evaluate("document.querySelector('.ext-dialog button[aria-label=关闭弹窗]').click()");
+    await wait("!document.querySelector('.ext-overlay')");
     await click('video-settings');
     check('设置弹窗 Teleport 到 body 且获得焦点', await evaluate("document.querySelector('.ext-overlay').parentElement===document.body && document.activeElement.getAttribute('role')==='dialog'"));
     check('设置弹窗居中并在视口内', await evaluate("(()=>{const r=document.querySelector('.ext-dialog').getBoundingClientRect();return Math.abs((r.left+r.right)/2-innerWidth/2)<3 && r.top>=0 && r.bottom<=innerHeight})()"));

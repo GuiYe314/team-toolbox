@@ -25,7 +25,7 @@ export function registerMediaToolsApi(app, { access = createToolAccess(), videoP
         const deadline = setTimeout(() => controller.abort(new MediaToolError('文件接收或处理超时，请减小文件或缩短视频后重试', 408)), timeoutMs);
         let file;
         try {
-            file = await receiveToolFile(req, { maxBytes: MEDIA_LIMITS[kind], signal: controller.signal });
+            file = await receiveToolFile(req, { maxBytes: MEDIA_LIMITS[kind], signal: controller.signal, allowSubtitle: kind === 'video' });
             const result = kind === 'image' ? await processImage(file, controller.signal) : await videoProcessor(file, controller.signal);
             controller.signal.throwIfAborted();
             if ((await stat(result.output)).size > MEDIA_LIMITS.output) throw new MediaToolError('处理结果超过256MiB限制', 413);
