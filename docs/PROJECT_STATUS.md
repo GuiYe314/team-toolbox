@@ -2,13 +2,17 @@
 
 ## TASK-072～073 视频压制模板与解析收敛（2026-11-19）
 
-源码实现及隔离功能验证完成，v0.14.0封版与远端发布待验证。本版依用户要求不写GitHub Release正文或更新清单说明，不新增版本说明文档。完整工具箱包含变更，独立设备调试版沿用原发行；无SQLite或依赖迁移，不包含原有output设计稿。
+源码实现、隔离验收、封版与远端发布均已完成。本版依用户要求不写GitHub Release正文或更新清单说明，不新增版本说明文档。完整工具箱包含变更，独立设备调试版沿用原发行；无SQLite或依赖迁移，不包含原有output设计稿。
 
 - 视频处理独立参数/队列双栏，增加CRF/平均码率、编码速度、宽高/帧率、Profile/Level、AAC/静音与UTF-8 SRT/ASS烧录；保留截取/MP4/MP3/GIF。五项内置模板含Unity 1080p/720p，用户模板服务器原子保存、乐观版本和确认删除，裁剪时间及文件不持久化。机器配置data/video-presets.json随升级保留，不属于团队内容备份。
 - 删除p91及bad-news专用解析实现、条目和教程，保留四项通用方案及自定义扩展；旧ID在组件/网络调用前拒绝。通用MP4/HLS、Referer及下载流程继续回归。
 - Node24.22.1复制源码/临时数据库完整后端 **882/882、57 suites、0跳过**，含实际FFmpeg字幕像素、Unity编码属性及模板重建/版本/损坏保护，证据build/v0140-backend-full-final.log。首次沙箱内文件共享Windows目录属性查询被拒绝，未计为通过；沙箱外同一隔离夹具全量通过，原失败日志保留v0140-backend-full.log。
 - 前端单元 **64/64**（build/v0140-frontend-unit.log）；Vite生产构建通过，保留既有大型分块提示（v0140-build.log）。首次沙箱内esbuild上级目录权限失败，沙箱外完成构建，未修改产品权限。
 - 新视频浏览器 **29/29**，临时模板及合成媒体验证实际批量编码/字幕、失败重试、保存失败保留草稿、改名冲突/刷新重启、确认删除、后台/离页清理和1280/1700明暗布局；build/v0140-video-browser.log。目视检查v0140-video-dark.png及light.png。实际Unity目标平台兼容未验证，未连接手机、真实账号或团队资料。
+- v0.14.0已原子推送main并创建注释标签`v0.14.0`，提交`96494a6e30e33757c0e8c1154bab08ab95334e5e`。GitHub Release已公开（draft=false、prerelease=false）：[v0.14.0](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.14.0)。正文为空，符合本次“不写说明”要求。
+- 四个公开资产均为uploaded且大小/服务端SHA256与本地一致：安装器148,981,728字节、便携ZIP204,023,208字节、SHA256清单378字节、manifest582字节；ZIP `8069ac55e4f9e533e2f82ef4e78ad2998a8b1e947c51fdb5141f6a50a369252f`，manifest `3055924e7544438c8ccc2ae04f0e806315ed99bf4dbceb8070d9f0e87efcf66e`。证据`build/v0140-remote-published.log`。
+- 工具箱更新HTTP客户端匿名读取公开latest manifest通过，582字节，逐字节等于本地，SHA256 `3055924e7544438c8ccc2ae04f0e806315ed99bf4dbceb8070d9f0e87efcf66e`；证据`build/v0140-public-manifest.log`、`build/v0140-public-manifest-updater.json`。未在真实安装上执行更新。
+- 独立AppId安装、卸载及v0.13.0隔离ZIP升级 **32/32**；模板配置、知识库、SOP、计算方案、资源原件、更新源和原安装注册均保留，证据`build/v0140-install-upgrade.log`。生产包Local/Lan与通用网页 **43/43**，证据`build/v0140-local-lan-final.log`；包内运行时 **14/14**，包审计 **792文件**，分别见`build/v0140-release-runtime.log`、`build/v0140-package-audit.log`。
 
 
 ## v0.13.0 正式发布（2026-11-18）
