@@ -8,13 +8,16 @@
 - 前端单元 64/64，生产构建通过。项目待办浏览器 38/38，覆盖实际建项、编辑、归档、恢复、冲突后的草稿保护、删除失败重试、明暗布局和“新增项目”按钮的文字对比度。结果见 `build/task075-frontend-unit.log`、`build/task075-final-build.log`、`build/task075-project-browser-final.log`。
 - 隔离浏览器回归通过全量备份 23/23、知识工作台 57/57、SOP 42/42、快速计算 39/39。全量 ZIP 恢复到临时空库后，项目、问题及归档时间保持一致。
 - 共用主题样式回归通过液态玻璃 37/37、分组与标签 49/49、工具排序 32/32、安卓调试 208/208。安卓验收使用离线执行器。
-- v0.15.0 已完成打包并通过包内运行时验收。源码提交和 GitHub Release 上传正在本轮完成。
+- v0.15.0 已完成打包、源码推送和 GitHub Release 公开发布。
 
 ### v0.15.0 发布事实
 
 - 安装器 `team-toolbox-Setup-0.15.0.exe`：148,990,456 字节，SHA256 `1b362c02d0074863b9fe2870a82e811e262e3ecdafe5db6cb530f0742b953986`。
 - 便携包 `team-toolbox-0.15.0.zip`：208,263,043 字节，SHA256 `3f2b782628c3985b471a3bf0266544d330192ea1f69b04d0bcaf927a41271bef`。
 - 包内 Node v22.22.2、ABI 127 和 better-sqlite3 加载通过，发布包运行时验收 14/14。真实媒体测试仍按默认配置跳过。
+- 源码提交为 `b9c591ca10f47044addf8a3f5385406210b594b8`，标签 `v0.15.0` 已推送到 main。GitHub Release 已公开且设为 latest：[v0.15.0](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.15.0)。
+- 公开 Release 四份资产状态均为 uploaded，服务端大小与本地一致，服务端 SHA256 与本地清单一致。匿名更新客户端读取 `releases/latest/download/manifest.json` 通过，内容 495 字节，SHA256 `b899bde9557326a85c7538ac0213a4511a867e3fcc44f8e9b7056ef442e49766`。
+- 发布证据为 `build/v0150-release-build.log`、`build/v0150-release-runtime.log`、`build/v0150-remote-published-verify.log` 和 `build/v0150-public-manifest.log`。
 
 ## TASK-074 Unity 日志下载设备全部日志（2026-11-19）
 
