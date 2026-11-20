@@ -10,6 +10,7 @@
 - 证据见 `build/task076-project-backend.log`、`build/task076-project-browser-final.log`、`build/task076-frontend-unit.log`、`build/task076-build.log` 和 `build/task076-verify-full-backup-final.log`。系统 Node 24 直接运行 better-sqlite3 仍有已知原生清理断言，本轮专项采用发布包 Node 22 验证。
 - 移除旧网址后，项目管理浏览器验收 **54/54**，确认旧路径显示“页面未找到”、新入口可用。知识库文档打开、编辑及全量备份回归 **23/23**。证据见 `build/task076-old-route-build.log` 和 `build/task076-old-route-verify-*-node22.log`。
 - v0.16.0 安装器、ZIP、SHA256 清单和自动更新清单构建通过。发布包运行时 **14/14**，便携包全新启动与 v0.15.0 实际隔离升级 **14/14**，保留项目和待办 ID、版本、归档时间及知识库文档。校验 797 个包内文件一致。日志见 `build/v0160-release-build.log`、`build/v0160-release-runtime.log`、`build/v0160-upgrade-final.log`、`build/v0160-package-audit.log`。
+- 源码提交 `3ac9110f06457ba49668163db8295dc0d1a839f0` 和注释标签 `v0.16.0` 已推送。[v0.16.0](https://github.com/GuiYe314/team-toolbox/releases/tag/v0.16.0) 已正式公开并设为最新稳定版。四份远端资产均已上传，大小和 SHA256 与本地一致。实际更新客户端匿名读取最新清单成功，699 字节，SHA256 为 `5ead40303cf83cc0e62fab3fe14a7f142a746bb94d77425df79dc1c36a2600ae`。结果见 `build/v0160-remote-published.log` 与 `build/v0160-public-manifest.log`。
 
 ## TASK-075 项目待办（2026-11-20）
 
