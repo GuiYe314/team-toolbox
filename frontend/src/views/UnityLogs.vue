@@ -60,7 +60,7 @@
                     <div class="ulog-actions">
                         <button class="btn btn-sm" :disabled="!matches.length" @click="copyMatches">复制匹配日志</button>
                         <button class="btn btn-sm" :disabled="!selectedFile || downloading" @click="download(false)">下载当前文件全文</button>
-                        <button class="btn btn-sm" :disabled="downloading" @click="download(true)">{{ downloading ? '下载中…' : '下载全部日志 ZIP' }}</button>
+                        <button class="btn btn-sm" :disabled="downloading || !files.length" @click="download(true)">{{ downloading ? '下载中…' : '下载设备全部日志 ZIP' }}</button>
                         <button v-if="downloading" class="btn btn-sm" @click="downloadController?.abort()">取消下载</button>
                         <label><input v-model="follow" type="checkbox">跟随最新记录</label>
                     </div>
@@ -181,7 +181,7 @@ async function download(archive) {
         if (disposed || current !== generation || controller.signal.aborted) return;
         const url = URL.createObjectURL(result.blob), link = document.createElement('a'); link.href = url; link.download = result.name; document.body.append(link);
         try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
-        actionMessage.value = '日志文件已交给浏览器下载';
+        actionMessage.value = archive ? '设备全部日志已交给浏览器下载' : '日志文件已交给浏览器下载';
     } catch (error) { if (current === generation && !disposed) actionError.value = controller.signal.aborted ? '下载已取消' : '下载失败：' + error.message; }
     finally { if (current === generation) downloading.value = false; }
 }

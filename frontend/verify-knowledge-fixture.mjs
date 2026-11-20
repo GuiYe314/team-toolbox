@@ -19,12 +19,13 @@ export async function knowledgeFixture(prefix, intercept = (_req, _res, next) =>
     const require = createRequire(join(backendRoot, 'package.json')), express = require('express'), app = express();
     const { createTestingDatabase } = await import(knowledgeModule('db.js')), { runMigrations } = await import(knowledgeModule('migrate.js'));
     const { registerQuickCalculationApi } = await import(knowledgeModule('quick-calculation-api.js')), { registerKnowledgeSopsApi } = await import(knowledgeModule('knowledge-sops-api.js'));
+    const { registerProjectTodosApi } = await import(knowledgeModule('project-todos-api.js'));
     const { registerKnowledgeWorkbenchApi } = await import(knowledgeModule('knowledge-workbench-api.js'));
     const { registerApi } = await import(knowledgeModule('api.js')), { createToolAccess } = await import(knowledgeModule('tool-access.js'));
     const path = join(temporary, 'test.sqlite3'); let db = createTestingDatabase({ path }); assert.deepEqual((await runMigrations({ connection: db })).errors, []);
     const dist = resolve(process.env.VERIFY_DIST || join(root, 'frontend/dist')); assert.ok(existsSync(join(dist, 'index.html')), '请先构建前端');
     app.use(createToolAccess().middleware); app.use((req, res, next) => intercept(req, res, next, db));
-    const logs = []; registerQuickCalculationApi(app, { getDb: () => db, log: value => logs.push(value) }); registerKnowledgeSopsApi(app, { getDb: () => db, log: value => logs.push(value) });
+    const logs = []; registerQuickCalculationApi(app, { getDb: () => db, log: value => logs.push(value) }); registerKnowledgeSopsApi(app, { getDb: () => db, log: value => logs.push(value) }); registerProjectTodosApi(app, { getDb: () => db, log: value => logs.push(value) });
     registerKnowledgeWorkbenchApi(app, {getDb: () => db, log: value => logs.push(value), ...options});
     app.post('/api/backup/import', express.json({ limit: '96mb' }));
     app.use(express.json({ limit: '16mb' })); registerApi(app, { getDb: () => db });

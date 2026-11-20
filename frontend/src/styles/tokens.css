@@ -22,6 +22,9 @@
     --sop-compact-height: 260px;
     --sop-note-height: 88px;
     --sop-checkbox-size: 18px;
+    --project-todo-editor-width: 520px;
+    --project-todo-empty-height: 220px;
+    --project-todo-check-offset: 3px;
     --calc-controls-width: 320px;
     --calc-table-width: 500px;
     --calc-table-height: 620px;

@@ -44,6 +44,7 @@
             <div class="kb-io">
                 <router-link id="kb-workbench" class="btn btn-sm" to="/kb/workbench">知识工作台</router-link>
                 <router-link id="kb-sops" class="btn btn-sm" to="/kb/sops"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 2 2 3-4M11 6h10M3 13l2 2 3-4M11 13h10M3 20l2 2 3-4M11 20h10" /></svg>SOP清单</router-link>
+                <router-link id="kb-project-todos" class="btn btn-sm" to="/kb/project-todos"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h6l2 2h8v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18z" /><path d="M4 8.5h16M8 13h8M8 16h5" /></svg>项目待办</router-link>
                 <!-- 回收站入口：删除是软删，用户需要知道「东西去哪了、还能不能找回」 -->
                 <router-link class="btn btn-sm" to="/kb/trash" title="查看已删除的文档">
                     <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
@@ -84,15 +85,15 @@
                     <div v-if="exportMenu" class="dropdown kb-io-dropdown">
                         <button type="button" @click="doExport('full')">
                             <span class="dd-title">全量备份（.zip）</span>
-                            <span class="dd-desc">含文档、知识工作台、计算方案、SOP与全部文件</span>
+                            <span class="dd-desc">含文档、项目待办、知识工作台、计算方案、SOP与全部文件</span>
                         </button>
                         <button type="button" @click="doExport('json')">
                             <span class="dd-title">内容数据 JSON（.json）</span>
-                            <span class="dd-desc">文档、工作台、计算方案与SOP，不含图片与资源文件</span>
+                            <span class="dd-desc">文档、项目待办、工作台、计算方案与SOP，不含图片与资源文件</span>
                         </button>
                         <button type="button" @click="doExport('gzip')">
                             <span class="dd-title">内容数据压缩（.json.gz）</span>
-                            <span class="dd-desc">压缩文档、工作台、计算方案与SOP，不含图片与资源文件</span>
+                            <span class="dd-desc">压缩文档、项目待办、工作台、计算方案与SOP，不含图片与资源文件</span>
                         </button>
                     </div>
                 </div>
@@ -515,11 +516,11 @@ export default {
                 this.ioError = false;
                 const sizeKb = (blob.size / 1024).toFixed(1);
                 if (format === 'full') {
-                    this.ioMessage = `已导出全量备份包（${sizeKb} KB）：包含文档、知识工作台与正文历史、计算方案、SOP模板与记录、文档内图片与资源库文件。导入时直接选择该 .zip 文件即可。`;
+                    this.ioMessage = `已导出全量备份包（${sizeKb} KB）：包含文档、项目待办、知识工作台与正文历史、计算方案、SOP模板与记录、文档内图片与资源库文件。导入时直接选择该 .zip 文件即可。`;
                 } else if (format === 'gzip') {
-                    this.ioMessage = `已导出压缩包（${sizeKb} KB）：全部分类、页面、知识工作台与正文历史、计算方案与SOP模板和记录，不含图片与资源文件。导入时直接选择该 .gz 文件即可。`;
+                    this.ioMessage = `已导出压缩包（${sizeKb} KB）：全部分类、页面、项目待办、知识工作台与正文历史、计算方案与SOP模板和记录，不含图片与资源文件。导入时直接选择该 .gz 文件即可。`;
                 } else {
-                    this.ioMessage = `已导出 ${counts.documents || 0} 个文档、${counts.categories || 0} 个分类、${counts.quick_calculations || 0} 个计算方案、${counts.sop_templates || 0} 个SOP模板和${counts.sop_runs || 0} 条执行记录、${counts.workbench_entries || 0} 个工作台项目及${counts.note_revisions || 0} 份正文历史（${sizeKb} KB）。`;
+                    this.ioMessage = `已导出 ${counts.documents || 0} 个文档、${counts.categories || 0} 个分类、${counts.project_todos_projects || 0} 个项目及${counts.project_todos || 0} 条项目待办、${counts.quick_calculations || 0} 个计算方案、${counts.sop_templates || 0} 个SOP模板和${counts.sop_runs || 0} 条执行记录、${counts.workbench_entries || 0} 个工作台项目及${counts.note_revisions || 0} 份正文历史（${sizeKb} KB）。`;
                     this.ioMessage += ' 注意：此格式不含图片与资源文件，完整备份请用「全量备份（.zip）」。';
                 }
                 if (format === 'json' && (counts.documents || 0) > 500) {
@@ -575,7 +576,7 @@ export default {
                 return;
             }
             const n = snapshot.documents.length;
-            if (!window.confirm(`即将导入 ${n} 个页面、${snapshot.quick_calculations?.length || 0} 个计算方案、${snapshot.sops?.templates?.length || 0} 个SOP模板和${snapshot.sops?.runs?.length || 0} 条执行记录、${snapshot.workbench?.entries?.length || 0} 个工作台项目及其历史。\n合并模式，不会删除现有数据；同名页面、方案、模板和已有执行记录会跳过。是否继续？`)) {
+            if (!window.confirm(`即将导入 ${n} 个页面、${snapshot.project_todos?.projects?.length || 0} 个项目及${snapshot.project_todos?.todos?.length || 0} 条项目待办、${snapshot.quick_calculations?.length || 0} 个计算方案、${snapshot.sops?.templates?.length || 0} 个SOP模板和${snapshot.sops?.runs?.length || 0} 条执行记录、${snapshot.workbench?.entries?.length || 0} 个工作台项目及其历史。\n合并模式，不会删除现有数据；同名页面、项目、方案、模板和已有执行记录会跳过。是否继续？`)) {
                 return;
             }
 
@@ -589,6 +590,7 @@ export default {
                 if (body.quick_calculations) this.ioMessage += ` 计算方案新增${body.quick_calculations.imported}个，跳过${body.quick_calculations.skipped}个。`;
                 if (body.workbench !== undefined) this.ioMessage += ` 工作台新增${body.workbench}项。`;
                 if (body.sops) this.ioMessage += ` SOP模板新增${body.sops.templates}个，执行记录新增${body.sops.runs}条，跳过${body.sops.skipped}项。`;
+                if (body.project_todos) this.ioMessage += ` 项目新增${body.project_todos.projects}个、待办新增${body.project_todos.todos}条（跳过${body.project_todos.skipped}项）。`;
                 // 通知页面树、分类、标签与详情页刷新
                 await this.loadTags();
                 await this.loadPageMap();
@@ -609,7 +611,7 @@ export default {
          */
         async importFullBackup(file) {
             if (!window.confirm(
-                '即将恢复全量备份包（文档 + 工作台与历史 + 计算方案 + SOP模板和记录 + 图片 + 资源文件）。\n\n'
+                '即将恢复全量备份包（文档 + 项目待办 + 工作台与历史 + 计算方案 + SOP模板和记录 + 图片 + 资源文件）。\n\n'
                 + '合并模式：不会删除现有数据，同名页面与资源会跳过或重新分配 id。\n'
                 + '是否继续？'
             )) {
@@ -631,6 +633,7 @@ export default {
                 if (docs.quick_calculations) this.ioMessage += ` 计算方案新增${docs.quick_calculations.imported}个（跳过${docs.quick_calculations.skipped}个）。`;
                 if (docs.workbench !== undefined) this.ioMessage += ` 工作台新增${docs.workbench}项。`;
                 if (docs.sops) this.ioMessage += ` SOP模板新增${docs.sops.templates}个、执行记录新增${docs.sops.runs}条（跳过${docs.sops.skipped}项）。`;
+                if (docs.project_todos) this.ioMessage += ` 项目新增${docs.project_todos.projects}个、待办新增${docs.project_todos.todos}条（跳过${docs.project_todos.skipped}项）。`;
                 await this.loadTags();
                 await this.loadPageMap();
                 this.load();

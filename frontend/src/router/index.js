@@ -32,6 +32,7 @@ const routes = [
         component: () => import('../views/DocumentEdit.vue')
     },
     { path: '/kb/sops', name: 'kb-sops', component: () => import('../views/KnowledgeSops.vue') },
+    { path: '/kb/project-todos', name: 'kb-project-todos', component: () => import('../views/ProjectTodos.vue') },
     { path: '/kb/workbench', name: 'kb-workbench', component: () => import('../views/KnowledgeWorkbench.vue') },
     {
         // 必须注册在 /kb/:id 之前，否则 "trash" 会被当成文档 id。

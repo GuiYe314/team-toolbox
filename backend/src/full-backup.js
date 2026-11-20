@@ -120,6 +120,8 @@ export function buildFullBackup({ connection: db }) {
             quick_calculations: documents.counts.quick_calculations,
             sop_templates: documents.counts.sop_templates,
             sop_runs: documents.counts.sop_runs,
+            project_todos_projects: documents.counts.project_todos_projects,
+            project_todos: documents.counts.project_todos,
             workbench_entries: documents.counts.workbench_entries,
             note_revisions: documents.counts.note_revisions,
             assets: assetManifest ? assetManifest.assets.length : 0,

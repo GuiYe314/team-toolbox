@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { PassThrough } from 'node:stream';
+import archiver from 'archiver';
 import { probeLogDevice, scanLogDevices } from './unity-log-discovery.js';
 import { openLogResponse, readLogJson, requireLogName, UnityLogError, validLogName } from './unity-log-http.js';
 
@@ -8,6 +10,7 @@ const requireId = id => {
     if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/.test(id)) throw new UnityLogError('invalid_session', '读取会话无效，请重新选择设备');
     return id;
 };
+const MAX_ALL_LOG_BYTES = 120 * 1024 * 1024;
 export function parseLogFiles(body) {
     if (!Array.isArray(body?.files) || body.files.length > 50) throw new UnityLogError('invalid_response', '设备日志文件列表无效', 502);
     const seen = new Set();
@@ -66,6 +69,54 @@ export function createUnityLogService({ scan = scanLogDevices, probe = probeLogD
             }
         }
     }
+    async function downloadAll(session, signal) {
+        const files = parseLogFiles(await authenticated(session, '/api/files', signal));
+        const totalBytes = files.reduce((total, file) => total + file.bytes, 0);
+        if (totalBytes > MAX_ALL_LOG_BYTES) throw new UnityLogError('response_limit', '设备日志总大小超过下载上限（120 MiB），请分批下载单个文件', 502);
+        const output = new PassThrough();
+        const archive = archiver('zip', { zlib: { level: 6 } });
+        archive.on('error', error => output.destroy(error));
+        archive.pipe(output);
+        // 先返回可流式读取的 ZIP，让 API 可以立即挂接客户端取消；所有设备文件
+        // 会按清单顺序逐个读取，任何一个文件失败都会终止本次 ZIP。
+        void (async () => {
+            try {
+                archive.append(JSON.stringify({ version: 1, generatedUtc: new Date(now()).toISOString(), device: {
+                    id: session.deviceId, name: session.deviceName, appId: session.appId, appVersion: session.appVersion
+                }, fileCount: files.length, totalBytes }, null, 2), { name: 'manifest.json' });
+                for (const file of files) {
+                    signal.throwIfAborted();
+                    const response = await authenticated(session, `/download?name=${encodeURIComponent(file.name)}`, signal, true, 32 * 1024 * 1024);
+                    if (response.contentType !== 'text/plain') {
+                        response.stream.destroy();
+                        throw new UnityLogError('invalid_response', '设备未返回有效的日志文件', 502);
+                    }
+                    await new Promise((resolve, reject) => {
+                        let settled = false;
+                        const finish = error => {
+                            if (settled) return;
+                            settled = true;
+                            signal.removeEventListener('abort', onAbort);
+                            error ? reject(error) : resolve();
+                        };
+                        const onAbort = () => {
+                            response.stream.destroy();
+                            finish(new UnityLogError('cancelled', '操作已取消', 499));
+                        };
+                        response.stream.once('end', () => finish());
+                        response.stream.once('error', finish);
+                        signal.addEventListener('abort', onAbort, { once: true });
+                        archive.append(response.stream, { name: file.name });
+                    });
+                }
+                await archive.finalize();
+            } catch (error) {
+                archive.abort();
+                output.destroy(error);
+            }
+        })();
+        return { stream: output, contentType: 'application/zip', length: null, fileCount: files.length };
+    }
     return {
         async discover({ port = 17523, address = '' } = {}, signal) {
             if (scanning) throw new UnityLogError('search_busy', '正在搜索局域网，请等待或取消当前搜索', 409);
@@ -118,7 +169,9 @@ export function createUnityLogService({ scan = scanLogDevices, probe = probeLogD
             let released = false;
             const release = () => { if (!released) { released = true; downloading = false; operation.release(); } };
             try {
-                const response = await authenticated(session, archive ? '/archive' : `/download?name=${encodeURIComponent(name)}`, operation.signal, true, (archive ? 120 : 32) * 1024 * 1024);
+                const response = archive
+                    ? await downloadAll(session, operation.signal)
+                    : await authenticated(session, `/download?name=${encodeURIComponent(name)}`, operation.signal, true, 32 * 1024 * 1024);
                 if (response.contentType !== (archive ? 'application/zip' : 'text/plain')) {
                     response.stream.destroy(); throw new UnityLogError('invalid_response', '设备未返回有效的日志下载文件', 502);
                 }

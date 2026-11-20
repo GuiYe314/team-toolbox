@@ -31,6 +31,7 @@ import './styles/tool-workspace.css';
 import './styles/workshops.css';
 import './styles/quick-calculation.css';
 import './styles/knowledge-sops.css';
+import './styles/project-todos.css';
 import './styles/knowledge-workbench.css';
 import './styles/primevue.css';
 import './styles/file-share.css';

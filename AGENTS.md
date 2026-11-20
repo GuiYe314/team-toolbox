@@ -34,6 +34,8 @@
 
 ## 前端约定
 
+项目待办（TASK-075）：迁移012仅追加kb_projects/kb_project_todos，服务端持久化、项目/待办独立版本锁、非空项目拒绝删除。完成即归档、恢复清除完成/归档时间；备份可选project_todos须先校验关联/时间/全部限额，再在内容导入整体事务中合并，不覆盖已有内容。API的128KiB解析器在全局之前，保留专用头与真实来源/Host/同源校验；错误不得记录正文。修改后执行project-todos及相关备份/知识库后端测试、前端单元/构建、verify-project-todos和知识工作台/SOP/计算/完整备份隔离回归，禁止触及真实data。
+
 PrimeVue/Motion（TASK-068）：PrimeVue固定MIT的4.x、unstyled与本地主题适配，公共选择/多选/弹窗放components/ui，中文与pass-through在ui/primevue.js；保持属性原值类型及确认取消后的回显。禁止引入在线主题、PrimeIcons或重复ripple。Motion只用短时tween，集中在ui/motion.js管理并在后台/减少动态/拖拽/卸载停止；不使用退出等待、KeepAlive或第三方画布逐项动效。修改后运行verify-primevue-motion及受影响的计算/知识/分组/排序/玻璃/点击/安卓回归，使用隔离库和浏览器。
 
 本项目前端为 Vue 3 + Vite。以下为硬约束，违反即为缺陷，不是风格偏好。
@@ -68,6 +70,7 @@ PrimeVue/Motion（TASK-068）：PrimeVue固定MIT的4.x、unstyled与本地主�
 | `verify-integrations.mjs` | Yoinks 组件/视频分析/预览/下载队列/取消清理/离页后台、旧集成地址回工具箱，主题/1280 布局/Teleport/焦点；临时设置、媒体与离线执行器 | 1、2、7 |
 | `verify-overlay-position.mjs` | 浮层定位、遮罩铺满视口、弹窗居中 | 1、8 |
 | `verify-full-backup.mjs` | 全量备份：菜单明示范围、包结构完整、非法包被拒 | 9 |
+| `verify-project-todos.mjs` | 项目/待办两层、新建编辑、自动归档/恢复、确认删除、冲突/失败草稿、旧请求/离页及明暗布局；真实临时SQLite与隔离浏览器 | 1、2、7、9 |
 | `verify-search.mjs` | 全文检索：中文子串命中、英文词边界、空状态、清除恢复 | 10 |
 | `verify-release-runtime.mjs` | 发布包运行时：内置 Node、ABI 自检、启动脚本契约 | — |
 | `verify-network-speed.mjs` | 实时网速：入口/单网卡、上下行/换算/趋势/累计、暂停清空、后台恢复/离页取消/迟到、错误/移除/离线与明暗布局/下拉对比度；临时服务与合成网卡 | 2、7 |

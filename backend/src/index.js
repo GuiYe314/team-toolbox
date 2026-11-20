@@ -27,6 +27,7 @@ import { registerFileShareApi } from './file-share-api.js';
 import { registerRemoteFilesApi } from './remote-files-api.js';
 import { registerQuickCalculationApi } from './quick-calculation-api.js';
 import { registerKnowledgeSopsApi } from './knowledge-sops-api.js';
+import { registerProjectTodosApi } from './project-todos-api.js';
 import { registerKnowledgeWorkbenchApi } from './knowledge-workbench-api.js';
 import { createToolAccess } from './tool-access.js';
 import { backfillPreviews } from './asset-preview.js';
@@ -53,6 +54,7 @@ const remoteFiles = registerRemoteFilesApi(app, { access });
 registerVideoPresetsApi(app, { access, log: entry => console.warn('[video-presets]', JSON.stringify(entry)) });
 registerQuickCalculationApi(app, { getDb: getDefaultDatabase, access });
 registerKnowledgeSopsApi(app, { getDb: getDefaultDatabase, access });
+registerProjectTodosApi(app, { getDb: getDefaultDatabase, access });
 registerKnowledgeWorkbenchApi(app, { getDb: getDefaultDatabase, access });
 // 含最多50MiB历史和16MiB工作台配置的内容备份；只放宽精确导入端点。
 app.post('/api/backup/import', express.json({ limit: '96mb' }));

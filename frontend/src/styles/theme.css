@@ -183,7 +183,7 @@
     --surface-material: var(--panel-background);
     --surface-material-hover: var(--panel-background-hover);
     --control-material: var(--panel-background);
-    --control-highlight: transparent;
+    --control-highlight: none;
     --selected-material: var(--selected-background);
     --toolbar-background: #202020;
     --group-background: #242424;

@@ -2,7 +2,7 @@ async function request(path, payload = {}, signal, download = false) {
     const controller = new AbortController();
     const cancel = () => controller.abort();
     signal?.addEventListener('abort', cancel, { once: true }); if (signal?.aborted) cancel();
-    const timer = setTimeout(cancel, download ? 60000 : 35000);
+    const timer = setTimeout(cancel, download ? 300000 : 35000);
     try {
         const response = await fetch('/api/unity-logs' + path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Toolbox-Unity-Log': '1' },
             body: JSON.stringify(payload), signal: controller.signal, keepalive: path.endsWith('/close') });

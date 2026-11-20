@@ -69,6 +69,30 @@ test('会话容量与下载互斥，流结束后允许再次下载', async t => 
     let result = ''; for await (const chunk of first.stream) result += chunk; assert.equal(result, 'log data');
     const next = await service.download(session.id, name, false); next.stream.destroy();
 });
+test('下载全部会按设备清单逐个打包所有日志，而不是只取当前文件或设备归档', async t => {
+    const second = 'hhh_startup_20261104_110000_000_abcdef0123456789_00001.log';
+    const allFiles = [files[0], { name: second, bytes: 12, modifiedUtc: '2026-11-04T11:00:00Z' }];
+    const calls = [];
+    const { service } = fixture(t, {
+        readJson: async options => options.path === '/api/files' ? { files: allFiles } : { text: 'preview', truncated: false },
+        openResponse: async options => {
+            calls.push(options.path);
+            const body = options.path.includes(encodeURIComponent(second)) ? 'second log' : 'first log';
+            return { stream: Readable.from([body]), contentType: 'text/plain', length: Buffer.byteLength(body) };
+        }
+    });
+    const session = await connect(service);
+    const result = await service.download(session.id, '', true);
+    const chunks = []; for await (const chunk of result.stream) chunks.push(chunk);
+    const zip = Buffer.concat(chunks);
+    assert.equal(result.contentType, 'application/zip');
+    assert.ok(zip.includes(Buffer.from(name)) && zip.includes(Buffer.from(second)), 'ZIP 未包含设备清单中的全部日志文件');
+    assert.deepEqual(calls.filter(path => path.startsWith('/download?')), [
+        `/download?name=${encodeURIComponent(name)}`,
+        `/download?name=${encodeURIComponent(second)}`
+    ]);
+    assert.ok(!calls.includes('/archive'), '下载全部不应依赖设备端归档接口');
+});
 test('关闭会话与服务退出会取消在途读取', async t => {
     let signal;
     const { service } = fixture(t, { readJson: async options => {

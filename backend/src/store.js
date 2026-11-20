@@ -19,6 +19,7 @@
 import { errorMap } from './errors.js';
 import { importCalculations, listCalculations, validateCalculationBackup } from './quick-calculation-store.js';
 import { exportSops, validateSopBackup, importSops } from './knowledge-sops-store.js';
+import { exportProjectTodos, validateProjectTodoBackup, importProjectTodos } from './project-todos-store.js';
 import { exportWorkbench, validateWorkbenchBackup, importWorkbench } from './knowledge-workbench-store.js';
 import { remapWikiNoteIds } from './knowledge-links.js';
 import {
@@ -1340,6 +1341,7 @@ export const BACKUP_VERSION = 1;
 export function exportSnapshot({ connection: db }) {
     const calculations = listCalculations(db);
     const sops = exportSops(db);
+    const projectTodos = exportProjectTodos(db);
     const workbench = exportWorkbench(db);
     const categories = listCategories({ connection: db });
     const tags = listTags({ connection: db });
@@ -1376,12 +1378,15 @@ export function exportSnapshot({ connection: db }) {
             quick_calculations: calculations.length,
             sop_templates: sops.templates.length,
             sop_runs: sops.runs.length,
+            project_todos_projects: projectTodos.projects.length,
+            project_todos: projectTodos.todos.length,
             workbench_entries: workbench.entries.length,
             note_revisions: workbench.revisions.length
         },
         categories: categories.map((c) => ({ name: c.name })),
         quick_calculations: calculations.map(({ id: _id, createdAt: _created, ...item }) => item),
         sops,
+        project_todos: projectTodos,
         workbench,
         documents: docs.map((d) => ({
             ref: d.id,
@@ -1425,6 +1430,7 @@ function importSnapshotData({ connection: db, snapshot }) {
     // 在写入任何分类/文档前验证新增部分；缺省兼容旧版快照。
     const calculations = validateCalculationBackup(snapshot.quick_calculations);
     const sops = validateSopBackup(snapshot.sops);
+    const projectTodos = validateProjectTodoBackup(snapshot.project_todos);
     const workbench = validateWorkbenchBackup(snapshot.workbench);
 
     const details = [];
@@ -1551,6 +1557,7 @@ function importSnapshotData({ connection: db, snapshot }) {
         }
         if (calculations.length) stats.quick_calculations = importCalculations(db, calculations);
         if (sops.templates.length || sops.runs.length) stats.sops = importSops(db, sops);
+        if (projectTodos.projects.length || projectTodos.todos.length) stats.project_todos = importProjectTodos(db, projectTodos);
         for (const id of newDocuments) {
             const row = db.prepare('SELECT title,content_md,is_deleted FROM documents WHERE id=?').get(id);
             const md = remapWikiNoteIds(row.content_md, refToNewId);

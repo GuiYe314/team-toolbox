@@ -1,5 +1,11 @@
 # 架构说明（ARCHITECTURE）
 
+## 项目待办（2026-11-19 / TASK-075）
+
+ProjectTodos.vue提供`/kb/project-todos`的项目分组、待办行和编辑/确认弹窗，project-todos-client.js处理专用头、15秒超时及取消；知识库页提供入口与备份范围提示。project-todos-store.js独立管理SQLite迁移012的kb_projects与kb_project_todos，UUID主键、项目外键、规范化唯一名称、实体版本及完成/归档时间；项目非空时拒绝删除，所有写操作事务化，输入与总量有界。
+
+project-todos-api.js在全局JSON之前注册/api/project-todos，128KiB专用解析器和真实来源/Host/同源校验，错误只记录方法/错误码。内容快照增加可选project_todos与计数，全量ZIP沿用documents.json；导入在整体事务中校验并合并，保留旧数据、重映射同名项目、拒绝无效关联/时间和超额正文。团队数据不写浏览器存储，空旧备份继续兼容。隔离夹具注册同一API，verify-project-todos.mjs使用真实临时SQLite和生产构建验收。
+
 ## 视频压制与模板（2026-11-19 / TASK-073）
 
 VideoWorkshop.vue独立视频参数、模板弹窗与批量队列，图片维持MediaWorkshop。video-options.js集中FFmpeg白名单与固定参数生成；字幕仅受限上传的UTF-8 SRT/ASS，写随机目录固定名，固定subtitles滤镜、禁字体/图形附件，子进程cwd为临时目录。video-presets.js保存服务器非敏感机器配置，内置只读、用户记录版本锁与原子替换，损坏不覆盖；video-presets-api.js单独8KiB JSON和媒体专用头，在全局JSON之前注册。配置随data在升级保留，不纳入团队内容备份；文件和裁剪时间不持久化，无依赖/SQLite迁移。
@@ -134,7 +140,7 @@ CSS 媒体查询处理减少动态/透明度偏好，后者使主容器与弹窗
 
 - TASK-025 / F-ULOG-001：`/tools/unity-logs` → 受网络策略保护的 `/api/unity-logs/*` → 同局域网 Unity 的 TCP 17523 只读日志服务；不依赖 ADB、不改 SQLite。
 - `unity-log-discovery.js` 从本机私有 IPv4 与掩码生成有界搜索范围，只探测专用 HTTP 发现协议。设备编号跨 IP 保持稳定，票据绑定来源 IP、闲置两分钟到期；票据只存后端内存，不给浏览器、不落盘。
-- `unity-logs.js` 管理发现结果及最多八个短期读取会话，固定日志路径、响应大小、超时、取消和下载流限制；`unity-log-api.js` 检查 Local/Lan 来源/服务器 Host/浏览器上下文及专用请求头。拒绝自由 URL、公网探测和重定向。
+- `unity-logs.js` 管理发现结果及最多八个短期读取会话，固定日志路径、响应大小、超时、取消和下载流限制；全部日志下载先读取设备 `/api/files` 清单，再按清单逐个读取 `/download` 并由工具箱流式生成 ZIP（含 manifest），不依赖设备端 `/archive` 实现；`unity-log-api.js` 检查 Local/Lan 来源/服务器 Host/浏览器上下文及专用请求头。拒绝自由 URL、公网探测和重定向。
 - Unity 修改仅在 `Assets/Test/Log`：默认自动开放局域网读取，手动关闭保留；后台关闭、前台按原开启状态恢复。浏览器直连的访问码方式保留，工具箱通过发现票据自动读取。此修改在 AOT 程序集，必须重新打 APK/iOS 包。
 - 同 Wi-Fi 不保证设备互通：AP 隔离、iOS 本地网络权限、应用后台或不同 VLAN 需明确排查；大网段扫描截断与超时必须反馈真实覆盖范围。
 

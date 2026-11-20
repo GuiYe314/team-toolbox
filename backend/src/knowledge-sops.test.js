@@ -87,7 +87,7 @@ describe('SOP模板与独立执行记录', () => {
         t.after(() => { for (const db of connections) if (db.open) db.close(); rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); }); mkdirSync(migrations);
         const actual = fileURLToPath(new URL('./migrations/', import.meta.url)); for (const file of readdirSync(actual).filter(file => /^00\d_.*\.sql$/.test(file))) copyFileSync(join(actual, file), join(migrations, file));
         const db = createTestingDatabase({ path }); connections.push(db); assert.deepEqual((await runMigrations({ connection: db, migrationsDir: migrations })).errors, []); createDocument({ connection: db, title: '迁移保留文档' });
-        const upgraded = await runMigrations({ connection: db }); assert.deepEqual(upgraded.versions, [10, 11]); assert.equal(db.prepare('SELECT title FROM documents').get().title, '迁移保留文档'); assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name='quick_calculations'").get());
+        const upgraded = await runMigrations({ connection: db }); assert.deepEqual(upgraded.versions, [10, 11, 12]); assert.equal(db.prepare('SELECT title FROM documents').get().title, '迁移保留文档'); assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name='quick_calculations'").get());
         const template = saveSopTemplate(db, sample()), run = start(db, template); changeSopRun(db, run.id, { version: run.version, stepId: run.steps[0].id, done: true }); db.close();
         const reopened = createTestingDatabase({ path }); connections.push(reopened); assert.equal(getSopRun(reopened, run.id).steps[0].done, true); assert.equal(listSopTemplates(reopened).length, 1);
     });
