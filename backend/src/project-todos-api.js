@@ -2,6 +2,9 @@ import express from 'express';
 import { createToolAccess } from './tool-access.js';
 import { createTodo, deleteProject, deleteTodo, getProject, getTodo, listProjectTodos, listProjects, saveProject, saveTodo, setTodoArchived } from './project-todos-store.js';
 
+const projectFields = ['name', 'description', 'status', 'dueDate'];
+const todoFields = ['issue', 'details', 'priority', 'stage', 'dueDate', 'assignee', 'tags'];
+
 export function registerProjectTodosApi(app, { getDb, access = createToolAccess(), log = message => console.warn(message) }) {
     const router = express.Router();
     const fail = (code, message) => { const error = new Error(message); error.code = code; throw error; };
@@ -36,13 +39,13 @@ export function registerProjectTodosApi(app, { getDb, access = createToolAccess(
         res.json(listProjectTodos(getDb(), { view: req.query.view || 'active' }));
     }));
     router.get('/projects', wrap((req, res) => { noQuery(req); res.json({ items: listProjects(getDb()) }); }));
-    router.post('/projects', wrap((req, res) => res.status(201).json(saveProject(getDb(), input(req, ['name', 'description'])))));
+    router.post('/projects', wrap((req, res) => res.status(201).json(saveProject(getDb(), input(req, projectFields)))));
     router.get('/projects/:id', wrap((req, res) => { noQuery(req); res.json(getProject(getDb(), req.params.id)); }));
-    router.put('/projects/:id', wrap((req, res) => res.json(saveProject(getDb(), input(req, ['name', 'description', 'version']), req.params.id))));
+    router.put('/projects/:id', wrap((req, res) => res.json(saveProject(getDb(), input(req, [...projectFields, 'version']), req.params.id))));
     router.delete('/projects/:id', wrap((req, res) => { deleteProject(getDb(), req.params.id, confirmed(req)); res.json({ deleted: true }); }));
-    router.post('/projects/:id/todos', wrap((req, res) => res.status(201).json(createTodo(getDb(), req.params.id, input(req, ['issue', 'details'])))));
+    router.post('/projects/:id/todos', wrap((req, res) => res.status(201).json(createTodo(getDb(), req.params.id, input(req, todoFields)))));
     router.get('/todos/:id', wrap((req, res) => { noQuery(req); res.json(getTodo(getDb(), req.params.id)); }));
-    router.put('/todos/:id', wrap((req, res) => res.json(saveTodo(getDb(), req.params.id, input(req, ['issue', 'details', 'version'])))));
+    router.put('/todos/:id', wrap((req, res) => res.json(saveTodo(getDb(), req.params.id, input(req, [...todoFields, 'version'])))));
     router.patch('/todos/:id', wrap((req, res) => res.json(setTodoArchived(getDb(), req.params.id, input(req, ['archived', 'version'])))));
     router.delete('/todos/:id', wrap((req, res) => { deleteTodo(getDb(), req.params.id, confirmed(req)); res.json({ deleted: true }); }));
     router.use((error, _req, res, _next) => res.status(error.status === 413 ? 413 : 400).json({ error: 'invalid_input', message: error.status === 413 ? '项目待办请求超过128KiB限制' : '请提交有效JSON参数' }));

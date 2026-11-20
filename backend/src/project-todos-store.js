@@ -40,12 +40,42 @@ function iso(value, label) {
 function projectInput(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) bad('项目参数不正确');
     const name = text(value.name, '项目名称', 80, true);
-    return { name, nameKey: nameKey(name), description: text(value.description ?? '', '项目说明', 1000) };
+    return {
+        name, nameKey: nameKey(name), description: text(value.description ?? '', '项目说明', 1000),
+        status: option(value.status, ['planning', 'active', 'paused', 'completed', 'archived'], 'active', '项目状态'),
+        dueDate: dueDate(value.dueDate)
+    };
+}
+
+function option(value, options, fallback, label) {
+    if (value === undefined) return fallback;
+    if (!options.includes(value)) bad(`${label}不正确`);
+    return value;
+}
+
+function dueDate(value) {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'string' || !/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(value)) bad('截止日期不正确');
+    iso(value + 'T00:00:00.000Z', '截止日期');
+    return value;
+}
+
+function tags(value = []) {
+    if (!Array.isArray(value) || value.length > 10) bad('每条待办最多10个标签');
+    const normalized = value.map(tag => text(tag, '标签', 30, true));
+    if (normalized.some(tag => /[,，\r\n]/.test(tag))) bad('标签内不能包含逗号或换行');
+    return [...new Set(normalized)];
 }
 
 function todoInput(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) bad('待办参数不正确');
-    return { issue: text(value.issue, '问题', 200, true), details: text(value.details ?? '', '待办说明', 2000) };
+    return {
+        issue: text(value.issue, '问题', 200, true), details: text(value.details ?? '', '待办说明', 2000),
+        priority: option(value.priority, ['urgent', 'high', 'normal', 'low'], 'normal', '优先级'),
+        stage: option(value.stage, ['pending', 'doing'], 'pending', '处理阶段'),
+        dueDate: dueDate(value.dueDate), assignee: text(value.assignee === undefined ? '' : value.assignee, '负责人', 60),
+        tags: tags(value.tags)
+    };
 }
 
 function projectRow(row) {
@@ -53,6 +83,8 @@ function projectRow(row) {
         id: row.id,
         name: row.name,
         description: row.description,
+        status: row.status,
+        dueDate: row.due_at,
         version: row.version,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -70,6 +102,11 @@ function todoRow(row) {
         issue: row.issue,
         details: row.details,
         status: row.status,
+        priority: row.priority,
+        stage: row.stage,
+        dueDate: row.due_at,
+        assignee: row.assignee,
+        tags: JSON.parse(row.tags_json),
         version: row.version,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -144,18 +181,27 @@ export function listProjectTodos(db, { view = 'active' } = {}) {
 }
 
 export function saveProject(db, value, id) {
-    const checked = projectInput(value);
-    const serializedDelta = Buffer.byteLength(checked.name + checked.description);
     return db.transaction(() => {
         const old = id ? project(db, id) : null;
+        if (!value || typeof value !== 'object' || Array.isArray(value)) bad('项目参数不正确');
         if (old) current(old, value.version);
+        const checked = projectInput({ ...value,
+            status: value.status === undefined ? old?.status : value.status,
+            dueDate: value.dueDate === undefined ? old?.due_at : value.dueDate
+        });
+        const serializedDelta = Buffer.byteLength(checked.name + checked.description);
         if (!old && db.prepare('SELECT COUNT(*) AS n FROM kb_projects').get().n >= MAX_PROJECTS) conflict(`最多${MAX_PROJECTS}个项目，请先整理项目`);
         const duplicate = db.prepare('SELECT id FROM kb_projects WHERE name_key=? AND id<>?').get(checked.nameKey, id || '');
         if (duplicate) conflict('已有同名项目，请换一个名称');
         sizeAllowed(db, serializedDelta - (old ? Buffer.byteLength(old.name + old.description) : 0));
         const now = new Date().toISOString(), ownId = id || randomUUID();
-        if (old) db.prepare('UPDATE kb_projects SET name=?,name_key=?,description=?,version=version+1,updated_at=? WHERE id=?').run(checked.name, checked.nameKey, checked.description, now, ownId);
-        else db.prepare('INSERT INTO kb_projects(id,name,name_key,description,created_at,updated_at) VALUES(?,?,?,?,?,?)').run(ownId, checked.name, checked.nameKey, checked.description, now, now);
+        if (old) {
+            db.prepare('UPDATE kb_projects SET name=?,name_key=?,description=?,status=?,due_at=?,version=version+1,updated_at=? WHERE id=?')
+                .run(checked.name, checked.nameKey, checked.description, checked.status, checked.dueDate, now, ownId);
+        } else {
+            db.prepare('INSERT INTO kb_projects(id,name,name_key,description,status,due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)')
+                .run(ownId, checked.name, checked.nameKey, checked.description, checked.status, checked.dueDate, now, now);
+        }
         return getProject(db, ownId);
     })();
 }
@@ -176,7 +222,9 @@ export function createTodo(db, projectId, value) {
         if (db.prepare('SELECT COUNT(*) AS n FROM kb_project_todos').get().n >= MAX_TODOS) conflict(`最多${MAX_TODOS}条待办，请先整理归档记录`);
         sizeAllowed(db, Buffer.byteLength(checked.issue + checked.details));
         const now = new Date().toISOString(), id = randomUUID();
-        db.prepare('INSERT INTO kb_project_todos(id,project_id,issue,details,created_at,updated_at) VALUES(?,?,?,?,?,?)').run(id, projectId, checked.issue, checked.details, now, now);
+        db.prepare(`INSERT INTO kb_project_todos(id,project_id,issue,details,priority,stage,due_at,assignee,tags_json,created_at,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(id, projectId, checked.issue, checked.details, checked.priority, checked.stage,
+            checked.dueDate, checked.assignee, JSON.stringify(checked.tags), now, now);
         db.prepare('UPDATE kb_projects SET updated_at=? WHERE id=?').run(now, projectId);
         return todoRow(todo(db, id));
     })();
@@ -187,12 +235,19 @@ export function getTodo(db, id) {
 }
 
 export function saveTodo(db, id, value) {
-    const checked = todoInput(value);
     return db.transaction(() => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) bad('待办参数不正确');
         const old = todo(db, id); current(old, value.version);
+        const previous = todoRow(old);
+        const checked = todoInput({
+            priority: previous.priority, stage: previous.stage, dueDate: previous.dueDate,
+            assignee: previous.assignee, tags: previous.tags, ...value
+        });
         sizeAllowed(db, Buffer.byteLength(checked.issue + checked.details) - Buffer.byteLength(old.issue + old.details));
         const now = new Date().toISOString();
-        db.prepare('UPDATE kb_project_todos SET issue=?,details=?,version=version+1,updated_at=? WHERE id=?').run(checked.issue, checked.details, now, old.id);
+        db.prepare(`UPDATE kb_project_todos SET issue=?,details=?,priority=?,stage=?,due_at=?,assignee=?,tags_json=?,
+            version=version+1,updated_at=? WHERE id=?`).run(checked.issue, checked.details, checked.priority, checked.stage,
+            checked.dueDate, checked.assignee, JSON.stringify(checked.tags), now, old.id);
         db.prepare('UPDATE kb_projects SET updated_at=? WHERE id=?').run(now, old.project_id);
         return todoRow(todo(db, old.id));
     })();
@@ -226,8 +281,14 @@ function dateValue(value, label) {
 export function exportProjectTodos(db) {
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE name='kb_projects' AND type='table'").get()) return { projects: [], todos: [] };
     return {
-        projects: db.prepare('SELECT id,name,description,version,created_at,updated_at FROM kb_projects ORDER BY id').all().map(row => ({ id: row.id, name: row.name, description: row.description, version: row.version, createdAt: row.created_at, updatedAt: row.updated_at })),
-        todos: db.prepare('SELECT id,project_id,issue,details,status,version,created_at,updated_at,completed_at,archived_at FROM kb_project_todos ORDER BY id').all().map(row => ({ id: row.id, projectId: row.project_id, issue: row.issue, details: row.details, status: row.status, version: row.version, createdAt: row.created_at, updatedAt: row.updated_at, completedAt: row.completed_at, archivedAt: row.archived_at }))
+        projects: db.prepare('SELECT * FROM kb_projects ORDER BY id').all().map(row => {
+            const { todoCount, activeCount, archivedCount, ...item } = projectRow(row);
+            return item;
+        }),
+        todos: db.prepare('SELECT * FROM kb_project_todos ORDER BY id').all().map(row => {
+            const { projectName, isArchived, ...item } = todoRow(row);
+            return item;
+        })
     };
 }
 
@@ -269,14 +330,19 @@ export function importProjectTodos(db, value) {
                 || db.prepare('SELECT id FROM kb_projects WHERE name_key=?').get(item.nameKey);
             if (existing) { projectIds.set(item.id, existing.id); stats.skipped++; continue; }
             if (db.prepare('SELECT COUNT(*) AS n FROM kb_projects').get().n >= MAX_PROJECTS) conflict(`导入后超过${MAX_PROJECTS}个项目限制`);
-            db.prepare('INSERT INTO kb_projects(id,name,name_key,description,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').run(item.id, item.name, item.nameKey, item.description, item.version, item.createdAt, item.updatedAt);
+            db.prepare(`INSERT INTO kb_projects(id,name,name_key,description,status,due_at,version,created_at,updated_at)
+                VALUES(?,?,?,?,?,?,?,?,?)`).run(item.id, item.name, item.nameKey, item.description, item.status, item.dueDate,
+                item.version, item.createdAt, item.updatedAt);
             projectIds.set(item.id, item.id); stats.projects++;
         }
         for (const item of checked.todos) {
             const projectId = projectIds.get(item.projectId);
             if (db.prepare('SELECT 1 FROM kb_project_todos WHERE id=?').get(item.id)) { stats.skipped++; continue; }
             if (db.prepare('SELECT COUNT(*) AS n FROM kb_project_todos').get().n >= MAX_TODOS) conflict(`导入后超过${MAX_TODOS}条待办限制`);
-            db.prepare('INSERT INTO kb_project_todos(id,project_id,issue,details,status,version,created_at,updated_at,completed_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,?)').run(item.id, projectId, item.issue, item.details, item.status, item.version, item.createdAt, item.updatedAt, item.completedAt, item.archivedAt);
+            db.prepare(`INSERT INTO kb_project_todos(id,project_id,issue,details,status,priority,stage,due_at,assignee,tags_json,
+                version,created_at,updated_at,completed_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+                .run(item.id, projectId, item.issue, item.details, item.status, item.priority, item.stage, item.dueDate,
+                    item.assignee, JSON.stringify(item.tags), item.version, item.createdAt, item.updatedAt, item.completedAt, item.archivedAt);
             stats.todos++;
         }
         sizeAllowed(db, 0);

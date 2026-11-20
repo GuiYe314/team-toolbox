@@ -32,21 +32,20 @@ const routes = [
         component: () => import('../views/DocumentEdit.vue')
     },
     { path: '/kb/sops', name: 'kb-sops', component: () => import('../views/KnowledgeSops.vue') },
-    { path: '/kb/project-todos', name: 'kb-project-todos', component: () => import('../views/ProjectTodos.vue') },
+    { path: '/projects', name: 'project-management', component: () => import('../views/ProjectTodos.vue') },
     { path: '/kb/workbench', name: 'kb-workbench', component: () => import('../views/KnowledgeWorkbench.vue') },
     {
-        // 必须注册在 /kb/:id 之前，否则 "trash" 会被当成文档 id。
         path: '/kb/trash',
         name: 'kb-trash',
         component: () => import('../views/KnowledgeTrash.vue')
     },
     {
-        path: '/kb/:id',
+        path: '/kb/:id(\\d+)',
         name: 'kb-detail',
         component: () => import('../views/DocumentDetail.vue')
     },
     {
-        path: '/kb/:id/edit',
+        path: '/kb/:id(\\d+)/edit',
         name: 'kb-edit',
         component: () => import('../views/DocumentEdit.vue')
     },

@@ -43,6 +43,15 @@
                     </span>
                     <span class="nav-label">知识库</span>
                 </router-link>
+                <router-link id="nav-project-management" to="/projects" class="nav-item" :class="{ 'is-active': $route.name === 'project-management' }">
+                    <span class="nav-icon">
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="16" rx="2" />
+                            <path d="M9 8v8M15 8v5" />
+                        </svg>
+                    </span>
+                    <span class="nav-label">项目管理</span>
+                </router-link>
                 <router-link to="/assets" class="nav-item" :class="{ 'is-active': $route.path.startsWith('/assets') }">
                     <span class="nav-icon">
                         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">

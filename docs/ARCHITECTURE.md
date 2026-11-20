@@ -1,8 +1,8 @@
 # 架构说明（ARCHITECTURE）
 
-## 项目待办（2026-11-19 / TASK-075）
+## 项目管理（TASK-075、TASK-076）
 
-ProjectTodos.vue提供`/kb/project-todos`的项目分组、待办行和编辑/确认弹窗，project-todos-client.js处理专用头、15秒超时及取消；知识库页提供入口与备份范围提示。project-todos-store.js独立管理SQLite迁移012的kb_projects与kb_project_todos，UUID主键、项目外键、规范化唯一名称、实体版本及完成/归档时间；项目非空时拒绝删除，所有写操作事务化，输入与总量有界。
+ProjectTodos.vue 管理 `/projects` 的项目选择、列表、看板、概览和编辑弹窗。知识库文档路由仅匹配数字编号，已移除的项目待办网址由通用页面未找到路由处理。页面从同一个项目快照计算视图和概览。project-todos-client.js 处理专用请求头、15 秒超时和取消。迁移 013 对迁移 012 的两张表追加项目状态及截止日期和待办优先级、截止日期、负责人、标签及处理阶段，保留原 ID、版本和归档时间。任务完成使用原归档字段，恢复沿用原处理阶段。项目状态和待办状态独立。
 
 project-todos-api.js在全局JSON之前注册/api/project-todos，128KiB专用解析器和真实来源/Host/同源校验，错误只记录方法/错误码。内容快照增加可选project_todos与计数，全量ZIP沿用documents.json；导入在整体事务中校验并合并，保留旧数据、重映射同名项目、拒绝无效关联/时间和超额正文。团队数据不写浏览器存储，空旧备份继续兼容。隔离夹具注册同一API，verify-project-todos.mjs使用真实临时SQLite和生产构建验收。
 

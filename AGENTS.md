@@ -34,7 +34,7 @@
 
 ## 前端约定
 
-项目待办（TASK-075）：迁移012仅追加kb_projects/kb_project_todos，服务端持久化、项目/待办独立版本锁、非空项目拒绝删除。完成即归档、恢复清除完成/归档时间；备份可选project_todos须先校验关联/时间/全部限额，再在内容导入整体事务中合并，不覆盖已有内容。API的128KiB解析器在全局之前，保留专用头与真实来源/Host/同源校验；错误不得记录正文。修改后执行project-todos及相关备份/知识库后端测试、前端单元/构建、verify-project-todos和知识工作台/SOP/计算/完整备份隔离回归，禁止触及真实data。
+项目管理（TASK-075、TASK-076）：迁移012保留kb_projects/kb_project_todos，迁移013追加项目状态/截止日期和待办阶段、优先级、截止日期、负责人、标签。服务端持久化、项目/待办独立版本锁、非空项目拒绝删除。完成即归档，恢复保留原处理阶段；备份须校验新增字段并兼容旧备份。主入口为 "/projects"。API的128KiB解析器在全局之前，保留专用头与真实来源/Host/同源校验；错误不得记录正文。修改后执行project-todos及备份/知识库后端测试、前端单元/构建和项目管理隔离浏览器回归，禁止触及真实data。
 
 PrimeVue/Motion（TASK-068）：PrimeVue固定MIT的4.x、unstyled与本地主题适配，公共选择/多选/弹窗放components/ui，中文与pass-through在ui/primevue.js；保持属性原值类型及确认取消后的回显。禁止引入在线主题、PrimeIcons或重复ripple。Motion只用短时tween，集中在ui/motion.js管理并在后台/减少动态/拖拽/卸载停止；不使用退出等待、KeepAlive或第三方画布逐项动效。修改后运行verify-primevue-motion及受影响的计算/知识/分组/排序/玻璃/点击/安卓回归，使用隔离库和浏览器。
 

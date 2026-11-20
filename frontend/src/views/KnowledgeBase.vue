@@ -44,7 +44,6 @@
             <div class="kb-io">
                 <router-link id="kb-workbench" class="btn btn-sm" to="/kb/workbench">知识工作台</router-link>
                 <router-link id="kb-sops" class="btn btn-sm" to="/kb/sops"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 2 2 3-4M11 6h10M3 13l2 2 3-4M11 13h10M3 20l2 2 3-4M11 20h10" /></svg>SOP清单</router-link>
-                <router-link id="kb-project-todos" class="btn btn-sm" to="/kb/project-todos"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h6l2 2h8v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18z" /><path d="M4 8.5h16M8 13h8M8 16h5" /></svg>项目待办</router-link>
                 <!-- 回收站入口：删除是软删，用户需要知道「东西去哪了、还能不能找回」 -->
                 <router-link class="btn btn-sm" to="/kb/trash" title="查看已删除的文档">
                     <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">

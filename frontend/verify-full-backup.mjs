@@ -25,7 +25,9 @@ try {
     const block=saveEntry(f.db,{kind:'block',name:'备份同步块',data:{content:'统一内容'}});
     saveCalculation(f.db,{name:'备份方案',base:'2.58',rate:'0.02',rateMode:'ratio',count:10,precision:6});
     const sop=saveSopTemplate(f.db,{name:'备份流程',description:'',steps:[{id:randomUUID(),text:'核对'}]});startSopRun(f.db,sop.id,{version:sop.version,requestId:randomUUID()});
-    const project=saveProject(f.db,{name:'备份项目',description:'项目说明'}),todo=createTodo(f.db,project.id,{issue:'备份归档问题',details:'待办说明'});setTodoArchived(f.db,todo.id,{version:todo.version,archived:true});
+    const project=saveProject(f.db,{name:'备份项目',description:'项目说明',status:'paused',dueDate:'2026-12-10'});
+    const todo=createTodo(f.db,project.id,{issue:'备份归档问题',details:'待办说明',priority:'urgent',stage:'doing',dueDate:'2026-12-08',assignee:'验收员',tags:['发版']});
+    setTodoArchived(f.db,todo.id,{version:todo.version,archived:true});
     const photo=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==','base64');
     const form=new FormData();form.append('name','备份验收.png');form.append('file',new Blob([photo],{type:'image/png'}),'备份验收.png');
     const uploaded=await fetch(f.base+'/api/assets/upload',{method:'POST',body:form});assert.equal(uploaded.status,201);const asset=await uploaded.json();

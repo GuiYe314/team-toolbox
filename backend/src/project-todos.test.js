@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTestingDatabase } from './db.js';
 import { runMigrations } from './migrate.js';
-import { createTodo, deleteProject, deleteTodo, exportProjectTodos, getTodo, importProjectTodos, listProjectTodos, saveProject, saveTodo, setTodoArchived, validateProjectTodoBackup } from './project-todos-store.js';
+import { createTodo, deleteProject, deleteTodo, exportProjectTodos, getProject, getTodo, importProjectTodos, listProjectTodos, saveProject, saveTodo, setTodoArchived, validateProjectTodoBackup } from './project-todos-store.js';
 import { registerProjectTodosApi } from './project-todos-api.js';
 import { createDocument, exportSnapshot, importSnapshot } from './store.js';
 import { buildFullBackup } from './full-backup.js';
@@ -71,23 +71,36 @@ describe('项目待办层级与自动归档', () => {
         assert.throws(() => deleteProject(db, project.id, project.version), { code: 'conflict' });
         deleteProject(db, project.id, renamed.version);
     });
-    test('从迁移011升级保留旧文档，项目及归档待办重开后仍在', async t => {
+    test('从迁移012升级保留旧文档、ID、版本和归档时间，新增字段有默认值', async t => {
         const root = mkdtempSync(join(tmpdir(), 'tt-project-todo-migration-')), old = join(root, 'migrations'), path = join(root, 'test.sqlite3'), connections = [];
         t.after(() => { for (const db of connections) if (db.open) db.close(); rmSync(root, { recursive: true, force: true }); });
         mkdirSync(old);
         const migrations = fileURLToPath(new URL('./migrations/', import.meta.url));
-        for (const name of readdirSync(migrations).filter(name => /^\d+_.*\.sql$/.test(name) && Number(name.split('_')[0]) <= 11)) copyFileSync(join(migrations, name), join(old, name));
+        for (const name of readdirSync(migrations).filter(name => /^\d+_.*\.sql$/.test(name) && Number(name.split('_')[0]) <= 12)) copyFileSync(join(migrations, name), join(old, name));
         const db = createTestingDatabase({ path }); connections.push(db);
         assert.deepEqual((await runMigrations({ connection: db, migrationsDir: old })).errors, []);
         const note = createDocument({ connection: db, title: '保留原笔记', content_md: '升级前正文' });
-        assert.deepEqual((await runMigrations({ connection: db })).versions, [12]);
+        const projectId = randomUUID(), itemId = randomUUID(), timestamp = '2026-11-19T10:20:30.000Z';
+        db.prepare('INSERT INTO kb_projects(id,name,name_key,version,created_at,updated_at) VALUES(?,?,?,?,?,?)')
+            .run(projectId, '持久化项目', '持久化项目', 2, timestamp, timestamp);
+        db.prepare(`INSERT INTO kb_project_todos(id,project_id,issue,status,version,created_at,updated_at,completed_at,archived_at)
+            VALUES(?,?,?,?,?,?,?,?,?)`).run(itemId, projectId, '升级检查', 'archived', 3, timestamp, timestamp, timestamp, timestamp);
+        assert.deepEqual((await runMigrations({ connection: db })).versions, [13]);
         assert.deepEqual((await runMigrations({ connection: db })).versions, []);
-        const project = saveProject(db, { name: '持久化项目' }), item = createTodo(db, project.id, { issue: '升级检查' });
-        setTodoArchived(db, item.id, { version: item.version, archived: true }); db.close();
+        db.close();
         const reopened = createTestingDatabase({ path }); connections.push(reopened);
         assert.equal(reopened.prepare('SELECT content_md FROM documents WHERE id=?').get(note.id).content_md, '升级前正文');
         assert.equal(listProjectTodos(reopened, { view: 'archived' }).projects[0].todos[0].issue, '升级检查');
-        assert.ok(getTodo(reopened, item.id).archivedAt);
+        const project = getProject(reopened, projectId), item = getTodo(reopened, itemId);
+        assert.equal(project.status, 'active');
+        assert.equal(project.dueDate, null);
+        assert.equal(project.version, 2);
+        assert.equal(item.projectId, projectId);
+        assert.equal(item.version, 3);
+        assert.equal(item.archivedAt, timestamp);
+        assert.equal(item.priority, 'normal');
+        assert.equal(item.stage, 'pending');
+        assert.deepEqual(item.tags, []);
     });
     test('备份合并复用同名项目、ID优先，不覆盖名称/说明或已有待办', async t => {
         const source = await database(t), dest = await database(t);
@@ -106,6 +119,36 @@ describe('项目待办层级与自动归档', () => {
         assert.equal(getTodo(dest, newer.id).projectId, from.id);
         assert.equal(getTodo(dest, newer.id).projectName, 'ID项目改名');
         assert.equal(listProjectTodos(dest).projects.find(item => item.id === oldName.id).todoCount, 0);
+    });
+    test('管理字段随备份往返，旧备份使用默认值，归档恢复保留原处理阶段', async t => {
+        const db = await database(t);
+        const project = saveProject(db, { name: '发布项目', status: 'paused', dueDate: '2028-02-29' });
+        const todo = createTodo(db, project.id, {
+            issue: '检查安装包', priority: 'urgent', stage: 'doing', dueDate: '2028-02-26',
+            assignee: ' 小李 ', tags: [' 验收 ', '发布', '验收']
+        });
+        const archived = setTodoArchived(db, todo.id, { version: todo.version, archived: true });
+        const snapshot = exportSnapshot({ connection: db });
+        const other = await database(t);
+        importSnapshot({ connection: other, snapshot });
+        assert.deepEqual(exportProjectTodos(other), snapshot.project_todos);
+        assert.equal(getProject(other, project.id).status, 'paused');
+        assert.equal(getProject(other, project.id).dueDate, '2028-02-29');
+        const restored = setTodoArchived(other, todo.id, { version: archived.version, archived: false });
+        assert.equal(restored.stage, 'doing');
+        assert.equal(restored.priority, 'urgent');
+        assert.equal(restored.dueDate, '2028-02-26');
+        assert.equal(restored.assignee, '小李');
+        assert.deepEqual(restored.tags, ['验收', '发布']);
+        const oldSnapshot = structuredClone(snapshot);
+        for (const key of ['status', 'dueDate']) delete oldSnapshot.project_todos.projects[0][key];
+        for (const key of ['priority', 'stage', 'dueDate', 'assignee', 'tags']) delete oldSnapshot.project_todos.todos[0][key];
+        const legacy = await database(t);
+        importSnapshot({ connection: legacy, snapshot: oldSnapshot });
+        assert.equal(getProject(legacy, project.id).status, 'active');
+        assert.equal(getTodo(legacy, todo.id).priority, 'normal');
+        assert.equal(getTodo(legacy, todo.id).archivedAt, archived.archivedAt);
+        assert.deepEqual(getTodo(legacy, todo.id).tags, []);
     });
     test('无效归档时间/重复名称被拒，内容导入不留下部分新文档', async t => {
         const db = await database(t), p = saveProject(db, { name: '原项目' }), todo = createTodo(db, p.id, { issue: '问题' });
@@ -149,6 +192,31 @@ describe('项目待办接口', () => {
         const request = (path, method = 'GET', body, headers = {}) => fetch(base + '/api/project-todos' + path, { method, headers: { Origin: base, 'X-Toolbox-Project-Todos': '1', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
         return { db, logs, request, base };
     }
+    test('管理字段经过接口校验，旧请求更新标题时保留扩展字段', async t => {
+        const f = await fixture(t);
+        const created = await f.request('/projects', 'POST', { name: '封版', status: 'planning', dueDate: '2026-12-15' });
+        assert.equal(created.status, 201);
+        const project = await created.json();
+        assert.equal(project.status, 'planning');
+        const base = `/projects/${project.id}`;
+        assert.equal((await f.request(base, 'PUT', { name: '无效日期', version: project.version, dueDate: '2026-02-29' })).status, 400);
+        assert.equal((await f.request(base, 'PUT', { name: '旧客户端改名', version: project.version })).status, 200);
+        assert.equal(getProject(f.db, project.id).dueDate, '2026-12-15');
+        for (const value of [{ priority: 'bad' }, { stage: 'done' }, { tags: '不是数组' }, { assignee: 'x'.repeat(61) }]) {
+            assert.equal((await f.request(base + '/todos', 'POST', { issue: '无效', ...value })).status, 400);
+        }
+        const response = await f.request(base + '/todos', 'POST', {
+            issue: '验证', priority: 'high', stage: 'doing', dueDate: '2026-11-23', assignee: '小李', tags: ['发版']
+        });
+        assert.equal(response.status, 201);
+        const todo = await response.json();
+        const renamed = await (await f.request(`/todos/${todo.id}`, 'PUT', { issue: '改名', version: todo.version })).json();
+        assert.equal(renamed.priority, 'high');
+        assert.equal(renamed.stage, 'doing');
+        assert.equal(renamed.dueDate, '2026-11-23');
+        assert.equal(renamed.assignee, '小李');
+        assert.deepEqual(renamed.tags, ['发版']);
+    });
     test('创建项目/待办、完成自动归档、筛选和恢复', async t => {
         const f = await fixture(t), project = await (await f.request('/projects', 'POST', { name: '发布' })).json();
         const todo = await (await f.request(`/projects/${project.id}/todos`, 'POST', { issue: '检查构建', details: '' })).json();
