@@ -16,7 +16,7 @@ export const TOOLS = Object.freeze([
     { id: 'unity-logs', name: 'Unity 设备日志', desc: '搜索局域网设备，读取与下载 Unity 历史日志', routeName: 'tool-unity-logs', status: '可用', group: 'devices' },
     { id: 'android-wireless', name: '安卓无线调试', desc: '搜索无线设备，六位码配对、连接与设备管理', routeName: 'tool-android-wireless', status: '可用', group: 'devices' },
     { id: 'android-mirror', name: '安卓流畅投屏', desc: 'scrcpy 连续画面、触控、键盘操作和设备控制', routeName: 'tool-android-mirror', status: '可用', group: 'devices' },
-    { id: 'ratio-lock', name: '比例锁定', desc: '锁定宽高比，输入任一侧自动换算另一侧', routeName: 'tool-ratio-lock', status: '可用', group: 'everyday', home: false },
+    { id: 'ratio-lock', name: '比例锁定', desc: '锁定宽高比，输入任一侧自动换算另一侧', routeName: 'tool-ratio-lock', status: '可用', group: 'everyday' },
     { id: 'quick-calculation', name: '快速计算', desc: '计算上下浮动区间、均匀列出数值，保存常用计算方案', routeName: 'tool-quick-calculation', status: '可用', group: 'everyday' },
     { id: 'earth-sunlight', name: '地球光照', desc: '查看当前太阳直射点、昼夜分界和太阳光方向', routeName: 'tool-earth-sunlight', status: '可用', group: 'everyday' },
     { id: 'whiteboard', name: '白板与流程图', desc: '手绘图形、文字和流程图，导出或保存到资源库', routeName: 'tool-whiteboard', status: '可用', group: 'everyday' },

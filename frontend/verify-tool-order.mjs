@@ -88,9 +88,10 @@ try {
     check('只保存工具id顺序', await browser.evaluate(`JSON.stringify(JSON.parse(localStorage.getItem('${key}')))===${JSON.stringify(JSON.stringify(moved))}`));
     await reloadTools();
     check('刷新保留顺序', JSON.stringify(await orderedIds()) === JSON.stringify(moved));
+    await browser.evaluate('localStorage.setItem(\'team-toolbox-home-layout-v1\', JSON.stringify({"version": 1, "shortcuts": ["tool:qrcode", "tool:android-wireless", "tool:yoinks"], "showRecent": false}))');
     await navigate('/', '.page-home');
     const homeNames = await browser.evaluate("[...document.querySelectorAll('.tool-name')].map(e=>e.textContent)");
-    check('首页已有工具跟随相对顺序', homeNames[0] === '安卓无线调试' && homeNames[1] === '视频下载' && homeNames.at(-1) === '二维码生成');
+    check('首页固定项保留独立顺序', JSON.stringify(homeNames) === JSON.stringify(['二维码生成', '安卓无线调试', '视频下载']));
     await navigate('/tools', '.page-tools');
     check('路由切回工具箱保留排序', JSON.stringify(await orderedIds()) === JSON.stringify(moved));
     await browser.click('.tool-order-reset');

@@ -90,9 +90,9 @@ try {
     await delay(220);
     const nav = await pointer('.nav-item[href="/tools"]');
     check('侧栏导航切换保留选中底色与点击反馈', nav && await browser.evaluate("location.pathname==='/tools'&&document.querySelector('.nav-item[href=\"/tools\"]').classList.contains('is-active')"));
-    await browser.click('[data-tool-id="android-wireless"] .btn'); await browser.wait("!!document.querySelector('#adb-commands-toggle')"); await delay(220);
-    const touch = await pointer('#adb-commands-toggle', .3, 'touch');
-    check('原生触摸激活有反馈并只收放一次', touch && await browser.evaluate("document.querySelector('#adb-commands-toggle').getAttribute('aria-expanded')==='false'"));
+    await browser.click('[data-tool-id="android-wireless"] .btn'); await browser.wait("!!document.querySelector('#adb-tab-apk-info')"); await delay(220);
+    const touch = await pointer('#adb-tab-apk-info', .3, 'touch');
+    check('原生触摸激活标签有反馈并切换一次', touch && await browser.evaluate("document.querySelector('#adb-tab-apk-info').getAttribute('aria-selected')==='true' && document.querySelector('#adb-panel-apk-info').checkVisibility()"));
     const tab = await pointer('#tool-tab-toolbox');
     check('工具标签切换有反馈且选中状态保留', tab && await browser.evaluate("location.pathname==='/tools'&&document.querySelector('#tool-tab-toolbox').getAttribute('aria-selected')==='true'"));
     await navigate('/kb/1', '.doc-title');

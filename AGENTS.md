@@ -34,6 +34,8 @@
 
 ## 前端约定
 
+自定义首页（TASK-077）：只在浏览器中保存固定入口 ID、顺序和最近更新开关。默认空白，分组启停与工具箱排序不影响首页固定项。文档标题来自现有页面树。改动后运行 `frontend/verify-home-layout.mjs`、工具排序和分组验收，使用隔离静态服务与合成只读接口。
+
 项目管理（TASK-075、TASK-076）：迁移012保留kb_projects/kb_project_todos，迁移013追加项目状态/截止日期和待办阶段、优先级、截止日期、负责人、标签。服务端持久化、项目/待办独立版本锁、非空项目拒绝删除。完成即归档，恢复保留原处理阶段；备份须校验新增字段并兼容旧备份。主入口为 "/projects"。API的128KiB解析器在全局之前，保留专用头与真实来源/Host/同源校验；错误不得记录正文。修改后执行project-todos及备份/知识库后端测试、前端单元/构建和项目管理隔离浏览器回归，禁止触及真实data。
 
 PrimeVue/Motion（TASK-068）：PrimeVue固定MIT的4.x、unstyled与本地主题适配，公共选择/多选/弹窗放components/ui，中文与pass-through在ui/primevue.js；保持属性原值类型及确认取消后的回显。禁止引入在线主题、PrimeIcons或重复ripple。Motion只用短时tween，集中在ui/motion.js管理并在后台/减少动态/拖拽/卸载停止；不使用退出等待、KeepAlive或第三方画布逐项动效。修改后运行verify-primevue-motion及受影响的计算/知识/分组/排序/玻璃/点击/安卓回归，使用隔离库和浏览器。
@@ -64,6 +66,7 @@ PrimeVue/Motion（TASK-068）：PrimeVue固定MIT的4.x、unstyled与本地主�
 
 | 脚本 | 覆盖 | 对应约定 |
 |---|---|---|
+| `verify-home-layout.mjs` | 首页空状态、入口选择与排序、持久化、失败草稿、最近更新分页、主题与浮层 | 1、2、7 |
 | `verify-click-feedback.mjs` | 按钮/导航/标签的原生指针和键盘反馈、禁用/输入/拖动排除、数量和生命周期清理、弹窗与辅助偏好；临时服务及浏览器 | 1、2、4、14 |
 | `verify-liquid-glass.mjs` | 液态玻璃明暗主题/持久化、1280/1700布局、原生菜单对比度、卡片无嵌套模糊、分组/帮助浮层、键盘焦点及减少动态/透明度；隔离静态服务与临时浏览器 | 1、2、6、7、13 |
 | `verify-video-workshop.mjs` | 视频压制参数/Unity预设、模板保存/重启/改名/冲突/删除、真实批量编码/字幕/失败重试/取消/后台/离页和明暗布局；临时文件与隔离浏览器 | 1、2、7、9 |
@@ -180,7 +183,7 @@ PrimeVue/Motion（TASK-068）：PrimeVue固定MIT的4.x、unstyled与本地主�
 
 ## 安卓调试边界（F-ADB-001）
 
-- 右侧六个工具统一复用 `AndroidToolSection.vue`，默认展开。收放仅隐藏正文，不卸载组件、不取消在途任务，标题保留活动状态；不持久化收放偏好。修改收放时在 `verify-android-wireless.mjs` 检查独立开关、键盘、状态保留、折叠期间任务继续及原离页清理，不得用折叠绕过业务组件的取消规则。
+- 右侧六个工具使用顶部标签，默认选择常用命令。切换时保留组件、选择与结果，安装、屏幕和日志在对应标签显示活动状态。标签只在页面内存中维护。修改后用 `verify-android-wireless.mjs` 检查键盘、状态保留、活动任务、独立滚动和离页清理。
 - ADB 仅在服务器执行，模块 API 按 F-OPS-005 支持 Local/Lan，检查真实连接来源及服务器 Host；保留浏览器来源检查、JSON 和专用请求头要求，不信任代理转发头。仅 `POST /api/android/persistent/upload`、`POST /api/android/apk/inspect`、`POST /api/android/apk/install` 、`POST /api/android/apk/install-batch` 与 `POST /api/android/apk/install-many` 接受带专用头的 `application/octet-stream`，不得放宽其他接口的 JSON 要求。
 - 进程调用使用参数数组、禁用本机 Shell、隐藏窗口、输出限制、超时与取消；自定义命令限 TASK-026 的已保存 ID、版本及确认执行，不增加临时自由执行接口或全局断开。
 - 六位码配对只使用短期缓存的 mDNS 配对服务；二维码配对只匹配当前短期会话生成的随机服务名。六位码与二维码随机口令仅经 stdin 传给 ADB，禁止写入进程参数、文件或日志。二维码内容仅在会话创建响应中返回当前通过访问校验的页面，状态接口不得回传口令。

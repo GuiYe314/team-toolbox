@@ -216,6 +216,10 @@ async function wait(expression) {
 }
 function check(name, value) { assert.ok(value, name); console.log(`PASS ${++checks} - ${name}`); }
 const click = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+async function openToolTab(id) {
+    await click('#adb-tab-' + id);
+    await wait(`document.getElementById('adb-panel-${id}')?.checkVisibility()`);
+}
 const fill = (selector, value) => evaluate(`{const el=document.querySelector(${JSON.stringify(selector)});el.value=${JSON.stringify(value)};el.dispatchEvent(new Event('input',{bubbles:true}));}`);
 const select = (selector, value) => evaluate(`{const el=document.querySelector(${JSON.stringify(selector)});el.value=${JSON.stringify(value)};el.dispatchEvent(new Event('change',{bubbles:true}));}`);
 async function chooseApk(file) {
@@ -248,22 +252,20 @@ try {
     await wait("document.querySelector('#adb-help') && document.querySelector('#adb-refresh')?.disabled");
     check('调试页说明默认收起且不再显示 ADB 选择', !await textIncludes('配对端口与连接端口不同') && !await evaluate("!!document.querySelector('#adb-folder') || !!document.querySelector('[role=dialog]')"));
     check('未配置时设备操作禁用', await evaluate("document.querySelector('#adb-refresh').disabled"));
-    check('APK 安装默认禁用且仅接受 APK 文件', await evaluate("document.querySelector('#adb-apk-install').disabled && document.querySelector('#adb-apk-file').accept.includes('.apk')"));
-    const moduleIds = ['adb-commands', 'adb-apk-info', 'adb-apk', 'adb-persistent', 'adb-screen', 'adb-logcat'];
-    check('六个右侧工具默认展开，按钮关联各自正文及标题', await evaluate(`document.querySelectorAll('.adb-tool-section-toggle').length===6 && ${JSON.stringify(moduleIds)}.every(id=>{const button=document.getElementById(id+'-toggle'),body=document.getElementById(id+'-body');return button?.getAttribute('aria-expanded')==='true' && button.getAttribute('aria-controls')===body?.id && !!document.getElementById(id+'-title') && body.checkVisibility();})`));
+    const moduleIds = ['commands', 'apk-info', 'apk', 'persistent', 'screen', 'logcat'];
+    check('六个工具显示顶部标签，默认只显示常用命令', await evaluate("document.querySelectorAll('.adb-tool-tabs [role=tab]').length===6 && document.querySelector('#adb-tab-commands').getAttribute('aria-selected')==='true' && document.querySelector('#adb-panel-commands').checkVisibility() && !document.querySelector('.adb-tool-tabs select, .adb-tool-section-toggle')"));
     for (const id of moduleIds) {
-        await click(`#${id}-toggle`);
-        check(`${id} 可独立收起，正文隐藏且其他面板保持展开`, await evaluate(`document.getElementById('${id}-toggle').getAttribute('aria-expanded')==='false' && !document.getElementById('${id}-body').checkVisibility() && document.getElementById('${id}-toggle').checkVisibility() && [...document.querySelectorAll('.adb-tool-section-toggle[aria-expanded="true"]')].length===5`));
-        await click(`#${id}-toggle`);
+        await openToolTab(id);
+        check(`可切换到 ${id}，标签与可见面板一一对应`, await evaluate(`[...document.querySelectorAll('.adb-tool-tab')].every(tab=>{const panel=document.getElementById(tab.getAttribute('aria-controls')),active=tab.id==='adb-tab-${id}';return tab.checkVisibility() && (tab.getAttribute('aria-selected')==='true')===active && tab.tabIndex===(active?0:-1) && panel.checkVisibility()===active && panel.getAttribute('aria-labelledby')===tab.id})`));
     }
-    await evaluate("document.querySelector('#adb-commands-toggle').focus()");
-    check('收放按钮可通过键盘聚焦', await evaluate("document.activeElement.id==='adb-commands-toggle'"));
-    for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r', unmodifiedText: '\r' } : {}) });
-    await wait("document.querySelector('#adb-commands-toggle').getAttribute('aria-expanded')==='false'");
-    check('Enter 收起后焦点仍在收放按钮，隐藏正文不再参与布局', await evaluate("document.activeElement.id==='adb-commands-toggle' && document.querySelector('#adb-commands-body').getClientRects().length===0"));
-    for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: ' ', code: 'Space', windowsVirtualKeyCode: 32, ...(type === 'keyDown' ? { text: ' ', unmodifiedText: ' ' } : {}) });
-    await wait("document.querySelector('#adb-commands-toggle').getAttribute('aria-expanded')==='true'");
-    check('Space 可重新展开并保留按钮焦点', await evaluate("document.activeElement.id==='adb-commands-toggle' && document.querySelector('#adb-commands-body').checkVisibility()"));
+    await openToolTab('apk');
+    check('APK 安装默认禁用且仅接受 APK 文件', await evaluate("document.querySelector('#adb-apk-install').disabled && document.querySelector('#adb-apk-file').accept.includes('.apk')"));
+    await evaluate("document.querySelector('#adb-tab-apk').focus()");
+    for (const [key, code, id] of [['ArrowRight', 39, 'persistent'], ['End', 35, 'logcat'], ['ArrowRight', 39, 'commands'], ['ArrowLeft', 37, 'logcat'], ['Home', 36, 'commands']]) {
+        for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: code });
+        await wait(`document.activeElement.id==='adb-tab-${id}' && document.activeElement.getAttribute('aria-selected')==='true'`);
+    }
+    check('左右键及 Home/End 可切换标签并移动焦点', true);
     await click('#adb-help'); await wait("!!document.querySelector('[role=dialog]')");
     check('点击帮助才显示准备、扫码和故障说明', await textIncludes('使用二维码配对设备') && await textIncludes('配对端口与连接端口不同') && await textIncludes('常见问题'));
     check('帮助包含自定义命令用法、持久化与参数范围', await textIncludes('添加自己的常用命令') && await textIncludes('shell dumpsys meminfo') && await textIncludes('最多保存 100 条'));
@@ -374,6 +376,7 @@ try {
     await click('.adb-service button');
     await wait("document.querySelectorAll('.adb-table tbody tr').length===3 && !document.querySelector('#adb-refresh').disabled");
     check('连接成功后自动刷新设备', connected && await textIncludes('无线 ADB'));
+    await openToolTab('apk');
     check('APK 设备只列已在线授权项，未选择时禁用安装', await evaluate("document.querySelectorAll('#adb-apk-device option').length===2 && document.querySelector('#adb-apk-device').value==='' && document.querySelector('#adb-apk-install').disabled"));
     await select('#adb-apk-device', '192.168.1.20:37123');
     await evaluate("{const files=new DataTransfer();files.items.add(new File(['fixture'],'app.aab'));const input=document.querySelector('#adb-apk-file');input.files=files.files;input.dispatchEvent(new Event('change',{bubbles:true}));}");
@@ -386,8 +389,8 @@ try {
     check('APK 选择后先显示文件和设备确认，不自动执行', apkCalls.length === 0 && await evaluate("!!document.querySelector('#adb-apk-confirm') && document.querySelector('.adb-apk-confirm').textContent.includes('应用安装测试.apk') && document.querySelector('.adb-apk-confirm').textContent.includes('192.168.1.20:37123')"));
     await click('#adb-apk-dismiss');
     check('取消 APK 确认保留文件且不执行', apkCalls.length === 0 && await evaluate("!document.querySelector('#adb-apk-confirm') && document.querySelector('#adb-apk-selected').textContent.includes('应用安装测试.apk')"));
-    await click('#adb-apk-toggle'); await click('#adb-apk-toggle');
-    check('APK 收放保留文件选择和目标设备，不触发安装', apkCalls.length === 0 && await evaluate("document.querySelector('#adb-apk-file').files[0]?.name==='应用安装测试.apk' && document.querySelector('#adb-apk-selected').textContent.includes('应用安装测试.apk') && document.querySelector('#adb-apk-device').value==='192.168.1.20:37123'"));
+    await openToolTab('commands'); await openToolTab('apk');
+    check('来回切换 APK 标签保留文件选择和目标设备，不触发安装', apkCalls.length === 0 && await evaluate("document.querySelector('#adb-apk-file').files[0]?.name==='应用安装测试.apk' && document.querySelector('#adb-apk-selected').textContent.includes('应用安装测试.apk') && document.querySelector('#adb-apk-device').value==='192.168.1.20:37123'"));
     await click('#adb-apk-install'); await select('#adb-apk-device', '');
     check('更换 APK 目标清除旧确认', !await evaluate("!!document.querySelector('#adb-apk-confirm')") && apkCalls.length === 0);
     await select('#adb-apk-device', '192.168.1.20:37123'); holdApk = true;
@@ -395,12 +398,12 @@ try {
     await wait("document.querySelector('.adb-apk-progress')?.textContent.includes('通过 ADB 传送安装')");
     for (let attempt = 0; attempt < 100 && !apkCalls.length; attempt++) await delay(50);
     check('上传结束仍等待 ADB 结果，安装期间锁定目标和其他操作', apkCalls.length === 1 && await evaluate("!document.querySelector('#adb-apk-result') && document.querySelector('#adb-apk-device').disabled && document.querySelector('#adb-apk-file').disabled && document.querySelector('#adb-refresh').disabled && !!document.querySelector('#adb-apk-cancel')"));
-    await click('#adb-apk-toggle');
-    check('安装中仍可收起，标题显示安装中且不会取消任务', cancelledApks === 0 && await evaluate("!document.querySelector('#adb-apk-body').checkVisibility() && document.querySelector('.adb-apk .adb-tool-section-head').textContent.includes('安装中')"));
+    await openToolTab('commands');
+    check('切换时安装继续，APK 标签显示安装中', cancelledApks === 0 && await evaluate("!document.querySelector('#adb-panel-apk').checkVisibility() && document.querySelector('#adb-tab-apk').title==='安装中'"));
     holdApk = false; releaseApk();
     await wait("document.querySelector('#adb-apk-result')?.textContent.includes('APK 安装成功') && !document.querySelector('#adb-refresh').disabled");
-    await click('#adb-apk-toggle');
-    check('收起期间安装完成，展开仍可查看成功结果', cancelledApks === 0 && await evaluate("document.querySelector('#adb-apk-result').checkVisibility()"));
+    await openToolTab('apk');
+    check('切回 APK 标签可查看成功结果，活动提示清除', cancelledApks === 0 && await evaluate("document.querySelector('#adb-apk-result').checkVisibility() && !document.querySelector('#adb-tab-apk').title"));
     check('APK 成功显示明确目标，输出 HTML 作为纯文本且临时包清理', apkClean() && await evaluate("document.querySelector('#adb-apk-result').textContent.includes('192.168.1.20:37123') && document.querySelector('#adb-apk-result').textContent.includes('<script>') && !document.querySelector('#adb-apk-result script') && !window.__apkInjected"));
     failApk = true; await click('#adb-apk-install'); await click('#adb-apk-confirm');
     await wait("document.querySelector('#adb-apk-error')?.textContent.includes('INSTALL_FAILED_UPDATE_INCOMPATIBLE') && !document.querySelector('#adb-apk-install').disabled");
@@ -462,14 +465,12 @@ try {
     commandDeviceOffline = false;
     await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 760, deviceScaleFactor: 1, mobile: false });
     for (const theme of ['light', 'dark']) {
-        await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)};{const pane=document.querySelector('.adb-tools-pane'),apk=document.querySelector('.adb-apk');pane.scrollTop=apk.offsetTop-pane.offsetTop;}`);
+        await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)};{const pane=document.querySelector('#adb-panel-apk'),apk=document.querySelector('.adb-apk');pane.scrollTop=apk.offsetTop-pane.offsetTop;}`);
         await delay(300);
         check(`${theme} 批量设备选择与结果在较小窗口可读且无横向溢出`, await evaluate("[...document.querySelectorAll('.adb-apk,.adb-apk-devices,.adb-apk-result-list,.adb-tools-pane')].every(el=>el.scrollWidth<=el.clientWidth+1) && [...document.querySelectorAll('.adb-apk-device-option')].every(el=>{const style=getComputedStyle(el);return style.color!==style.backgroundColor;})"));
-        await evaluate("document.querySelectorAll('.adb-tool-section-toggle[aria-expanded=true]').forEach(button=>button.click())");
-        await wait("[...document.querySelectorAll('.adb-tool-section-body')].every(body=>!body.checkVisibility())");
-        check(`${theme} 六项收起后标题、状态与开关清晰，1280窗口无横向溢出`, await evaluate("[...document.querySelectorAll('.adb-tool-section')].every(section=>section.scrollWidth<=section.clientWidth+1 && section.querySelector('h2').checkVisibility() && section.querySelector('button').checkVisibility()) && [...document.querySelectorAll('.adb-tool-section-toggle')].every(button=>{const style=getComputedStyle(button);return style.color!==style.backgroundColor;}) && document.querySelector('.adb-tools-pane').scrollWidth<=document.querySelector('.adb-tools-pane').clientWidth+1"));
-        writeFileSync(join(root, 'build', `android-tool-sections-${theme}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
-        await evaluate("document.querySelectorAll('.adb-tool-section-toggle[aria-expanded=false]').forEach(button=>button.click())");
+        const tabsFit = await evaluate("{const list=document.querySelector('.adb-tool-tabs'),bounds=list.getBoundingClientRect();[...list.children].every(tab=>{const rect=tab.getBoundingClientRect();return tab.checkVisibility()&&rect.left>=bounds.left&&rect.right<=bounds.right&&rect.top===list.firstElementChild.getBoundingClientRect().top;}) && list.scrollWidth<=list.clientWidth+1;}");
+        check(`${theme} 1280 宽度下六个顶部标签同排显示`, tabsFit);
+        writeFileSync(join(root, 'build', `android-tool-tabs-${theme}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
         writeFileSync(join(root, 'build', `android-apk-batch-${theme}.png`), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
     }
     await send('Emulation.clearDeviceMetricsOverride');
@@ -502,7 +503,7 @@ try {
     await click('#adb-command-run'); await wait("!!document.querySelector('#adb-command-output')");
     check('内存命令仅执行于所选设备并展示快照', JSON.stringify(commandCalls.at(-1)) === JSON.stringify(['-s', '192.168.1.20:37123', 'shell', 'dumpsys', 'meminfo']) && await textIncludes('Total RAM: 8,000,000K'));
     check('命令输出中的 HTML 作为文本展示', await evaluate("!window.__adbInjected && !document.querySelector('#adb-command-output script') && document.querySelector('#adb-command-output').textContent.includes('<script>')"));
-    await evaluate("document.querySelector('.adb-tools-pane').scrollTop=0");
+    await evaluate("document.querySelector('#adb-panel-commands').scrollTop=0");
     writeFileSync(join(root, 'build', 'android-commands.png'), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
     failCommand = true; await click('#adb-command-run');
     await wait("document.body.textContent.includes('设备暂时拒绝命令') && !document.querySelector('#adb-command-run').disabled");
@@ -518,8 +519,8 @@ try {
     await select('#adb-command-select', 'cpu'); await click('#adb-command-run');
     await wait("document.querySelector('#adb-command-output')?.textContent.includes('12% TOTAL') && !document.querySelector('#adb-command-run').disabled");
     check('CPU 使用展示设备提供的采样快照', JSON.stringify(commandCalls.at(-1)) === JSON.stringify(['-s', '192.168.1.20:37123', 'shell', 'dumpsys', 'cpuinfo']));
-    await click('#adb-commands-toggle'); await click('#adb-commands-toggle');
-    check('常用命令收放保留设备、命令和已有输出', await evaluate("document.querySelector('#adb-command-device').value==='192.168.1.20:37123' && document.querySelector('#adb-command-select').value==='cpu' && document.querySelector('#adb-command-output').textContent.includes('12% TOTAL')"));
+    await openToolTab('screen'); await openToolTab('commands');
+    check('来回切换常用命令标签保留设备、命令和已有输出', await evaluate("document.querySelector('#adb-command-device').value==='192.168.1.20:37123' && document.querySelector('#adb-command-select').value==='cpu' && document.querySelector('#adb-command-output').textContent.includes('12% TOTAL')"));
     await select('#adb-command-select', 'lock-home');
     await wait("document.querySelectorAll('#adb-home-select option').length===3 && !document.querySelector('#adb-home-refresh').disabled");
     check('锁定程序读取当前用户与 HOME 候选，未选择时禁用执行', homeWrites.length === 0 && await evaluate("document.querySelector('#adb-command-run').disabled && document.querySelector('#adb-home-select').value==='' && document.querySelector('#adb-home-current').textContent.includes('当前用户：10') && document.querySelector('#adb-home-current').textContent.includes('com.android.launcher')"));
@@ -528,8 +529,8 @@ try {
     await select('#adb-home-select', 'com.example.kiosk/com.example.kiosk.Home');
     await click('#adb-command-run'); await wait("!!document.querySelector('#adb-command-confirm')");
     check('设置前确认具体设备、当前用户和规范组件，确认前不修改', homeWrites.length === 0 && await evaluate("document.querySelector('.adb-command-confirm').textContent.includes('192.168.1.20:37123') && document.querySelector('.adb-command-confirm').textContent.includes('--user 10 com.example.kiosk/com.example.kiosk.Home')"));
-    await evaluate("{const p=document.querySelector('.adb-tools-pane'),c=document.querySelector('.adb-command-confirm');p.scrollTop+=Math.max(0,c.getBoundingClientRect().bottom-p.getBoundingClientRect().bottom);}");
-    check('默认桌面确认区可滚动到完整显示操作按钮', await evaluate("{const c=document.querySelector('#adb-command-confirm').getBoundingClientRect(),p=document.querySelector('.adb-tools-pane').getBoundingClientRect();c.top>=p.top && c.bottom<=p.bottom+1;}"));
+    await evaluate("{const p=document.querySelector('#adb-panel-commands'),c=document.querySelector('.adb-command-confirm');p.scrollTop+=Math.max(0,c.getBoundingClientRect().bottom-p.getBoundingClientRect().bottom);}");
+    check('默认桌面确认区可滚动到完整显示操作按钮', await evaluate("{const c=document.querySelector('#adb-command-confirm').getBoundingClientRect(),p=document.querySelector('#adb-panel-commands').getBoundingClientRect();c.top>=p.top && c.bottom<=p.bottom+1;}"));
     writeFileSync(join(root, 'build', 'android-home-confirm.png'), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
     await click('#adb-command-cancel');
     check('取消锁定不修改默认桌面并保留选择', homeWrites.length === 0 && phoneHome.current === 'com.android.launcher/.Launcher' && await evaluate("document.querySelector('#adb-home-select').value.includes('kiosk')"));
@@ -623,19 +624,20 @@ try {
     await click('#adb-command-delete'); await click('#adb-command-delete-confirm'); await wait("document.querySelectorAll('#adb-command-select option').length===6 && !document.querySelector('#adb-command-add').disabled");
     check('确认删除只移除自定义命令，内置及设备保持', !service.commands().commands.some(command => command.custom) && connected && await evaluate("document.querySelector('#adb-command-select').value==='lock-home' && document.querySelector('#adb-command-edit').disabled"));
     await select('#adb-command-select', 'memory');
+    await openToolTab('logcat');
     check('日志采集要求主动选择在线设备', await evaluate("document.querySelector('#adb-log-start').disabled && document.querySelectorAll('#adb-log-device option').length===2"));
     await select('#adb-log-device', '192.168.1.20:37123'); await click('#adb-log-start');
     await wait("document.querySelectorAll('.adb-logcat-line').length===3 && !document.querySelector('#adb-refresh').disabled");
     check('实时读取所选设备 Logcat 并展示时间、级别和标签', logcatChildren.at(-1).args[1] === '192.168.1.20:37123' && await textIncludes('AndroidRuntime') && await textIncludes('12:34:56.789'));
     check('设备日志中的 HTML 作为文本展示', await evaluate("!window.__logInjected && !document.querySelector('#adb-log-output script') && document.querySelector('#adb-log-output').textContent.includes('<script>')"));
-    const foldingLogChild = logcatChildren.at(-1), foldingLogCount = logcatChildren.length;
-    await click('#adb-logcat-toggle'); foldingLogChild.stdout.write(logLine('log while collapsed'));
-    await wait("document.querySelector('#adb-log-output').textContent.includes('log while collapsed')");
-    check('日志收起后继续采集且标题仍显示采集中', !foldingLogChild.killed && logcatChildren.length === foldingLogCount && await evaluate("!document.querySelector('#adb-logcat-body').checkVisibility() && document.querySelector('.adb-logcat-badge').checkVisibility() && document.querySelector('.adb-logcat-badge').textContent==='采集中'"));
-    await click('#adb-logcat-toggle');
-    check('日志展开保留设备、原日志及收起期间的新日志', await evaluate("document.querySelector('#adb-log-device').value==='192.168.1.20:37123' && document.querySelector('#adb-log-output').checkVisibility() && document.querySelector('#adb-log-output').textContent.includes('log while collapsed') && document.querySelector('#adb-log-output').textContent.includes('AndroidRuntime')"));
+    const activeLogChild = logcatChildren.at(-1), activeLogCount = logcatChildren.length;
+    await openToolTab('commands'); activeLogChild.stdout.write(logLine('log while hidden'));
+    await wait("document.querySelector('#adb-log-output').textContent.includes('log while hidden')");
+    check('切离设备日志标签后继续采集，标签显示采集中', !activeLogChild.killed && logcatChildren.length === activeLogCount && await evaluate("!document.querySelector('#adb-panel-logcat').checkVisibility() && document.querySelector('#adb-tab-logcat').title==='采集中'"));
     await click('#adb-command-run'); await wait("!!document.querySelector('#adb-command-output')");
-    check('采集日志时仍可执行指定设备的常用命令', !logcatChildren.at(-1).killed && await evaluate("!!document.querySelector('#adb-log-stop')"));
+    check('采集日志时仍可执行指定设备的常用命令', !activeLogChild.killed);
+    await openToolTab('logcat');
+    check('切回设备日志保留设备和切换期间的新日志', await evaluate("document.querySelector('#adb-log-device').value==='192.168.1.20:37123' && document.querySelector('#adb-log-output').checkVisibility() && document.querySelector('#adb-log-output').textContent.includes('log while hidden') && document.querySelector('#adb-log-output').textContent.includes('AndroidRuntime')"));
     await select('#adb-log-level', 'E');
     check('日志最低级别筛选只显示错误及以上', await evaluate("document.querySelectorAll('.adb-logcat-line').length===1 && !!document.querySelector('.adb-log-level-E')"));
     await fill('#adb-log-search', 'missing-keyword');
@@ -646,7 +648,7 @@ try {
     logcatChildren.at(-1).stdout.write(logLine('new after clear'));
     await wait("document.querySelector('#adb-log-output').textContent.includes('new after clear')");
     check('清空后继续接收新日志，不重复旧记录', await evaluate("document.querySelectorAll('.adb-logcat-line').length===1 && !document.querySelector('#adb-log-output').textContent.includes('fixture info')"));
-    await evaluate("{const p=document.querySelector('.adb-tools-pane');p.scrollTop=p.scrollHeight;}");
+    await evaluate("{const p=document.querySelector('#adb-panel-logcat');p.scrollTop=p.scrollHeight;}");
     writeFileSync(join(root, 'build', 'android-logcat.png'), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
     await click('#adb-log-stop'); await wait("!!document.querySelector('#adb-log-start') && !document.querySelector('#adb-log-start').disabled");
     check('停止日志会终止进程并保留当前内容', logcatChildren.at(-1).killed && await textIncludes('new after clear'));
@@ -688,7 +690,7 @@ try {
     appChild.stdout.write(logLine('app restarted new PID', 'I', 'Unity', '8888') + logLine('reused old PID ignored', 'I', 'Other', '1234'));
     await wait("document.querySelector('#adb-log-output').textContent.includes('app restarted new PID')");
     check('应用重启后跟随新 PID 并排除旧 PID', await evaluate("document.querySelectorAll('.adb-logcat-line').length===5 && !document.querySelector('#adb-log-output').textContent.includes('reused old PID ignored')"));
-    await evaluate("{const p=document.querySelector('.adb-tools-pane');p.scrollTop=document.querySelector('.adb-logcat').offsetTop-p.offsetTop;}");
+    await evaluate("{const p=document.querySelector('#adb-panel-logcat');p.scrollTop=document.querySelector('.adb-logcat').offsetTop-p.offsetTop;}");
     writeFileSync(join(root, 'build', 'android-app-logcat.png'), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
     await fill('#adb-app-search', ''); await select('#adb-app-select', 'com.example.other');
     await wait("document.querySelector('#adb-app-state').textContent.includes('未运行') && !document.querySelector('#adb-log-start').disabled");
@@ -704,6 +706,7 @@ try {
     check('应用列表失败后可以重试', true);
     await select('#adb-log-scope', 'device');
     await wait("!document.querySelector('#adb-app-select') && !document.querySelector('#adb-log-start').disabled");
+    await openToolTab('screen');
     check('屏幕预览默认不读取，要求主动选择在线设备', screenChildren.length === 0 && await evaluate("document.querySelector('#adb-screen-refresh').disabled && !document.querySelector('#adb-screen-image') && document.querySelectorAll('#adb-screen-device option').length===2"));
     await evaluate("{window.__screenUrls={created:[],revoked:[]};const create=URL.createObjectURL.bind(URL),revoke=URL.revokeObjectURL.bind(URL);URL.createObjectURL=blob=>{const url=create(blob);window.__screenUrls.created.push(url);return url;};URL.revokeObjectURL=url=>{window.__screenUrls.revoked.push(url);revoke(url);};}");
     await select('#adb-screen-device', '192.168.1.20:37123'); await click('#adb-screen-refresh');
@@ -720,12 +723,12 @@ try {
     check('新画面替换后释放旧图片 URL', await evaluate(`window.__screenUrls.revoked.includes(${JSON.stringify(firstScreenUrl)})`));
     await select('#adb-screen-interval', '1000'); const beforeContinuous = screenChildren.length;
     await click('#adb-screen-start');
-    await click('#adb-screen-toggle');
+    await openToolTab('commands');
     for (let attempt = 0; attempt < 100 && screenChildren.length < beforeContinuous + 3; attempt++) await delay(100);
     check('连续刷新持续读取且请求不重叠', screenChildren.length >= beforeContinuous + 3 && maximumScreens === 1);
-    check('屏幕收起后继续刷新且标题显示状态', await evaluate("!document.querySelector('#adb-screen-body').checkVisibility() && document.querySelector('.adb-screen .adb-tool-section-head').textContent.includes('连续刷新中')"));
-    await click('#adb-screen-toggle');
-    check('屏幕展开保留设备、刷新间隔和最新画面', await evaluate("document.querySelector('#adb-screen-device').value==='192.168.1.20:37123' && document.querySelector('#adb-screen-interval').value==='1000' && document.querySelector('#adb-screen-image').checkVisibility() && document.querySelector('#adb-screen-image').naturalWidth===240"));
+    check('切离手机屏幕标签后继续刷新，标签显示状态', await evaluate("!document.querySelector('#adb-panel-screen').checkVisibility() && document.querySelector('#adb-tab-screen').title==='连续刷新中'"));
+    await openToolTab('screen');
+    check('切回手机屏幕保留设备、刷新间隔和最新画面', await evaluate("document.querySelector('#adb-screen-device').value==='192.168.1.20:37123' && document.querySelector('#adb-screen-interval').value==='1000' && document.querySelector('#adb-screen-image').checkVisibility() && document.querySelector('#adb-screen-image').naturalWidth===240"));
     await click('#adb-screen-stop'); await wait("!!document.querySelector('#adb-screen-start')");
     const stoppedScreens = screenChildren.length; await delay(1300);
     check('停止连续刷新保留最后画面并停止新增请求', screenChildren.length === stoppedScreens && await evaluate("!!document.querySelector('#adb-screen-image') && document.querySelector('#adb-screen-info').textContent.includes('显示最后画面')"));
@@ -736,7 +739,7 @@ try {
     await wait("document.querySelector('.adb-screen-error')?.textContent.includes('屏幕读取暂不可用') && !document.querySelector('#adb-screen-refresh').disabled");
     failScreen = false; await click('#adb-screen-refresh'); await wait("!document.querySelector('.adb-screen-error') && !document.querySelector('#adb-screen-refresh').disabled");
     check('屏幕读取失败后可以重试', true);
-    await evaluate("{const p=document.querySelector('.adb-tools-pane');p.scrollTop=document.querySelector('.adb-screen').offsetTop-p.offsetTop;}");
+    await evaluate("{const p=document.querySelector('#adb-panel-screen');p.scrollTop=document.querySelector('.adb-screen').offsetTop-p.offsetTop;}");
     writeFileSync(join(root, 'build', 'android-screen-preview.png'), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
     await click('#adb-screen-clear');
     check('清空画面释放当前与历史图片 URL', await evaluate("!document.querySelector('#adb-screen-image') && window.__screenUrls.created.every(url=>window.__screenUrls.revoked.includes(url))"));
@@ -768,12 +771,13 @@ try {
     await click('#adb-settings-close'); await click('#adb-refresh'); await wait("document.querySelectorAll('#adb-screen-device option').length===2 && !document.querySelector('#adb-screen-device').disabled");
     await select('#adb-screen-device', '192.168.1.20:37123'); const beforeLeavingScreen = screenChildren.length; await click('#adb-screen-start');
     for (let attempt = 0; attempt < 20 && screenChildren.length === beforeLeavingScreen; attempt++) await delay(50);
-    const leavingScreen = screenChildren.at(-1); await click('#adb-screen-toggle'); await click('.view-head > button'); await wait("!!document.querySelector('.tools-grid')");
+    const leavingScreen = screenChildren.at(-1); await openToolTab('commands'); await click('.view-head > button'); await wait("!!document.querySelector('.tools-grid')");
     for (let attempt = 0; attempt < 20 && !leavingScreen.killed; attempt++) await delay(50);
-    check('屏幕面板收起后离页仍取消进程并释放 Blob', leavingScreen.killed && await evaluate("window.__screenUrls.created.every(url=>window.__screenUrls.revoked.includes(url))"));
+    check('切离手机屏幕标签后离页仍取消进程并释放 Blob', leavingScreen.killed && await evaluate("window.__screenUrls.created.every(url=>window.__screenUrls.revoked.includes(url))"));
     holdScreen = false;
     await evaluate("[...document.querySelectorAll('.tool-card')].find(el=>el.textContent.includes('安卓无线调试')).querySelector('button').click()");
     await wait("document.querySelectorAll('.adb-table tbody tr').length===3 && !document.querySelector('#adb-refresh').disabled");
+    await openToolTab('logcat');
     await select('#adb-log-device', '192.168.1.20:37123'); await click('#adb-log-start');
     await wait("document.querySelectorAll('.adb-logcat-line').length===3 && !document.querySelector('#adb-refresh').disabled");
     const configChild = logcatChildren.at(-1); await click('#adb-open-settings'); await wait("!!document.querySelector('#adb-folder')");
@@ -782,12 +786,12 @@ try {
     await click('#adb-settings-close'); await click('#adb-refresh'); await wait("document.querySelectorAll('.adb-table tbody tr').length===3");
     await select('#adb-log-device', '192.168.1.20:37123'); await click('#adb-log-start');
     await wait("document.querySelectorAll('.adb-logcat-line').length===3 && !document.querySelector('#adb-refresh').disabled");
-    const leavingLogChild = logcatChildren.at(-1); await click('#adb-logcat-toggle'); await click('.view-head > button'); await wait("!!document.querySelector('.tools-grid')");
+    const leavingLogChild = logcatChildren.at(-1); await openToolTab('commands'); await click('.view-head > button'); await wait("!!document.querySelector('.tools-grid')");
     for (let attempt = 0; attempt < 20 && !leavingLogChild.killed; attempt++) await delay(50);
-    check('日志面板收起后离页仍停止 Logcat 进程', leavingLogChild.killed);
+    check('切离设备日志标签后离页仍停止 Logcat 进程', leavingLogChild.killed);
     await evaluate("[...document.querySelectorAll('.tool-card')].find(el=>el.textContent.includes('安卓无线调试')).querySelector('button').click()");
     await wait("document.querySelectorAll('.adb-table tbody tr').length===3 && !document.querySelector('#adb-refresh').disabled");
-    check('重新进入安卓页面后六个工具恢复默认展开', await evaluate("[...document.querySelectorAll('.adb-tool-section-toggle')].length===6 && [...document.querySelectorAll('.adb-tool-section-toggle')].every(button=>button.getAttribute('aria-expanded')==='true')"));
+    check('重新进入安卓页面后回到常用命令标签', await evaluate("document.querySelector('#adb-tab-commands').getAttribute('aria-selected')==='true' && [...document.querySelectorAll('.adb-tool-panel')].filter(panel=>panel.checkVisibility()).length===1"));
     await click('.adb-table .btn-danger');
     await wait("!!document.querySelector('.adb-confirm')");
     check('断开前明确目标并等待确认', disconnects === 0 && await evaluate("document.querySelector('.adb-confirm').textContent.includes('192.168.1.20:37123')"));
@@ -823,7 +827,7 @@ try {
     await select('#adb-command-device', '192.168.1.20:37123'); await select('#adb-command-select', 'lock-home');
     await wait("document.querySelectorAll('#adb-home-select option').length===3 && !document.querySelector('#adb-home-refresh').disabled");
     for (const theme of ['light', 'dark']) {
-        await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}; document.querySelector('.adb-device-pane').scrollTop=0;document.querySelector('.adb-tools-pane').scrollTop=0`);
+        await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}; document.querySelector('.adb-device-pane').scrollTop=0;document.querySelector('#adb-panel-commands').scrollTop=0`);
         check(`${theme} 主题无横向内容溢出`, await evaluate("{const p=document.querySelector('.adb-page');p.scrollWidth<=p.clientWidth;}"));
         check(`${theme} 下拉文字、选项与选中态对比度至少 4.5`, await evaluate(`{
             const luminance=color=>{const rgb=color.match(/[0-9]+(?:[.][0-9]+)?/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;});return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;};
@@ -843,9 +847,10 @@ try {
         await click('#adb-custom-cancel'); await wait("!document.querySelector('#adb-command-editor-form')");
     }
     await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 760, deviceScaleFactor: 1, mobile: false });
-    check('较小窗口仍保留双栏且内容无横向溢出', await evaluate("{const l=document.querySelector('.adb-device-pane'),r=document.querySelector('.adb-tools-pane');l.getBoundingClientRect().right<=r.getBoundingClientRect().left && [l,r].every(p=>p.scrollWidth<=p.clientWidth+1 && p.scrollHeight>p.clientHeight);}"));
-    await evaluate("{const l=document.querySelector('.adb-device-pane'),r=document.querySelector('.adb-tools-pane');l.scrollTop=l.scrollHeight;r.scrollTop=0;}");
-    check('左右栏独立滚动，设备与日志均可滚动到底部', await evaluate("{const l=document.querySelector('.adb-device-pane'),r=document.querySelector('.adb-tools-pane'),saved=l.scrollTop;r.scrollTop=r.scrollHeight;saved>0 && l.scrollTop===saved && r.scrollTop>0 && document.querySelector('.adb-table').getBoundingClientRect().bottom<=l.getBoundingClientRect().bottom+1 && document.querySelector('#adb-log-output').getBoundingClientRect().bottom<=r.getBoundingClientRect().bottom+1;}"));
+    await openToolTab('logcat');
+    check('较小窗口仍保留双栏且内容无横向溢出', await evaluate("{const l=document.querySelector('.adb-device-pane'),r=document.querySelector('#adb-panel-logcat');l.getBoundingClientRect().right<=r.getBoundingClientRect().left && [l,r].every(p=>p.scrollWidth<=p.clientWidth+1 && p.scrollHeight>p.clientHeight);}"));
+    await evaluate("{const l=document.querySelector('.adb-device-pane'),r=document.querySelector('#adb-panel-logcat');l.scrollTop=l.scrollHeight;r.scrollTop=0;}");
+    check('两栏独立滚动，右侧滚到底部时标签仍固定在顶部', await evaluate("{const l=document.querySelector('.adb-device-pane'),r=document.querySelector('#adb-panel-logcat'),tabs=document.querySelector('.adb-tool-tabs'),saved=l.scrollTop,tabTop=tabs.getBoundingClientRect().top;r.scrollTop=r.scrollHeight;saved>0 && l.scrollTop===saved && r.scrollTop>0 && tabs.getBoundingClientRect().top===tabTop && document.querySelector('.adb-table').getBoundingClientRect().bottom<=l.getBoundingClientRect().bottom+1 && document.querySelector('#adb-log-output').getBoundingClientRect().bottom<=r.getBoundingClientRect().bottom+1;}"));
     await send('Emulation.clearDeviceMetricsOverride');
     await send('Page.navigate', { url: base + '/settings' });
     await wait("!!document.querySelector('.set-page #adb-open-settings') && !document.querySelector('.state-loading')");

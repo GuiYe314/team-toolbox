@@ -116,8 +116,9 @@ try {
     await send('Page.addScriptToEvaluateOnNewDocument', { source: lan
         ? "const original=document.execCommand;document.execCommand=function(command,...args){const result=original.call(this,command,...args);if(command==='copy' && result)window.__copied=document.activeElement?.value;return result;};"
         : "Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{window.__copied=text}},configurable:true});" });
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: 'localStorage.setItem(\'team-toolbox-home-layout-v1\', JSON.stringify({"version": 1, "shortcuts": ["tool:yoinks", "tool:freellmapi", "tool:artcraft"], "showRecent": false}))' });
     await navigate('/');
-    check('首页保留视频下载且移除两项工具', await evaluate("[...document.querySelectorAll('.page-home .tool-card')].some(el=>el.textContent.includes('视频下载'))&&!document.querySelector('.page-home').textContent.includes('FreeLLMAPI')&&!document.querySelector('.page-home').textContent.includes('ArtCraft')"));
+    check('首页展示已固定的视频下载并忽略无效工具', await evaluate("[...document.querySelectorAll('.page-home .tool-card')].some(el=>el.textContent.includes('视频下载'))&&!document.querySelector('.page-home').textContent.includes('FreeLLMAPI')&&!document.querySelector('.page-home').textContent.includes('ArtCraft')"));
     await navigate('/tools'); check('工具箱全部卡片包含视频下载', await evaluate("document.querySelectorAll('.tool-card').length===" + TOOLS.length + "&&!!document.querySelector('[data-tool-id=yoinks]')"));
     await tool('Yoinks'); await wait("location.pathname==='/tools/yoinks'");
     check('未配置组件时提示真实未就绪', await evaluate("document.querySelector('.ext-badge').textContent.includes('未就绪') && document.querySelector('[data-test=video-analyze]').disabled"));

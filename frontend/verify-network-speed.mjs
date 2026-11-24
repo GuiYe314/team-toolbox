@@ -66,9 +66,9 @@ try {
     await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable'); await send('Network.setCacheDisabled', { cacheDisabled: true });
     await send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false });
     // 受控加快一秒轮询，覆盖生命周期；生产代码的采样间隔保持不变。
-    await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__netHidden=false;Object.defineProperty(document,'hidden',{get:()=>window.__netHidden,configurable:true});const originalSetTimeout=window.setTimeout.bind(window);window.setTimeout=(fn,ms,...args)=>originalSetTimeout(fn,ms===1000?80:ms,...args);localStorage.setItem('tt-theme','light');` });
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__netHidden=false;Object.defineProperty(document,'hidden',{get:()=>window.__netHidden,configurable:true});const originalSetTimeout=window.setTimeout.bind(window);window.setTimeout=(fn,ms,...args)=>originalSetTimeout(fn,ms===1000?80:ms,...args);localStorage.setItem('tt-theme','light');localStorage.setItem('team-toolbox-home-layout-v1', JSON.stringify({"version": 1, "shortcuts": ["tool:network-speed"], "showRecent": false}));` });
     await send('Page.navigate', { url: base + '/' }); await wait("[...document.querySelectorAll('.tool-name')].some(e=>e.textContent==='实时网速')");
-    await check('首页提供实时网速入口', await evaluate("[...document.querySelectorAll('.tool-card')].find(e=>e.textContent.includes('实时网速')).textContent.includes('服务器电脑')"));
+    await check('首页提供实时网速入口', await evaluate("[...document.querySelectorAll('.tool-card')].find(e=>e.textContent.includes('实时网速')).textContent.includes('上传、下载速度')"));
     await send('Page.navigate', { url: base + '/tools' }); await wait("[...document.querySelectorAll('.tool-name')].some(e=>e.textContent==='实时网速')");
     await check('工具箱卡片标明可用', await evaluate("[...document.querySelectorAll('.tool-card')].find(e=>e.textContent.includes('实时网速')).textContent.includes('可用')"));
     await evaluate("[...document.querySelectorAll('.tool-card')].find(e=>e.textContent.includes('实时网速')).querySelector('button').click()");

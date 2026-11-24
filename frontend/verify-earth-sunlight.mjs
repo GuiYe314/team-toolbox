@@ -209,8 +209,9 @@ try {
     check('离页回收刷新定时器', await evaluate("window.__solarTimers.size===0"));
     await delay(250);
     check('离页释放 WebGL 上下文、位图及绘制帧', await evaluate("window.__solarContexts.every(g=>g.isContextLost()) && window.__solarBitmaps.size===0 && window.__solarFrames.size===0"));
+    await evaluate('localStorage.setItem(\'team-toolbox-home-layout-v1\', JSON.stringify({"version": 1, "shortcuts": ["tool:earth-sunlight"], "showRecent": false}))');
     await evaluate("document.querySelector('.nav-item[href=\"/\"]').click()"); await wait("!!document.querySelector('.page-home')");
-    check('首页也展示地球光照卡片', await evaluate("[...document.querySelectorAll('.tool-name')].some(e=>e.textContent==='地球光照')"));
+    check('首页展示已固定的地球光照卡片', await evaluate("[...document.querySelectorAll('.tool-name')].some(e=>e.textContent==='地球光照')"));
     // 在同一页面中演练失败、重试与离页，仍不接触真实后端。
     failTextures = true;
     await evaluate("[...document.querySelectorAll('.tool-card')].find(e=>e.textContent.includes('地球光照')).querySelector('button').click()");

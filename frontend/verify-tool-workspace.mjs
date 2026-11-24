@@ -43,8 +43,9 @@ try {
     await browser.click(group('media') + ' .tool-group-fold');
     await browser.click(group('devices') + ' input[role=switch]');
     check('关闭分组隐藏其工具，分组开关仍在', await browser.evaluate(`!document.querySelector('${card('android-wireless')}')&&!document.querySelector('${group('devices')} input').checked`));
+    await browser.evaluate('localStorage.setItem(\'team-toolbox-home-layout-v1\', JSON.stringify({"version": 1, "shortcuts": ["tool:android-wireless", "tool:yoinks", "tool:qrcode"], "showRecent": false}))');
     await navigate('/', "!!document.querySelector('.page-home')");
-    check('首页同步隐藏关闭分组，媒体仍显示且两项旧工具消失', await browser.evaluate("!document.querySelector('.page-home').textContent.includes('安卓无线调试')&&!document.querySelector('.page-home').textContent.includes('FreeLLMAPI')&&!document.querySelector('.page-home').textContent.includes('ArtCraft')&&document.querySelector('.page-home').textContent.includes('视频下载')"));
+    check('关闭工具分组后仍显示首页固定项', await browser.evaluate("document.querySelectorAll('[data-home-shortcut]').length===3 && !!document.querySelector('[data-home-shortcut=\"tool:android-wireless\"]')"));
     await navigate('/tools', "!!document.querySelector('.page-tools')"); await browser.click(group('devices') + ' input[role=switch]');
     check('重新启用恢复设备工具', await browser.evaluate(`!!document.querySelector('${card('android-wireless')}')`));
     await manageGroups();

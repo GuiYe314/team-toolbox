@@ -1,5 +1,5 @@
 <template>
-    <AndroidToolSection class="adb-apk" section-id="adb-apk" title="APK 传送安装" :activity="busy ? (phase === 'upload' ? '上传中' : '安装中') : ''">
+    <AndroidToolSection class="adb-apk" section-id="adb-apk" title="APK 传送安装" :activity="activity">
         <label class="adb-apk-mode"><input id="adb-apk-batch-mode" v-model="batchMode" type="checkbox" :disabled="disabled || busy">多设备安装</label>
         <div class="adb-apk-row">
             <label v-if="!batchMode" for="adb-apk-device">安装设备
@@ -95,10 +95,11 @@ export default {
     name: 'AndroidApkInstaller',
     components: { AndroidToolSection },
     props: { devices: { type: Array, default: () => [] }, disabled: Boolean },
-    emits: ['busy-change'],
+    emits: ['busy-change', 'activity-change'],
     data() { return { serial: '', batchMode: false, selectedSerials: [], file: null, pending: false, busy: false, progress: 0, phase: '', error: '', notice: '', result: null,
         batchResults: [], batchResult: null, batchFileName: '', files: [], retryJobs: [], queueRun: false }; },
     computed: {
+        activity() { return this.busy ? (this.phase === 'upload' ? '上传中' : '安装中') : ''; },
         onlineDevices() { return this.devices.filter(device => device.state === 'device'); },
         target() { return this.onlineDevices.find(device => device.serial === this.serial); },
         targets() { return this.batchMode ? this.selectedSerials.map(serial => this.onlineDevices.find(device => device.serial === serial)).filter(Boolean) : this.target ? [this.target] : []; },
@@ -110,6 +111,7 @@ export default {
         failedSerials() { return [...new Set(this.failedItems.map(item => item.serial))]; }
     },
     watch: {
+        activity(value) { this.$emit('activity-change', value); },
         devices() {
             if (!this.batchMode && !this.target && this.serial) { this.cancel(); this.serial = ''; }
             if (this.batchMode && !this.busy) this.selectedSerials = this.selectedSerials.filter(serial => this.onlineDevices.some(device => device.serial === serial));

@@ -63,6 +63,7 @@ try {
     browser = await testBrowser(temporary); const { send, evaluate, wait, click, select, fill, choose } = browser;
     const base = `http://${pageHost}:${server.address().port}`;
     await send('Page.navigate', { url: base + '/tools/android-wireless' }); await wait("document.querySelector('#adb-refresh') && !document.querySelector('#adb-refresh').disabled");
+    await click('#adb-tab-persistent');
     check('persistent面板默认不读取设备或应用内容', reads === 0 && !await evaluate("!!document.querySelector('#adb-persistent-path')"));
     await click('#adb-refresh'); await wait("document.querySelectorAll('.adb-devices tbody tr').length===2 || document.querySelectorAll('#adb-persistent-device option').length===3");
     await select('#adb-persistent-device', 'PHONE'); await click('#adb-persistent-apps-refresh'); await wait("document.querySelectorAll('#adb-persistent-app option').length===3");

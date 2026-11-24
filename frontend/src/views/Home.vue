@@ -1,12 +1,31 @@
 <template>
     <div class="view-page page-home">
-        <header class="view-head">
-            <h1 class="view-title">团队工具箱</h1>
-            <p class="view-subtitle">首页</p>
+        <header class="view-head home-head">
+            <h1 class="view-title">首页</h1>
+            <button id="edit-home-layout" class="btn" type="button" @click="openEditor">编辑首页</button>
         </header>
 
-        <!-- 最近更新 -->
-        <section class="section">
+        <div v-if="!shortcuts.length && !layout.showRecent" class="empty-state">
+            <p>首页还没有内容</p>
+            <p class="empty-hint">点击“编辑首页”，添加想显示的功能、工具或文档。</p>
+        </div>
+
+        <section v-if="shortcuts.length" class="section">
+            <h2 class="section-title">快捷入口</h2>
+            <div class="tools-grid">
+                <article v-for="item in shortcuts" :key="item.id" class="tool-card" :data-home-shortcut="item.id">
+                    <ToolIcon :tool-id="item.toolId" />
+                    <h3 class="tool-name">{{ item.name }}</h3>
+                    <p class="tool-desc">{{ item.desc }}</p>
+                    <button class="btn btn-sm" type="button" :disabled="item.unavailable"
+                        @click="$router.push({ name: item.routeName, params: item.params })">
+                        {{ item.unavailable ? '无法打开' : '打开' }}
+                    </button>
+                </article>
+            </div>
+        </section>
+
+        <section v-if="layout.showRecent" class="section">
             <h2 class="section-title">最近更新</h2>
 
             <p v-if="loading && recent.length === 0" class="state-loading">加载中…</p>
@@ -63,93 +82,162 @@
             </template>
         </section>
 
-        <!-- 工具卡片 -->
-        <section class="section">
-            <h2 class="section-title">小工具</h2>
-            <p v-if="!tools.length" class="empty-hint">工具分组已关闭，可到工具箱的“管理分组”中重新启用。</p>
-            <div class="tools-grid">
-                <div v-for="tool in tools" :key="tool.id" class="tool-card" :class="{ 'planned': tool.status === 'planned' }">
-                    <div class="tool-card-header">
-                        <ToolIcon :tool-id="tool.id" />
-                        <span class="tool-status" v-if="tool.status === 'planned'">规划中</span>
-                    </div>
-                    <h3 class="tool-name">{{ tool.name }}</h3>
-                    <p class="tool-desc">{{ tool.desc }}</p>
-                    <button class="btn btn-sm" @click="$router.push({ name: tool.routeName })">
-                        {{ tool.status === 'planned' ? '查看详情' : '打开工具' }}
-                    </button>
-                </div>
-            </div>
-        </section>
+        <HomeLayoutEditor
+            v-if="editing"
+            :layout="layout"
+            :documents="documents"
+            :documents-loading="documentsLoading"
+            :documents-error="documentsError"
+            :save-error="saveError"
+            @close="editing = false"
+            @save="saveLayout"
+            @load-documents="loadDocuments"
+        />
     </div>
 </template>
 
 <script>
 import { api } from '../api/client.js';
+import HomeLayoutEditor from '../components/HomeLayoutEditor.vue';
 import ToolIcon from '../components/ToolIcon.vue';
-import { toolWorkspace } from '../stores/tool-workspace.js';
-import { toolIsEnabled } from '../utils/tool-groups.js';
+import { HOME_LAYOUT_KEY, normalizeHomeLayout, readHomeLayout, resolveHomeShortcut, saveHomeLayout } from '../utils/home-layout.js';
+
+const RECENT_LIMIT = 20;
 
 export default {
     name: 'Home',
-    components: { ToolIcon },
+    components: { HomeLayoutEditor, ToolIcon },
     data() {
         return {
-            workspace: toolWorkspace,
-            // F-KB-008：首页最近更新
+            layout: readHomeLayout(),
+            editing: false,
+            saveError: '',
+            documents: new Map(),
+            documentsLoaded: false,
+            documentsLoading: false,
+            documentsError: '',
+            documentsRequest: 0,
             recent: [],
             recentTotal: 0,
-            offset: 0,
-            limit: 20,
             loading: false,
-            error: null
+            error: '',
+            recentRequest: 0,
+            failedRecentOffset: 0
         };
     },
     computed: {
-        tools() { return this.workspace.tools.filter(tool => tool.home !== false && toolIsEnabled(this.workspace.layout, tool.id)).map(tool => ({ ...tool, status: tool.status === '可用' ? 'ready' : 'planned' })); },
+        hasPinnedDocuments() {
+            return this.layout.shortcuts.some(key => key.startsWith('doc:'));
+        },
+        shortcuts() {
+            return this.layout.shortcuts.map(key => {
+                const item = resolveHomeShortcut(key, this.documents);
+                if (item.routeName !== 'kb-detail' || !this.documentsLoaded || this.documents.has(item.params.id)) {
+                    return item;
+                }
+                return { ...item, desc: '文档已移除或不可用', unavailable: true };
+            });
+        },
         hasMore() {
             return this.recent.length < this.recentTotal;
         }
     },
+    watch: {
+        hasPinnedDocuments(pinned) {
+            if (pinned) this.loadDocuments();
+        },
+        'layout.showRecent'(show) {
+            if (show) this.loadRecent();
+            else this.clearRecent();
+        }
+    },
     mounted() {
-        this.loadRecent();
+        window.addEventListener('storage', this.syncLayout);
+        window.addEventListener('kb-changed', this.refreshDocuments);
+        if (this.hasPinnedDocuments) this.loadDocuments();
+        if (this.layout.showRecent) this.loadRecent();
+    },
+    beforeUnmount() {
+        window.removeEventListener('storage', this.syncLayout);
+        window.removeEventListener('kb-changed', this.refreshDocuments);
+        this.documentsRequest++;
+        this.recentRequest++;
     },
     methods: {
-        async loadRecent() {
-            this.offset = 0;
-            this.error = null;
-            this.loading = true;
+        openEditor() {
+            this.saveError = '';
+            this.editing = true;
+        },
+        saveLayout(draft) {
+            const layout = normalizeHomeLayout(draft);
+            if (!saveHomeLayout(layout)) {
+                this.saveError = '无法保存首页，请检查浏览器存储设置后重试。';
+                return;
+            }
+            this.layout = layout;
+            this.editing = false;
+        },
+        syncLayout(event) {
+            if (event.key === HOME_LAYOUT_KEY || event.key === null) this.layout = readHomeLayout();
+        },
+        refreshDocuments() {
+            this.documentsRequest++;
+            this.documentsLoaded = false;
+            this.documentsLoading = false;
+            if (this.hasPinnedDocuments || this.editing) this.loadDocuments();
+            if (this.layout.showRecent) this.loadRecent();
+        },
+        async loadDocuments() {
+            if (this.documentsLoading || this.documentsLoaded) return;
+            const request = ++this.documentsRequest;
+            this.documentsLoading = true;
+            this.documentsError = '';
             try {
-                const { body } = await api.listDocuments(`?limit=${this.limit}&offset=0`);
-                this.recent = (body && body.items) || [];
-                this.recentTotal = (body && body.total) || 0;
-                this.offset = this.recent.length;
-            } catch (e) {
-                this.error = (e && e.message) ? e.message : '网络错误';
-                this.recent = [];
+                const { res, body } = await api.listDocumentTree();
+                if (request !== this.documentsRequest) return;
+                if (!res.ok || !Array.isArray(body?.items)) {
+                    throw new Error(body?.message || '知识库文档加载失败');
+                }
+                this.documents = new Map(body.items.map(doc => [doc.id, doc]));
+                this.documentsLoaded = true;
+            } catch (error) {
+                if (request === this.documentsRequest) this.documentsError = error.message;
             } finally {
-                this.loading = false;
+                if (request === this.documentsRequest) this.documentsLoading = false;
             }
         },
-        async loadMore() {
-            if (this.loading || !this.hasMore) return;
+        clearRecent() {
+            this.recentRequest++;
+            this.recent = [];
+            this.recentTotal = 0;
+            this.loading = false;
+            this.error = '';
+        },
+        async loadRecent(offset = 0) {
+            const request = ++this.recentRequest;
             this.loading = true;
-            this.error = null;
+            this.error = '';
             try {
-                const { body } = await api.listDocuments(`?limit=${this.limit}&offset=${this.offset}`);
-                const items = (body && body.items) || [];
-                this.recent = this.recent.concat(items);
-                this.recentTotal = (body && body.total) || 0;
-                this.offset = this.offset + items.length;
-            } catch (e) {
-                this.error = (e && e.message) ? e.message : '网络错误';
+                const { res, body } = await api.listDocuments(`?limit=${RECENT_LIMIT}&offset=${offset}`);
+                if (request !== this.recentRequest) return;
+                if (!res.ok || !Array.isArray(body?.items)) {
+                    throw new Error(body?.message || '最近更新加载失败');
+                }
+                this.recent = offset ? this.recent.concat(body.items) : body.items;
+                this.recentTotal = body.total;
+            } catch (error) {
+                if (request !== this.recentRequest) return;
+                this.error = error.message;
+                this.failedRecentOffset = offset;
             } finally {
-                this.loading = false;
+                if (request === this.recentRequest) this.loading = false;
             }
+        },
+        loadMore() {
+            if (!this.loading && this.hasMore) this.loadRecent(this.recent.length);
         },
         retry() {
-            if (this.recent.length === 0) this.loadRecent();
-            else this.loadMore();
+            if (!this.loading) this.loadRecent(this.failedRecentOffset);
         },
         goDoc(id) {
             this.$router.push({ name: 'kb-detail', params: { id } });
@@ -168,9 +256,18 @@ export default {
         }
     }
 };
-</script><style scoped>
+</script>
+
+<style scoped>
 /* 根容器统一用全局 .view-page（自带纵向滚动 + token 内边距），
    这里只做栅格与卡片外观，不再重复写 max-width / padding。*/
+
+.home-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ext-gap-md);
+}
 
 .section {
     flex: none;
@@ -332,10 +429,11 @@ export default {
 /* ── 工具卡片网格：自适应列，窄屏自动降列 ──────────────────────── */
 .tools-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(228px, 100%), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(228px, 100%), 1fr));
     gap: 12px;
 }
 .tool-card {
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -353,25 +451,8 @@ export default {
     border-color: var(--accent-border);
     transform: translateY(var(--surface-hover-offset));
 }
-.tool-card.planned { opacity: 0.82; }
-.tool-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-}
-.tool-status {
-    display: inline-flex;
-    align-items: center;
-    height: 20px;
-    padding: 0 8px;
-    border-radius: var(--radius-pill);
-    background: var(--panel-background-hover);
-    color: var(--text-tertiary);
-    font-size: var(--text-tag);
-    font-weight: var(--weight-medium);
-}
 .tool-name {
+    overflow-wrap: anywhere;
     margin: 2px 0 0;
     font-size: var(--text-doc-title);
     font-weight: var(--weight-semibold);

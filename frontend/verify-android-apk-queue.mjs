@@ -39,7 +39,7 @@ try {
     browser = await testBrowser(temporary); const { send, evaluate, click, wait, select } = browser;
     const choose = async files => { const document = await send('DOM.getDocument'); const node = await send('DOM.querySelector', { nodeId: document.root.nodeId, selector: '#adb-apk-file' }); await send('DOM.setFileInputFiles', { nodeId: node.nodeId, files }); };
     const install = async () => { await click('#adb-apk-install'); await click('#adb-apk-confirm'); };
-    await send('Page.navigate', { url: base + '/tools/android-wireless' }); await wait("document.querySelectorAll('#adb-apk-device option').length===3");
+    await send('Page.navigate', { url: base + '/tools/android-wireless' }); await wait("document.querySelectorAll('#adb-apk-device option').length===3"); await click('#adb-tab-apk');
     check('安装面板允许多选文件，默认不执行', await evaluate("document.querySelector('#adb-apk-file').multiple && document.querySelector('#adb-apk-install').disabled") && !calls.length);
     await select('#adb-apk-device', 'PHONE_A'); await choose([first, second]); await click('#adb-apk-install');
     check('单设备多APK确认列出全部文件、大小和两项任务', await evaluate("document.querySelector('#adb-apk-confirm-files').children.length===2 && document.querySelector('.adb-apk-confirm').textContent.includes('PHONE_A') && document.querySelector('.adb-apk-confirm').textContent.includes('2 个安装项')") && !calls.length);
@@ -68,7 +68,7 @@ try {
     await install(); await wait("document.querySelectorAll('.adb-apk-result-list [data-status=installing]').length===2"); await evaluate("Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'))"); await idle();
     check('进入后台取消整批安装并阻止迟到回填', cancelled === 4); await evaluate("Object.defineProperty(document,'hidden',{configurable:true,value:false})");
     await install(); await wait("document.querySelectorAll('.adb-apk-result-list [data-status=installing]').length===2"); await click('a[href="/tools"]'); await idle(); check('离页终止全部线程并清理临时包', cancelled === 6);
-    hold = false; await send('Page.navigate', { url: base + '/tools/android-wireless' }); await wait("document.querySelectorAll('#adb-apk-device option').length===3");
+    hold = false; await send('Page.navigate', { url: base + '/tools/android-wireless' }); await wait("document.querySelectorAll('#adb-apk-device option').length===3"); await click('#adb-tab-apk');
     check('重新进入不保留旧文件、目标或队列', await evaluate("!document.querySelector('#adb-apk-batch-results') && document.querySelector('#adb-apk-file').files.length===0 && document.querySelector('#adb-apk-device').value===''") );
     await select('#adb-apk-device', 'PHONE_A'); await choose([first, second]); omitSummary = true; await install(); await wait("document.querySelector('#adb-apk-error')?.textContent.includes('完整安装结果') && !document.querySelector('#adb-refresh').disabled");
     check('缺少最终汇总不能声称整批成功，保留已知结果', !await evaluate("!!document.querySelector('#adb-apk-batch-results strong') && document.querySelector('#adb-apk-batch-results strong').textContent.includes('安装结束')"));

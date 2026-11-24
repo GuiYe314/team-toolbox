@@ -1,7 +1,7 @@
 <template>
     <AndroidToolSection class="adb-logcat" section-id="adb-logcat" title="设备日志 Logcat">
         <template #title>设备日志 <span class="adb-logcat-subtitle">Logcat</span></template>
-        <template #status><span class="adb-logcat-badge" :class="{ live: running }">{{ running ? '采集中' : busy || applicationBusy ? '处理中' : '已停止' }}</span></template>
+        <template #status><span class="adb-logcat-badge" :class="{ live: running }">{{ activity || '已停止' }}</span></template>
         <div class="adb-logcat-controls">
             <label for="adb-log-device">日志设备
                 <select id="adb-log-device" v-model="serial" class="input adb-select" :disabled="disabled || busy || applicationBusy">
@@ -36,13 +36,16 @@ import AndroidAppSelector from './AndroidAppSelector.vue';
 import AndroidToolSection from './AndroidToolSection.vue';
 const rank = { V: 0, D: 1, I: 2, W: 3, E: 4, F: 5, A: 5, S: 5 };
 export default {
-    name: 'AndroidLogcat', components: { AndroidAppSelector, AndroidToolSection }, props: { devices: { type: Array, default: () => [] }, disabled: Boolean }, emits: ['busy-change'],
+    name: 'AndroidLogcat', components: { AndroidAppSelector, AndroidToolSection }, props: { devices: { type: Array, default: () => [] }, disabled: Boolean, active: { type: Boolean, default: true } }, emits: ['busy-change', 'activity-change'],
     data() { return { serial: '', scope: 'device', packageName: '', applicationBusy: false, session: null, entries: [], cursor: 0, dropped: 0, level: 'V', levels: ['V', 'D', 'I', 'W', 'E', 'F'], keyword: '', autoScroll: true, running: false, busy: false, error: '', message: '' }; },
     computed: {
+        activity() { return this.running ? '采集中' : this.busy || this.applicationBusy ? '处理中' : ''; },
         onlineDevices() { return this.devices.filter(item => item.state === 'device'); },
         visible() { const query = this.keyword.trim().toLowerCase(); return this.entries.filter(item => (rank[item.level] ?? 2) >= rank[this.level] && (!query || item.raw.toLowerCase().includes(query))); }
     },
     watch: {
+        activity(value) { this.$emit('activity-change', value); },
+        active(value) { if (value) this.$nextTick(this.scrollToLatest); },
         devices() { if (this.serial && !this.onlineDevices.some(item => item.serial === this.serial)) this.serial = ''; },
         serial() { this.release(true); this.packageName = ''; this.error = ''; this.message = ''; },
         scope() { this.release(true); this.packageName = ''; this.error = ''; this.message = ''; }
@@ -69,6 +72,10 @@ export default {
             } catch (error) { if (!this._disposed && revision === this._revision) this.error = error.message; }
             finally { if (!this._disposed && revision === this._revision) { this.busy = false; this.$emit('busy-change', false); } }
         },
+        scrollToLatest() {
+            const viewport = this.$refs.viewport;
+            if (this.active && this.autoScroll && viewport) viewport.scrollTop = viewport.scrollHeight;
+        },
         async poll() {
             if (!this.session || this._disposed) return;
             const id = this.session.id, revision = this._revision; this._pollController = new AbortController();
@@ -79,7 +86,7 @@ export default {
                 this.cursor = Math.max(this.cursor, result.cursor); this.dropped = result.dropped; this.session = result;
                 this.running = result.state === 'running'; this.message = result.message;
                 if (result.state === 'failed') this.error = result.message;
-                await this.$nextTick(); if (this.autoScroll && this.$refs.viewport) this.$refs.viewport.scrollTop = this.$refs.viewport.scrollHeight;
+                await this.$nextTick(); this.scrollToLatest();
                 if (this.running || result.hasMore) this._timer = setTimeout(() => this.poll(), result.hasMore ? 0 : 1000);
             } catch (error) {
                 if (this._disposed || revision !== this._revision || !this.running) return;

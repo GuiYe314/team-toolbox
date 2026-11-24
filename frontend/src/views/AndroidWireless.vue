@@ -88,14 +88,32 @@
                 </div>
             </section>
             </section>
-            <section class="adb-pane adb-tools-pane" aria-labelledby="adb-tools-pane-title">
-            <h2 id="adb-tools-pane-title" class="adb-pane-title">命令、APK、屏幕与日志</h2>
-            <AndroidCommands :devices="devices" :disabled="unavailable || !configured" @busy-change="commandActivityChanged" />
-            <AndroidApkInfo :key="logVersion" :disabled="unavailable" @busy-change="apkInfoActivityChanged" />
-            <AndroidApkInstaller :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="apkActivityChanged" />
-            <AndroidPersistentFiles :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="persistentActivityChanged" />
-            <AndroidScreenPreview :key="logVersion" :devices="devices" :disabled="unavailable || !configured" />
-            <AndroidLogcat :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="logActivityChanged" />
+            <section class="adb-tools-pane" aria-label="安卓调试工具">
+                <div class="adb-tool-tabs" role="tablist" aria-label="右侧功能标签">
+                    <button
+                        v-for="(tab, index) in toolTabs" :key="tab.id" :id="'adb-tab-' + tab.id"
+                        class="btn btn-sm adb-tool-tab" type="button" role="tab"
+                        :aria-selected="activeTool === tab.id" :aria-controls="'adb-panel-' + tab.id"
+                        :tabindex="activeTool === tab.id ? 0 : -1"
+                        :aria-label="toolActivity[tab.id] ? tab.label + '，' + toolActivity[tab.id] : null"
+                        :title="toolActivity[tab.id] || null"
+                        @click="activeTool = tab.id" @keydown="onToolTabKey($event, index)"
+                    >
+                        {{ tab.label }}
+                        <span v-if="toolActivity[tab.id]" class="adb-tool-tab-activity" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <div
+                    v-for="tab in toolTabs" v-show="activeTool === tab.id" :key="tab.id" :id="'adb-panel-' + tab.id"
+                    class="adb-pane adb-tool-panel" role="tabpanel" :aria-labelledby="'adb-tab-' + tab.id"
+                >
+                    <AndroidCommands v-if="tab.id === 'commands'" :devices="devices" :disabled="unavailable || !configured" @busy-change="commandActivityChanged" />
+                    <AndroidApkInfo v-else-if="tab.id === 'apk-info'" :key="logVersion" :disabled="unavailable" @busy-change="apkInfoActivityChanged" />
+                    <AndroidApkInstaller v-else-if="tab.id === 'apk'" :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="apkActivityChanged" @activity-change="toolActivity.apk = $event" />
+                    <AndroidPersistentFiles v-else-if="tab.id === 'persistent'" :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @busy-change="persistentActivityChanged" />
+                    <AndroidScreenPreview v-else-if="tab.id === 'screen'" :key="logVersion" :devices="devices" :disabled="unavailable || !configured" @activity-change="toolActivity.screen = $event" />
+                    <AndroidLogcat v-else :key="logVersion" :devices="devices" :active="activeTool === tab.id" :disabled="unavailable || !configured" @busy-change="logActivityChanged" @activity-change="toolActivity.logcat = $event" />
+                </div>
             </section>
             </div>
             <p v-if="busy" class="adb-muted" role="status">{{ busy }}，请稍候…</p>
@@ -115,18 +133,35 @@ import AndroidApkInstaller from '../components/AndroidApkInstaller.vue';
 import AndroidPersistentFiles from '../components/AndroidPersistentFiles.vue';
 import AndroidApkInfo from '../components/AndroidApkInfo.vue';
 
+const toolTabs = [
+    { id: 'commands', label: '常用命令' },
+    { id: 'apk-info', label: 'APK 包名' },
+    { id: 'apk', label: 'APK 安装' },
+    { id: 'persistent', label: 'Unity 文件' },
+    { id: 'screen', label: '手机屏幕' },
+    { id: 'logcat', label: '设备日志' }
+];
+
 export default {
     name: 'AndroidWireless',
     components: { AndroidQrPairing, AndroidHelp, AndroidCommands, AndroidSettingsDialog, AndroidLogcat, AndroidScreenPreview, AndroidApkInstaller, AndroidPersistentFiles, AndroidApkInfo },
     data() {
-        return { config: null, qrActive: false, settingsActive: false, logVersion: 0, endpoint: '', devices: [], services: [], searched: false, loadedDevices: false,
+        return { toolTabs, activeTool: toolTabs[0].id, toolActivity: {}, config: null, qrActive: false, settingsActive: false, logVersion: 0, endpoint: '', devices: [], services: [], searched: false, loadedDevices: false,
             pairService: null, pairCode: '', pendingDisconnect: '', busy: '', error: '', notice: '', warning: '' };
     },
     computed: { configured() { return !!this.config?.configured; }, unavailable() { return !!this.busy || this.qrActive || this.settingsActive; } },
     mounted() { this._controller = new AbortController(); this.load(); },
     beforeUnmount() { this._disposed = true; this._controller.abort(); this.pairCode = ''; },
     methods: {
-        configurationSaved(config) { this.config = config; this.devices = []; this.services = []; this.searched = false; this.loadedDevices = false; this.pendingDisconnect = ''; this.cancelPair(); this.logVersion++; },
+        onToolTabKey(event, index) {
+            const count = this.toolTabs.length;
+            const next = { ArrowLeft: (index + count - 1) % count, ArrowRight: (index + 1) % count, Home: 0, End: count - 1 }[event.key];
+            if (next === undefined) return;
+            event.preventDefault();
+            this.activeTool = this.toolTabs[next].id;
+            event.currentTarget.parentElement.children[next].focus();
+        },
+        configurationSaved(config) { this.toolActivity = {}; this.config = config; this.devices = []; this.services = []; this.searched = false; this.loadedDevices = false; this.pendingDisconnect = ''; this.cancelPair(); this.logVersion++; },
         logActivityChanged(active) { this.busy = active ? '读取日志设备信息' : ''; },
         commandActivityChanged(active) { this.busy = active ? '执行 ADB 命令' : ''; },
         apkActivityChanged(active) { this.busy = active ? '传送并安装 APK' : ''; },
@@ -184,6 +219,33 @@ export default {
 .adb-page > * { flex-shrink: 0; }
 .adb-workspace { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: var(--page-padding); flex: 1; min-height: 0; }
 .adb-pane { min-width: 0; min-height: 0; overflow-y: auto; padding-right: var(--adb-small-gap); scrollbar-width: thin; scrollbar-color: var(--text-tertiary) transparent; }
+.adb-tools-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.adb-tool-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    flex: none;
+    gap: var(--adb-small-gap);
+    padding: var(--adb-small-gap);
+    margin-bottom: var(--gap-column);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+}
+.adb-tool-tab { position: relative; padding-inline: var(--adb-small-gap); color: var(--text-secondary); }
+.adb-tool-tab[aria-selected="true"] {
+    color: var(--accent);
+    background: var(--selected-material);
+    border-color: var(--accent-border);
+}
+.adb-tool-tab-activity {
+    position: absolute;
+    inset: calc(var(--adb-small-gap) / 2) calc(var(--adb-small-gap) / 2) auto auto;
+    width: var(--adb-small-gap);
+    height: var(--adb-small-gap);
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+}
+.adb-tool-panel { flex: 1; }
 .adb-pane-title { margin: 0 0 var(--gap-column); padding-bottom: var(--gap-column); border-bottom: 1px solid var(--panel-border); font-size: var(--text-section-title); color: var(--text-secondary); }
 .adb-device-serial { display: block; margin-top: var(--adb-small-gap); overflow-wrap: anywhere; }
 .adb-page .view-head, .adb-card, .adb-alert { margin-bottom: var(--gap-column); }

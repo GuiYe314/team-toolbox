@@ -68,20 +68,30 @@ try {
             await browser.evaluate("document.querySelector('[role=dialog]').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))"); await browser.wait("!document.querySelector('[role=dialog]')");
         }
         await navigate('/tools/android-wireless', '.adb-page');
-        await browser.wait("document.querySelectorAll('.adb-tool-section-toggle').length===6&&!!document.querySelector('#adb-command-reload')");
-        await browser.evaluate("document.querySelectorAll('.adb-tool-section-toggle').forEach(button=>button.click())");
-        await browser.wait("document.querySelectorAll('.adb-tool-section-toggle[aria-expanded=false]').length===6");
-        const sections = await browser.evaluate("[...document.querySelectorAll('.adb-tool-section')].map(el=>({title:el.querySelector('h2').textContent,visible:el.querySelector('h2').checkVisibility(),scroll:el.scrollWidth,width:el.clientWidth}))");
-        check(`${theme} 六个收放开关保留原行为和清晰标题 ${JSON.stringify(sections)}`, sections.length === 6 && sections.every(section => section.visible && section.scroll <= section.width + 1));
+        await browser.wait("document.querySelectorAll('.adb-tool-tab').length===6");
+        await browser.click('#adb-tab-apk-info');
+        await browser.wait("document.querySelector('#adb-panel-apk-info').checkVisibility()");
+        const selectedAppearance = `(() => {
+            const tabs = [...document.querySelectorAll('.adb-tool-tab')];
+            const active = tabs.filter(tab => tab.getAttribute('aria-selected') === 'true');
+            if (tabs.length !== 6 || active.length !== 1 || tabs.some(tab => !tab.checkVisibility())) return false;
+            const selected = getComputedStyle(active[0]);
+            return tabs.filter(tab => tab !== active[0]).every(tab => {
+                const style = getComputedStyle(tab);
+                return style.color !== selected.color && style.background !== selected.background;
+            });
+        })()`;
+        await browser.wait(selectedAppearance);
+        check(`${theme} 六个功能标签清晰可见，选中状态可识别`, await browser.evaluate(selectedAppearance));
         await screenshot(`android-${theme}`);
-        await browser.evaluate("document.querySelector('#adb-commands-toggle').focus()");
+        await browser.evaluate("document.querySelector('#adb-tab-apk-info').focus()");
         const focusNode = await browser.send('DOM.getDocument');
-        const focusButton = await browser.send('DOM.querySelector', { nodeId: focusNode.root.nodeId, selector: '#adb-commands-toggle' });
+        const focusButton = await browser.send('DOM.querySelector', { nodeId: focusNode.root.nodeId, selector: '#adb-tab-apk-info' });
         await browser.send('DOM.enable'); await browser.send('CSS.enable');
         await browser.send('CSS.forcePseudoState', { nodeId: focusButton.nodeId, forcedPseudoClasses: ['focus-visible'] });
         await delay(200);
         const focus = await browser.evaluate("({id:document.activeElement.id,shadow:getComputedStyle(document.activeElement).boxShadow,border:getComputedStyle(document.activeElement).borderColor,accent:getComputedStyle(document.documentElement).getPropertyValue('--accent-border').trim()})");
-        check(`${theme} 键盘焦点仍有明确描边 ${JSON.stringify(focus)}`, focus.id === 'adb-commands-toggle' && focus.shadow !== 'none' && JSON.stringify(colorChannels(focus.border)) === JSON.stringify(colorChannels(focus.accent)));
+        check(`${theme} 键盘焦点仍有明确描边 ${JSON.stringify(focus)}`, focus.id === 'adb-tab-apk-info' && focus.shadow !== 'none' && JSON.stringify(colorChannels(focus.border)) === JSON.stringify(colorChannels(focus.accent)));
         await browser.send('CSS.forcePseudoState', { nodeId: focusButton.nodeId, forcedPseudoClasses: [] });
         await browser.click('#adb-help'); await browser.wait("!!document.querySelector('.adb-help-dialog')");
         check(`${theme} 帮助弹窗保持视口定位与可滚动正文`, await browser.evaluate("{const d=document.querySelector('.adb-help-dialog'),r=d.getBoundingClientRect();d.parentElement.parentElement===document.body&&r.top>=0&&r.bottom<=innerHeight&&d.querySelector('.adb-help-body').scrollHeight>d.querySelector('.adb-help-body').clientHeight;}"));

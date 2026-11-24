@@ -153,6 +153,7 @@ check('摘要限 2 行（line-clamp 生效）', clamp && String(clamp.clamp) ===
 check('摘要已渲染到卡片', clamp && clamp.text.length > 0, clamp ? JSON.stringify(clamp.text) : '');
 
 // ── 6. 首页卡片与知识库一致 ──
+await evalJs('localStorage.setItem(\'team-toolbox-home-layout-v1\', JSON.stringify({"version": 1, "shortcuts": [], "showRecent": true}))');
 await goto(`${URL_BASE}/`);
 const home = await evalJs(`(() => {
   const list = document.querySelector('.recent-list');

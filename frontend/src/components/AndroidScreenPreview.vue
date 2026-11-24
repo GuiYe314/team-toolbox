@@ -1,6 +1,6 @@
 <template>
     <AndroidToolSection class="adb-screen" section-id="adb-screen" title="手机屏幕">
-        <template #status><span class="adb-screen-muted">{{ continuous ? '连续刷新中' : busy ? '读取中' : '已停止' }}</span></template>
+        <template #status><span class="adb-screen-muted">{{ activity || '已停止' }}</span></template>
         <div class="adb-screen-controls">
             <label for="adb-screen-device">屏幕设备<select id="adb-screen-device" v-model="serial" class="input adb-select" :disabled="disabled"><option value="" disabled>请选择已连接设备</option><option v-for="device in onlineDevices" :key="device.serial" :value="device.serial">{{ device.model || device.serial }} · {{ device.serial }}</option></select></label>
             <label for="adb-screen-interval">刷新间隔<select id="adb-screen-interval" v-model="interval" class="input adb-select"><option :value="1000">1 秒</option><option :value="2000">2 秒</option><option :value="5000">5 秒</option></select></label>
@@ -30,10 +30,14 @@
 import { androidApi } from '../api/android-client.js';
 import AndroidToolSection from './AndroidToolSection.vue';
 export default {
-    name: 'AndroidScreenPreview', components: { AndroidToolSection }, props: { devices: { type: Array, default: () => [] }, disabled: Boolean },
+    name: 'AndroidScreenPreview', components: { AndroidToolSection }, props: { devices: { type: Array, default: () => [] }, disabled: Boolean }, emits: ['activity-change'],
     data() { return { serial: '', interval: 2000, continuous: false, busy: false, url: '', width: 0, height: 0, capturedAt: '', error: '', enlarged: false }; },
-    computed: { onlineDevices() { return this.devices.filter(device => device.state === 'device'); } },
+    computed: {
+        onlineDevices() { return this.devices.filter(device => device.state === 'device'); },
+        activity() { return this.continuous ? '连续刷新中' : this.busy ? '读取中' : ''; }
+    },
     watch: {
+        activity(value) { this.$emit('activity-change', value); },
         devices() { if (this.serial && !this.onlineDevices.some(device => device.serial === this.serial)) this.serial = ''; },
         serial() { this.stop(true); this.error = ''; }
     },

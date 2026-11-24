@@ -33,6 +33,7 @@ async function untilIdle(){for(let i=0;i<100&&(waiting||(await readdir(temporary
 try{
     browser=await testBrowser(temporary);const {send,evaluate,wait,click,choose}=browser;
     await send('Page.navigate',{url:base+'/tools/android-wireless'});await wait("document.querySelector('#adb-apk-info-file') && !document.querySelector('#adb-apk-info-file').disabled");
+    await click('#adb-tab-apk-info');
     check('无ADB配置/设备时可选择APK，默认不上传或读取',adbCalls===0&&reads===0&&await evaluate("document.querySelector('#adb-apk-info-read').disabled"));
     await choose('#adb-apk-info-file',good);check('选择文件后主动读取，不自动上传',reads===0&&await evaluate("!document.querySelector('#adb-apk-info-read').disabled"));
     await click('#adb-apk-info-read');await wait("document.querySelector('#adb-apk-info-package')?.value==='com.example.unity'");check('真实二进制清单读取并显示包名',reads===1&&adbCalls===0);
